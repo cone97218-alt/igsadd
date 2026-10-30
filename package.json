@@ -1,0 +1,17 @@
+{
+  "name": "igs-tauri-patch",
+  "version": "1.0.0",
+  "description": "TauriTavern patch for Immersive Galgame System (Secondary LLM Director + Rust Storage)",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "purge": "node -e \"fetch('https://purge.jsdelivr.net/gh/Anyno001/IGS_GaLSystem@main/dist/igs-tauri-patch.js').then(r=>r.json()).then(d=>console.log('CDN Purged:', d.status))\""
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "vue": "^3.5.44"
+  }
+}

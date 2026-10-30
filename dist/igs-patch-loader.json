@@ -1,0 +1,17 @@
+{
+  "type": "script",
+  "enabled": true,
+  "name": "IGS-TauriTavern增强补丁 - 在线热更新版",
+  "id": "igs-tauri-patch-hot-loader",
+  "content": "/**\n * IGS TauriTavern 补丁 - 在线热更新引导器\n * 仓库: cone97218-alt/igsadd\n * 特点: 导入一次即可，每次酒馆刷新自动无感拉取 GitHub 上的最新构建！\n */\n(async function loadIgsPatchHot() {\n    const REPO = 'cone97218-alt/igsadd';\n    const BRANCH = 'main';\n    const SCRIPT = 'dist/igs-tauri-patch.js';\n    const ts = Date.now();\n\n    // 1. 尝试获取 GitHub 最新的 Commit SHA 实现零缓存秒更\n    let targetRef = BRANCH;\n    try {\n        const ghRes = await fetch(`https://api.github.com/repos/${REPO}/commits/${BRANCH}?t=${ts}`, {\n            headers: { 'Accept': 'application/vnd.github.v3+json' },\n            cache: 'no-store'\n        });\n        if (ghRes.ok) {\n            const data = await ghRes.json();\n            if (data && data.sha) {\n                targetRef = data.sha;\n            }\n        }\n    } catch (_) { }\n\n    const MIRRORS = [\n        `https://testingcf.jsdelivr.net/gh/${REPO}@${targetRef}/${SCRIPT}?t=${ts}`,\n        `https://fastly.jsdelivr.net/gh/${REPO}@${targetRef}/${SCRIPT}?t=${ts}`,\n        `https://cdn.jsdelivr.net/gh/${REPO}@${targetRef}/${SCRIPT}?t=${ts}`,\n        `https://raw.githubusercontent.com/${REPO}/${targetRef}/${SCRIPT}?t=${ts}`,\n    ];\n\n    let success = false;\n    for (const url of MIRRORS) {\n        try {\n            const res = await fetch(url, { cache: 'no-store' });\n            if (!res.ok) continue;\n            const code = await res.text();\n            if (!code || code.length < 1000) continue;\n\n            const runner = new Function(code);\n            runner();\n            success = true;\n            console.info(`[IGS-Patch] 远程热更就绪 - 版本: ${targetRef.slice(0, 7)} - 节点: ${new URL(url).hostname}`);\n            break;\n        } catch (_) { }\n    }\n\n    if (!success) {\n        console.error('[IGS-Patch] 远程补丁拉取失败，请检查网络连接或 GitHub 仓库。');\n    }\n})();",
+  "info": "IGS TauriTavern 增强补丁 - 在线实时热更新版\n只需在酒馆助手导入一次！每次页面刷新自动从 GitHub/CDN 同步执行最新代码。\n无需重复手动导入或更新文件。",
+  "button": {
+    "enabled": false,
+    "buttons": []
+  },
+  "data": {},
+  "export_with": {
+    "data": true,
+    "button": false
+  }
+}
