@@ -23410,13 +23410,2052 @@ ${codeFrame}` : message);
     `
   };
 
+  // src/ui/resources-modal.js
+  init_state();
+  init_toast();
+
+  // src/ui/resources-styles.js
+  var RESOURCES_MODAL_CSS = `
+/* \u8D44\u6E90\u63A7\u5236\u53F0\u4E13\u5C5E\u6837\u5F0F */
+.igs-resources-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--igs-settings-backdrop, rgba(0,0,0,0.7));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: igsPatchFadeIn 0.2s ease-out;
+  color: var(--igs-settings-ink, #ffffff);
+  box-sizing: border-box;
+}
+
+.igs-resources-overlay *, .igs-resources-overlay *::before, .igs-resources-overlay *::after {
+  box-sizing: border-box;
+}
+
+.igs-resources-window {
+  width: 1040px;
+  max-width: 96vw;
+  height: 86vh;
+  max-height: 880px;
+  background-color: var(--igs-settings-panel, #24292e);
+  border: 1px solid var(--igs-settings-line-strong, rgba(255,255,255,0.15));
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* \u9876\u90E8\u680F */
+.igs-resources-header {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  background-color: var(--igs-settings-surface, #2a3036);
+  flex-shrink: 0;
+  gap: 16px;
+}
+
+.igs-resources-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.igs-resources-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--igs-settings-ink, #ffffff);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.igs-resources-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  max-width: 420px;
+  margin: 0 16px;
+}
+
+.igs-resources-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--igs-settings-field, #1f2428);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  padding: 6px 12px;
+  width: 100%;
+}
+
+.igs-resources-search-input {
+  background: transparent;
+  border: none;
+  color: var(--igs-settings-ink, #fff);
+  font-size: 0.85rem;
+  width: 100%;
+  outline: none;
+}
+
+.igs-resources-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* \u4E3B\u5185\u5BB9\u5E03\u5C40\uFF1A\u5DE6\u4FA7/\u9876\u90E8\u9009\u9879\u5361 + \u5185\u5BB9\u533A */
+.igs-resources-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* \u4FA7\u8FB9\u5BFC\u822A\u680F */
+.igs-resources-nav {
+  width: 140px;
+  flex-shrink: 0;
+  background-color: var(--igs-settings-surface, #2a3036);
+  border-right: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.igs-resources-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.igs-resources-nav-btn:hover {
+  background: var(--igs-settings-hover, rgba(255,255,255,0.06));
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-resources-nav-btn.is-active {
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+}
+
+.igs-resources-nav-btn i {
+  font-size: 15px;
+  width: 18px;
+  text-align: center;
+}
+
+.igs-resources-badge {
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.25);
+  margin-left: auto;
+  font-weight: bold;
+}
+
+/* \u53F3\u4FA7\u5185\u5BB9\u4E3B\u89C6\u53E3 */
+.igs-resources-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* \u6B21\u7EA7\u5DE5\u5177\u680F - CG \u7B5B\u9009\u4E0E\u64CD\u4F5C */
+.igs-resources-subbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.igs-resources-filter-chips {
+  display: flex;
+  gap: 6px;
+}
+
+.igs-resources-chip {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+  background: var(--igs-settings-field, #1f2428);
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.igs-resources-chip.is-active {
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+  border-color: transparent;
+  font-weight: 700;
+}
+
+/* \u5361\u7247\u7F51\u683C\u5E03\u5C40 */
+.igs-resources-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+/* \u5355\u4E2A\u8D44\u6E90\u5361\u7247 */
+.igs-resource-card {
+  background: var(--igs-settings-surface, #2a3036);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  position: relative;
+}
+
+.igs-resource-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--igs-settings-accent, #7fd6ca);
+}
+
+/* \u56FE\u7247\u7F29\u7565\u56FE\u5BB9\u5668 (\u68CB\u76D8\u900F\u660E\u80CC\u666F) */
+.igs-resource-thumb-box {
+  width: 100%;
+  aspect-ratio: 3/4;
+  background-color: #1a1e22;
+  background-image: 
+    linear-gradient(45deg, #15181b 25%, transparent 25%), 
+    linear-gradient(-45deg, #15181b 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #15181b 75%), 
+    linear-gradient(-45deg, transparent 75%, #15181b 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.igs-resource-thumb-box.is-landscape {
+  aspect-ratio: 16/9;
+}
+
+.igs-resource-thumb-box.is-square {
+  aspect-ratio: 1/1;
+}
+
+.igs-resource-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
+
+.igs-resource-card:hover .igs-resource-img {
+  transform: scale(1.04);
+}
+
+.igs-resource-empty-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.3));
+  font-size: 0.8rem;
+}
+
+/* \u5361\u7247\u6D6E\u5C42\u64CD\u4F5C\u6309\u94AE */
+.igs-resource-card-overlay-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.igs-resource-card:hover .igs-resource-card-overlay-actions {
+  opacity: 1;
+}
+
+.igs-icon-tag-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 12px;
+}
+
+.igs-icon-tag-btn:hover {
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+  transform: scale(1.1);
+}
+
+.igs-icon-tag-btn.is-active {
+  color: #ffd166;
+}
+
+/* \u5361\u7247\u5E95\u90E8\u4FE1\u606F */
+.igs-resource-info {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.igs-resource-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.igs-resource-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--igs-settings-ink, #ffffff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.igs-resource-desc {
+  font-size: 0.78rem;
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.5));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+/* \u8868\u60C5\u5DEE\u5206/\u65F6\u6BB5\u5DEE\u5206\u6A2A\u5411\u5217\u8868 */
+.igs-resource-diff-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--igs-settings-line, rgba(255,255,255,0.06));
+}
+
+.igs-resource-diff-tag {
+  font-size: 0.74rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--igs-settings-field, #1f2428);
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.igs-resource-diff-tag:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #fff);
+}
+
+.igs-resource-diff-tag.is-active {
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+  font-weight: 600;
+}
+
+/* \u6309\u94AE\u89C4\u8303 */
+.igs-btn-icon-round {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--igs-settings-field, #1f2428);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.8));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.igs-btn-icon-round:hover {
+  background: var(--igs-settings-hover, rgba(255,255,255,0.1));
+  color: var(--igs-settings-ink, #fff);
+}
+
+.igs-btn-primary-compact {
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.15s ease;
+}
+
+.igs-btn-primary-compact:hover {
+  opacity: 0.9;
+}
+
+/* Lightbox \u5927\u56FE\u5168\u5C4F\u67E5\u770B\u5668 */
+.igs-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  animation: igsPatchFadeIn 0.15s ease-out;
+}
+
+.igs-lightbox-topbar {
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0,0,0,0.5);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.igs-lightbox-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.igs-lightbox-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.igs-lightbox-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+  position: relative;
+}
+
+.igs-lightbox-img {
+  max-width: 92vw;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+}
+
+.igs-lightbox-bottombar {
+  padding: 12px 24px;
+  background: rgba(0,0,0,0.6);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.8);
+  max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
+/* \u7F16\u8F91\u4E0E\u65B0\u589E\u5BF9\u8BDD\u6846 */
+.igs-dialog-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.igs-dialog-box {
+  width: 480px;
+  max-width: 90vw;
+  background: var(--igs-settings-panel, #24292e);
+  border: 1px solid var(--igs-settings-line-strong, rgba(255,255,255,0.2));
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.igs-dialog-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--igs-settings-ink, #fff);
+}
+
+.igs-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.igs-form-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+}
+
+.igs-form-input, .igs-form-textarea {
+  background: var(--igs-settings-field, #1f2428);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--igs-settings-ink, #fff);
+  font-size: 0.88rem;
+  outline: none;
+  font-family: inherit;
+}
+
+.igs-form-textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.igs-form-input:focus, .igs-form-textarea:focus {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+}
+
+.igs-file-dropzone {
+  border: 2px dashed var(--igs-settings-line, rgba(255,255,255,0.15));
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.5));
+}
+
+.igs-file-dropzone:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #fff);
+}
+
+.igs-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+/* \u54CD\u5E94\u5F0F\u9002\u914D */
+@media (max-width: 768px) {
+  .igs-resources-body {
+    flex-direction: column;
+  }
+  .igs-resources-nav {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+    padding: 8px;
+  }
+  .igs-resources-nav-btn {
+    padding: 8px 12px;
+    white-space: nowrap;
+    width: auto;
+  }
+  .igs-resources-header-tools {
+    max-width: 160px;
+  }
+}
+`;
+  var stylesInjected = false;
+  function injectResourcesStyles() {
+    if (stylesInjected) return;
+    const docs = [document];
+    try {
+      if (window.parent?.document && !docs.includes(window.parent.document)) docs.push(window.parent.document);
+    } catch (_) {
+    }
+    try {
+      if (window.top?.document && !docs.includes(window.top.document)) docs.push(window.top.document);
+    } catch (_) {
+    }
+    for (const doc2 of docs) {
+      try {
+        if (!doc2.getElementById("igs-patch-resources-styles")) {
+          const styleEl = doc2.createElement("style");
+          styleEl.id = "igs-patch-resources-styles";
+          styleEl.textContent = RESOURCES_MODAL_CSS;
+          doc2.head.appendChild(styleEl);
+        }
+      } catch (_) {
+      }
+    }
+    stylesInjected = true;
+  }
+
+  // src/resources/asset-service.js
+  var STORAGE_KEY_BRIDGE = "igs_bridge_config";
+  var DB_ILLUSTRATIONS = "igs-illustrations";
+  var DB_CG_GALLERY = "igs-cg-gallery";
+  var DB_GENERATED_ASSETS = "igs-generated-assets";
+  function getStorage() {
+    return window.localStorage;
+  }
+  function getRawBridgeConfig() {
+    try {
+      const raw = getStorage().getItem(STORAGE_KEY_BRIDGE);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  function saveRawBridgeConfig(bridge) {
+    try {
+      getStorage().setItem(STORAGE_KEY_BRIDGE, JSON.stringify(bridge));
+      broadcastSettingsUpdated(bridge);
+      return true;
+    } catch (err) {
+      console.warn("[IGS-Patch] \u4FDD\u5B58\u914D\u7F6E\u5931\u8D25:", err);
+      return false;
+    }
+  }
+  function broadcastSettingsUpdated(bridge) {
+    for (const w of getCandidateWindows7()) {
+      try {
+        w.dispatchEvent(new CustomEvent("igs:legacy-settings-updated", { detail: bridge }));
+        if (w.eventSource && typeof w.eventSource.emit === "function") {
+          w.eventSource.emit("igs:legacy-settings-updated", bridge);
+        }
+      } catch (_) {
+      }
+    }
+  }
+  function getCandidateWindows7() {
+    const wins = [window];
+    try {
+      if (window.parent && !wins.includes(window.parent)) wins.push(window.parent);
+    } catch (_) {
+    }
+    try {
+      if (window.top && !wins.includes(window.top)) wins.push(window.top);
+    } catch (_) {
+    }
+    return wins;
+  }
+  function getSceneAssets() {
+    const bridge = getRawBridgeConfig();
+    const assets = bridge.sceneAssets || {};
+    return {
+      characters: assets.characters || {},
+      scenes: assets.scenes || {},
+      wardrobe: assets.wardrobe || {},
+      eventCgs: assets.eventCgs || {},
+      characterDna: assets.characterDna || {},
+      characterOutfits: assets.characterOutfits || {},
+      generated: assets.generated || {}
+    };
+  }
+  function updateSceneAssets(updater) {
+    const bridge = getRawBridgeConfig();
+    if (!bridge.sceneAssets || typeof bridge.sceneAssets !== "object") {
+      bridge.sceneAssets = {};
+    }
+    updater(bridge.sceneAssets);
+    return saveRawBridgeConfig(bridge);
+  }
+  function openDb(name, version2 = 1, onUpgrade = null) {
+    return new Promise((resolve2, reject) => {
+      const req = window.indexedDB.open(name, version2);
+      req.onupgradeneeded = (e) => {
+        if (typeof onUpgrade === "function") onUpgrade(req.result, e);
+      };
+      req.onsuccess = () => resolve2(req.result);
+      req.onerror = () => reject(req.error || new Error(`\u65E0\u6CD5\u6253\u5F00\u6570\u636E\u5E93: ${name}`));
+    });
+  }
+  var resolvedImageCache = /* @__PURE__ */ new Map();
+  async function resolveImageUrl(url) {
+    if (!url || typeof url !== "string") return "";
+    const cleanUrl = url.trim();
+    if (!cleanUrl) return "";
+    if (cleanUrl.startsWith("data:") || cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://") || cleanUrl.startsWith("blob:")) {
+      return cleanUrl;
+    }
+    if (cleanUrl.startsWith("igs-gen:")) {
+      const imageId = cleanUrl.replace("igs-gen:", "");
+      if (resolvedImageCache.has(imageId)) {
+        return resolvedImageCache.get(imageId);
+      }
+      try {
+        const db = await openDb(DB_GENERATED_ASSETS, 1);
+        if (!db.objectStoreNames.contains("images")) {
+          db.close();
+          return "";
+        }
+        const tx = db.transaction("images", "readonly");
+        const store = tx.objectStore("images");
+        const record = await new Promise((res) => {
+          const r = store.get(imageId);
+          r.onsuccess = () => res(r.result);
+          r.onerror = () => res(null);
+        });
+        db.close();
+        if (record && (record.dataUrl || record.originalDataUrl)) {
+          const finalUrl = record.dataUrl || record.originalDataUrl;
+          resolvedImageCache.set(imageId, finalUrl);
+          return finalUrl;
+        }
+      } catch (_) {
+      }
+    }
+    return cleanUrl;
+  }
+  async function listCharacters() {
+    const assets = getSceneAssets();
+    const charsObj = assets.characters || {};
+    const result = [];
+    for (const [name, data] of Object.entries(charsObj)) {
+      if (!name) continue;
+      const charData = data && typeof data === "object" ? data : { base: String(data || "") };
+      const baseRawUrl = charData.base || "";
+      const baseResolved = await resolveImageUrl(baseRawUrl);
+      const moodsObj = charData.moods && typeof charData.moods === "object" ? charData.moods : {};
+      const moodsList = [];
+      for (const [moodName, moodUrl] of Object.entries(moodsObj)) {
+        moodsList.push({
+          name: moodName,
+          rawUrl: moodUrl,
+          resolvedUrl: await resolveImageUrl(moodUrl)
+        });
+      }
+      result.push({
+        name,
+        baseRawUrl,
+        baseResolvedUrl: baseResolved,
+        moodCount: moodsList.length,
+        moods: moodsList,
+        expanded: false
+      });
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+  }
+  function saveCharacter(name, baseRawUrl) {
+    return updateSceneAssets((assets) => {
+      if (!assets.characters) assets.characters = {};
+      if (!assets.characters[name]) {
+        assets.characters[name] = { base: baseRawUrl, moods: {} };
+      } else if (typeof assets.characters[name] === "object") {
+        assets.characters[name].base = baseRawUrl;
+      } else {
+        assets.characters[name] = { base: baseRawUrl, moods: {} };
+      }
+    });
+  }
+  function deleteCharacter(name) {
+    return updateSceneAssets((assets) => {
+      if (assets.characters) {
+        delete assets.characters[name];
+      }
+    });
+  }
+  function saveCharacterMood(characterName, moodName, moodRawUrl) {
+    return updateSceneAssets((assets) => {
+      if (!assets.characters) assets.characters = {};
+      let charObj = assets.characters[characterName];
+      if (!charObj || typeof charObj !== "object") {
+        charObj = { base: "", moods: {} };
+        assets.characters[characterName] = charObj;
+      }
+      if (!charObj.moods) charObj.moods = {};
+      charObj.moods[moodName] = moodRawUrl;
+    });
+  }
+  function deleteCharacterMood(characterName, moodName) {
+    return updateSceneAssets((assets) => {
+      const charObj = assets.characters?.[characterName];
+      if (charObj && charObj.moods) {
+        delete charObj.moods[moodName];
+      }
+    });
+  }
+  async function listScenes() {
+    const assets = getSceneAssets();
+    const scenesObj = assets.scenes || {};
+    const result = [];
+    for (const [name, data] of Object.entries(scenesObj)) {
+      if (!name) continue;
+      const sceneData = data && typeof data === "object" ? data : { url: String(data || "") };
+      const baseRawUrl = sceneData.url || "";
+      const baseResolved = await resolveImageUrl(baseRawUrl);
+      const timesObj = sceneData.times && typeof sceneData.times === "object" ? sceneData.times : {};
+      const timesList = [];
+      for (const [timeName, timeVal] of Object.entries(timesObj)) {
+        const timeRawUrl = typeof timeVal === "string" ? timeVal : timeVal?.url || "";
+        timesList.push({
+          name: timeName,
+          rawUrl: timeRawUrl,
+          resolvedUrl: await resolveImageUrl(timeRawUrl)
+        });
+      }
+      result.push({
+        name,
+        desc: sceneData.desc || "",
+        baseRawUrl,
+        baseResolvedUrl: baseResolved,
+        timeCount: timesList.length,
+        times: timesList,
+        expanded: false
+      });
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+  }
+  function saveScene(name, baseRawUrl, desc = "") {
+    return updateSceneAssets((assets) => {
+      if (!assets.scenes) assets.scenes = {};
+      let scObj = assets.scenes[name];
+      if (!scObj || typeof scObj !== "object") {
+        scObj = { url: baseRawUrl, times: {}, desc };
+        assets.scenes[name] = scObj;
+      } else {
+        scObj.url = baseRawUrl;
+        if (desc !== void 0) scObj.desc = desc;
+      }
+    });
+  }
+  function deleteScene(name) {
+    return updateSceneAssets((assets) => {
+      if (assets.scenes) {
+        delete assets.scenes[name];
+      }
+    });
+  }
+  function saveSceneTime(sceneName, timeName, timeRawUrl) {
+    return updateSceneAssets((assets) => {
+      if (!assets.scenes) assets.scenes = {};
+      let scObj = assets.scenes[sceneName];
+      if (!scObj || typeof scObj !== "object") {
+        scObj = { url: "", times: {}, desc: "" };
+        assets.scenes[sceneName] = scObj;
+      }
+      if (!scObj.times) scObj.times = {};
+      scObj.times[timeName] = timeRawUrl;
+    });
+  }
+  function deleteSceneTime(sceneName, timeName) {
+    return updateSceneAssets((assets) => {
+      const scObj = assets.scenes?.[sceneName];
+      if (scObj && scObj.times) {
+        delete scObj.times[timeName];
+      }
+    });
+  }
+  async function listWardrobe() {
+    const assets = getSceneAssets();
+    const wardrobeObj = assets.wardrobe || {};
+    const result = [];
+    for (const [name, data] of Object.entries(wardrobeObj)) {
+      if (!name) continue;
+      const item = data && typeof data === "object" ? data : {};
+      const rawUrl = item.image || item.url || "";
+      const resolved = await resolveImageUrl(rawUrl);
+      result.push({
+        name,
+        character: item.character || "",
+        prompt: item.prompt || "",
+        scenes: Array.isArray(item.scenes) ? item.scenes : [],
+        rawUrl,
+        resolvedUrl: resolved
+      });
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+  }
+  function saveWardrobeItem(name, itemData) {
+    return updateSceneAssets((assets) => {
+      if (!assets.wardrobe) assets.wardrobe = {};
+      assets.wardrobe[name] = {
+        name,
+        character: itemData.character || "",
+        prompt: itemData.prompt || "",
+        image: itemData.rawUrl || itemData.image || "",
+        scenes: Array.isArray(itemData.scenes) ? itemData.scenes : []
+      };
+    });
+  }
+  function deleteWardrobeItem(name) {
+    return updateSceneAssets((assets) => {
+      if (assets.wardrobe) {
+        delete assets.wardrobe[name];
+      }
+    });
+  }
+  async function listAllCgs(filter = "all") {
+    const list = [];
+    const marksMap = /* @__PURE__ */ new Map();
+    try {
+      const dbMarks = await openDb(DB_CG_GALLERY, 1);
+      if (dbMarks.objectStoreNames.contains("marks")) {
+        const tx = dbMarks.transaction("marks", "readonly");
+        const allMarks = await new Promise((res) => {
+          const req = tx.objectStore("marks").getAll();
+          req.onsuccess = () => res(req.result || []);
+          req.onerror = () => res([]);
+        });
+        for (const m of allMarks) {
+          if (m && m.key) marksMap.set(m.key, m);
+        }
+      }
+      dbMarks.close();
+    } catch (_) {
+    }
+    try {
+      const dbCg = await openDb(DB_ILLUSTRATIONS, 1);
+      if (dbCg.objectStoreNames.contains("slots")) {
+        const tx = dbCg.transaction("slots", "readonly");
+        const allSlots = await new Promise((res) => {
+          const req = tx.objectStore("slots").getAll();
+          req.onsuccess = () => res(req.result || []);
+          req.onerror = () => res([]);
+        });
+        for (const s of allSlots) {
+          if (!s || !s.key) continue;
+          const mark = marksMap.get(s.key) || {};
+          const isHidden = mark.hidden === true;
+          const isFavorite = mark.favorite === true;
+          if (filter === "favorites" && !isFavorite) continue;
+          if (filter === "hidden" && !isHidden) continue;
+          if (filter === "all" && isHidden) continue;
+          const rawDataUrl = s.dataUrl || s.originalDataUrl || "";
+          const parts = String(s.floorKey || "").split("|");
+          const floorNo = parts.length >= 2 ? parts[parts.length - 2] : "";
+          list.push({
+            key: s.key,
+            floorKey: s.floorKey || "",
+            slot: s.slot || 1,
+            label: floorNo ? `\u7B2C ${floorNo} \u697C` : s.key,
+            prompt: s.prompt || s.caption || "",
+            rawUrl: rawDataUrl,
+            resolvedUrl: await resolveImageUrl(rawDataUrl),
+            isFavorite,
+            isHidden,
+            isEventCg: false
+          });
+        }
+      }
+      dbCg.close();
+    } catch (_) {
+    }
+    const assets = getSceneAssets();
+    const eventCgs = assets.eventCgs || {};
+    for (const [name, item] of Object.entries(eventCgs)) {
+      if (!name) continue;
+      const rawUrl = typeof item === "string" ? item : item?.url || "";
+      const isHidden = false;
+      const isFavorite = true;
+      if (filter === "hidden") continue;
+      list.push({
+        key: `event_cg_${name}`,
+        label: name,
+        prompt: item?.desc || name,
+        rawUrl,
+        resolvedUrl: await resolveImageUrl(rawUrl),
+        isFavorite,
+        isHidden,
+        isEventCg: true
+      });
+    }
+    return list.reverse();
+  }
+  async function toggleCgFavorite(cgKey, currentVal) {
+    const nextVal = !currentVal;
+    try {
+      const dbMarks = await openDb(DB_CG_GALLERY, 1, (db) => {
+        if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
+      });
+      const tx = dbMarks.transaction("marks", "readwrite");
+      const store = tx.objectStore("marks");
+      const existing = await new Promise((res) => {
+        const req = store.get(cgKey);
+        req.onsuccess = () => res(req.result || { key: cgKey });
+        req.onerror = () => res({ key: cgKey });
+      });
+      existing.favorite = nextVal;
+      existing.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      store.put(existing);
+      dbMarks.close();
+      return { ok: true, isFavorite: nextVal };
+    } catch (err) {
+      console.warn("[IGS-Patch] \u5207\u6362\u6536\u85CF\u72B6\u6001\u5F02\u5E38:", err);
+      return { ok: false };
+    }
+  }
+  async function toggleCgHidden(cgKey, currentVal) {
+    const nextVal = !currentVal;
+    try {
+      const dbMarks = await openDb(DB_CG_GALLERY, 1, (db) => {
+        if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
+      });
+      const tx = dbMarks.transaction("marks", "readwrite");
+      const store = tx.objectStore("marks");
+      const existing = await new Promise((res) => {
+        const req = store.get(cgKey);
+        req.onsuccess = () => res(req.result || { key: cgKey });
+        req.onerror = () => res({ key: cgKey });
+      });
+      existing.hidden = nextVal;
+      existing.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      store.put(existing);
+      dbMarks.close();
+      return { ok: true, isHidden: nextVal };
+    } catch (err) {
+      console.warn("[IGS-Patch] \u5207\u6362\u9690\u85CF\u72B6\u6001\u5F02\u5E38:", err);
+      return { ok: false };
+    }
+  }
+  async function deleteCg(cgKey, isEventCg = false) {
+    if (isEventCg) {
+      const name = cgKey.replace("event_cg_", "");
+      return updateSceneAssets((assets) => {
+        if (assets.eventCgs) delete assets.eventCgs[name];
+      });
+    }
+    try {
+      const dbCg = await openDb(DB_ILLUSTRATIONS, 1);
+      const tx = dbCg.transaction("slots", "readwrite");
+      tx.objectStore("slots").delete(cgKey);
+      dbCg.close();
+      return true;
+    } catch (err) {
+      console.warn("[IGS-Patch] \u5220\u9664 CG \u5F02\u5E38:", err);
+      return false;
+    }
+  }
+  async function listItems() {
+    const assets = getSceneAssets();
+    const generatedItems = assets.generated?.items || {};
+    const result = [];
+    for (const [name, data] of Object.entries(generatedItems)) {
+      if (!name) continue;
+      const item = data && typeof data === "object" ? data : { url: String(data || "") };
+      const rawUrl = item.url || item.image || "";
+      result.push({
+        name,
+        desc: item.desc || "",
+        rawUrl,
+        resolvedUrl: await resolveImageUrl(rawUrl)
+      });
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+  }
+  function saveItem(name, rawUrl, desc = "") {
+    return updateSceneAssets((assets) => {
+      if (!assets.generated) assets.generated = {};
+      if (!assets.generated.items) assets.generated.items = {};
+      assets.generated.items[name] = { url: rawUrl, desc };
+    });
+  }
+  function deleteItem(name) {
+    return updateSceneAssets((assets) => {
+      if (assets.generated?.items) {
+        delete assets.generated.items[name];
+      }
+    });
+  }
+  async function listStagingAssets() {
+    const list = [];
+    try {
+      const db = await openDb(DB_GENERATED_ASSETS, 1);
+      if (db.objectStoreNames.contains("assets")) {
+        const tx = db.transaction("assets", "readonly");
+        const all = await new Promise((res) => {
+          const req = tx.objectStore("assets").getAll();
+          req.onsuccess = () => res(req.result || []);
+          req.onerror = () => res([]);
+        });
+        for (const item of all) {
+          if (item && item.status === "temp") {
+            const rawUrl = item.imageId ? `igs-gen:${item.imageId}` : item.dataUrl || "";
+            list.push({
+              key: item.key || item.id,
+              type: item.type || "sprite",
+              name: item.name || "\u672A\u547D\u540D",
+              rawUrl,
+              resolvedUrl: await resolveImageUrl(rawUrl)
+            });
+          }
+        }
+      }
+      db.close();
+    } catch (_) {
+    }
+    return list;
+  }
+  async function acceptStagingAsset(item, targetName, targetType) {
+    const resolvedUrl = item.rawUrl;
+    if (targetType === "sprite") {
+      saveCharacter(targetName, resolvedUrl);
+    } else if (targetType === "background") {
+      saveScene(targetName, resolvedUrl);
+    } else if (targetType === "item") {
+      saveItem(targetName, resolvedUrl);
+    }
+    await discardStagingAsset(item.key);
+    return true;
+  }
+  async function discardStagingAsset(key) {
+    try {
+      const db = await openDb(DB_GENERATED_ASSETS, 1);
+      const tx = db.transaction("assets", "readwrite");
+      tx.objectStore("assets").delete(key);
+      db.close();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve2, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve2(reader.result);
+      reader.onerror = () => reject(reader.error || new Error("\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // src/ui/resources-modal.js
+  var isResourcesModalVisible = ref(false);
+  var appInstance2 = null;
+  var containerEl2 = null;
+  function openResourcesModal() {
+    console.info("[IGS-Patch] \u6B63\u5728\u547C\u51FA\u653E\u6620\u8D44\u6E90\u63A7\u5236\u53F0...");
+    injectResourcesStyles();
+    detectAndSyncIgsTheme();
+    ensureMounted2();
+    isResourcesModalVisible.value = true;
+  }
+  function closeResourcesModal() {
+    isResourcesModalVisible.value = false;
+  }
+  function ensureMounted2() {
+    if (appInstance2 && containerEl2 && document.body.contains(containerEl2)) return;
+    injectResourcesStyles();
+    containerEl2 = document.createElement("div");
+    containerEl2.id = "igs-patch-resources-modal-container";
+    document.body.appendChild(containerEl2);
+    appInstance2 = createApp(ResourcesModalRoot);
+    appInstance2.mount(containerEl2);
+  }
+  var ResourcesModalRoot = {
+    setup() {
+      const visible = isResourcesModalVisible;
+      const activeTab = ref("characters");
+      const searchQuery = ref("");
+      const cgFilter = ref("all");
+      const isLoading = ref(false);
+      const characters = ref([]);
+      const scenes = ref([]);
+      const wardrobe = ref([]);
+      const cgs = ref([]);
+      const items = ref([]);
+      const staging = ref([]);
+      const lightbox = reactive({
+        visible: false,
+        title: "",
+        src: "",
+        prompt: "",
+        key: "",
+        isFavorite: false,
+        isHidden: false,
+        isEventCg: false
+      });
+      const editDialog = reactive({
+        visible: false,
+        type: "",
+        // 'char' | 'mood' | 'scene' | 'sceneTime' | 'wardrobe' | 'item'
+        title: "",
+        parentName: "",
+        form: {
+          name: "",
+          desc: "",
+          character: "",
+          prompt: "",
+          scenesText: "",
+          rawUrl: ""
+        }
+      });
+      const confirmDialog = reactive({
+        visible: false,
+        title: "",
+        message: "",
+        onConfirm: null
+      });
+      const themeStyleVars = computed2(() => {
+        return generateThemeCssVariables(patchState.theme);
+      });
+      const loadData = async () => {
+        isLoading.value = true;
+        try {
+          const [charsList, scenesList, wardrobeList, cgsList, itemsList, stagingList] = await Promise.all([
+            listCharacters(),
+            listScenes(),
+            listWardrobe(),
+            listAllCgs(cgFilter.value),
+            listItems(),
+            listStagingAssets()
+          ]);
+          characters.value = charsList;
+          scenes.value = scenesList;
+          wardrobe.value = wardrobeList;
+          cgs.value = cgsList;
+          items.value = itemsList;
+          staging.value = stagingList;
+        } catch (err) {
+          console.warn("[IGS-Patch] \u52A0\u8F7D\u7D20\u6750\u5F02\u5E38:", err);
+        } finally {
+          isLoading.value = false;
+        }
+      };
+      const filteredCharacters = computed2(() => {
+        const q = searchQuery.value.trim().toLowerCase();
+        if (!q) return characters.value;
+        return characters.value.filter((c) => c.name.toLowerCase().includes(q));
+      });
+      const filteredScenes = computed2(() => {
+        const q = searchQuery.value.trim().toLowerCase();
+        if (!q) return scenes.value;
+        return scenes.value.filter((s) => s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q));
+      });
+      const filteredWardrobe = computed2(() => {
+        const q = searchQuery.value.trim().toLowerCase();
+        if (!q) return wardrobe.value;
+        return wardrobe.value.filter((w) => w.name.toLowerCase().includes(q) || w.character.toLowerCase().includes(q) || w.prompt.toLowerCase().includes(q));
+      });
+      const filteredCgs = computed2(() => {
+        const q = searchQuery.value.trim().toLowerCase();
+        if (!q) return cgs.value;
+        return cgs.value.filter((c) => c.label.toLowerCase().includes(q) || c.prompt.toLowerCase().includes(q));
+      });
+      const filteredItems = computed2(() => {
+        const q = searchQuery.value.trim().toLowerCase();
+        if (!q) return items.value;
+        return items.value.filter((i) => i.name.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q));
+      });
+      const filteredStaging = computed2(() => {
+        const q = searchQuery.value.trim().toLowerCase();
+        if (!q) return staging.value;
+        return staging.value.filter((s) => s.name.toLowerCase().includes(q) || s.type.toLowerCase().includes(q));
+      });
+      const openLightbox = (title, src, prompt = "", meta = {}) => {
+        lightbox.title = title;
+        lightbox.src = src;
+        lightbox.prompt = prompt;
+        lightbox.key = meta.key || "";
+        lightbox.isFavorite = meta.isFavorite === true;
+        lightbox.isHidden = meta.isHidden === true;
+        lightbox.isEventCg = meta.isEventCg === true;
+        lightbox.visible = true;
+      };
+      const closeLightbox = () => {
+        lightbox.visible = false;
+      };
+      const handleDownloadImage = (src, title) => {
+        if (!src) return;
+        const a = document.createElement("a");
+        a.href = src;
+        a.download = `${title || "image"}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        notifyToast("\u5DF2\u5F00\u59CB\u4E0B\u8F7D\u56FE\u7247", "info");
+      };
+      const handleCopyPrompt = (prompt) => {
+        if (!prompt) return;
+        navigator.clipboard.writeText(prompt);
+        notifyToast("\u63D0\u793A\u8BCD\u5DF2\u590D\u5236", "info");
+      };
+      const openAddDialog = (type, parent = null) => {
+        editDialog.type = type;
+        editDialog.parentName = parent?.name || "";
+        editDialog.form = {
+          name: "",
+          desc: "",
+          character: parent?.name || "",
+          prompt: "",
+          scenesText: "",
+          rawUrl: ""
+        };
+        const titleMap = {
+          char: "\u65B0\u589E\u89D2\u8272\u7ACB\u7ED8",
+          mood: `\u65B0\u589E\u8868\u60C5\u5DEE\u5206 - ${parent?.name}`,
+          scene: "\u65B0\u589E\u573A\u666F\u80CC\u666F",
+          sceneTime: `\u65B0\u589E\u65F6\u6BB5\u5DEE\u5206 - ${parent?.name}`,
+          wardrobe: "\u65B0\u589E\u6362\u88C5\u8863\u67DC",
+          item: "\u65B0\u589E\u9053\u5177\u56FE\u9274"
+        };
+        editDialog.title = titleMap[type] || "\u65B0\u589E\u8D44\u6E90";
+        editDialog.visible = true;
+      };
+      const handleSaveEdit = async () => {
+        const f = editDialog.form;
+        if (!f.name.trim()) {
+          notifyToast("\u540D\u79F0\u4E0D\u80FD\u4E3A\u7A7A", "warning");
+          return;
+        }
+        try {
+          if (editDialog.type === "char") {
+            saveCharacter(f.name.trim(), f.rawUrl.trim());
+          } else if (editDialog.type === "mood") {
+            saveCharacterMood(editDialog.parentName, f.name.trim(), f.rawUrl.trim());
+          } else if (editDialog.type === "scene") {
+            saveScene(f.name.trim(), f.rawUrl.trim(), f.desc.trim());
+          } else if (editDialog.type === "sceneTime") {
+            saveSceneTime(editDialog.parentName, f.name.trim(), f.rawUrl.trim());
+          } else if (editDialog.type === "wardrobe") {
+            saveWardrobeItem(f.name.trim(), {
+              character: f.character.trim(),
+              prompt: f.prompt.trim(),
+              rawUrl: f.rawUrl.trim(),
+              scenes: f.scenesText.split(/[,，\n]/).map((s) => s.trim()).filter(Boolean)
+            });
+          } else if (editDialog.type === "item") {
+            saveItem(f.name.trim(), f.rawUrl.trim(), f.desc.trim());
+          }
+          notifyToast("\u4FDD\u5B58\u6210\u529F", "info");
+          editDialog.visible = false;
+          await loadData();
+        } catch (err) {
+          notifyToast("\u4FDD\u5B58\u5F02\u5E38", "error");
+        }
+      };
+      const handleFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          editDialog.form.rawUrl = dataUrl;
+          notifyToast("\u56FE\u7247\u8F7D\u5165\u5C31\u7EEA", "info");
+        } catch (_) {
+          notifyToast("\u8BFB\u53D6\u56FE\u7247\u5931\u8D25", "error");
+        }
+      };
+      const handleCgFavorite = async (cg) => {
+        const res = await toggleCgFavorite(cg.key, cg.isFavorite);
+        if (res.ok) {
+          cg.isFavorite = res.isFavorite;
+          if (lightbox.visible && lightbox.key === cg.key) {
+            lightbox.isFavorite = res.isFavorite;
+          }
+          notifyToast(cg.isFavorite ? "\u5DF2\u6536\u85CF" : "\u5DF2\u53D6\u6D88\u6536\u85CF", "info");
+        }
+      };
+      const handleCgHidden = async (cg) => {
+        const res = await toggleCgHidden(cg.key, cg.isHidden);
+        if (res.ok) {
+          cg.isHidden = res.isHidden;
+          if (lightbox.visible && lightbox.key === cg.key) {
+            lightbox.isHidden = res.isHidden;
+          }
+          notifyToast(cg.isHidden ? "\u5DF2\u9690\u85CF" : "\u5DF2\u53D6\u6D88\u9690\u85CF", "info");
+          if (cgFilter.value === "all" && cg.isHidden) {
+            cgs.value = cgs.value.filter((item) => item.key !== cg.key);
+          }
+        }
+      };
+      const triggerDelete = (title, message, action) => {
+        confirmDialog.title = title;
+        confirmDialog.message = message;
+        confirmDialog.onConfirm = async () => {
+          confirmDialog.visible = false;
+          await action();
+          await loadData();
+          notifyToast("\u5DF2\u5220\u9664", "info");
+        };
+        confirmDialog.visible = true;
+      };
+      const handleDeleteCharacter = (charObj) => {
+        triggerDelete("\u5220\u9664\u89D2\u8272", `\u786E\u5B9A\u5220\u9664\u89D2\u8272\u300C${charObj.name}\u300D\u53CA\u5168\u90E8\u8868\u60C5\u5DEE\u5206\u5417\uFF1F`, () => {
+          deleteCharacter(charObj.name);
+        });
+      };
+      const handleDeleteMood = (charName, moodName) => {
+        triggerDelete("\u5220\u9664\u5DEE\u5206", `\u786E\u5B9A\u5220\u9664\u8868\u60C5\u5DEE\u5206\u300C${moodName}\u300D\u5417\uFF1F`, () => {
+          deleteCharacterMood(charName, moodName);
+        });
+      };
+      const handleDeleteScene = (sceneObj) => {
+        triggerDelete("\u5220\u9664\u573A\u666F", `\u786E\u5B9A\u5220\u9664\u573A\u666F\u300C${sceneObj.name}\u300D\u53CA\u5168\u90E8\u65F6\u6BB5\u5DEE\u5206\u5417\uFF1F`, () => {
+          deleteScene(sceneObj.name);
+        });
+      };
+      const handleDeleteSceneTime = (sceneName, timeName) => {
+        triggerDelete("\u5220\u9664\u65F6\u6BB5", `\u786E\u5B9A\u5220\u9664\u65F6\u6BB5\u5DEE\u5206\u300C${timeName}\u300D\u5417\uFF1F`, () => {
+          deleteSceneTime(sceneName, timeName);
+        });
+      };
+      const handleDeleteWardrobe = (item) => {
+        triggerDelete("\u5220\u9664\u670D\u88C5", `\u786E\u5B9A\u5220\u9664\u670D\u88C5\u300C${item.name}\u300D\u5417\uFF1F`, () => {
+          deleteWardrobeItem(item.name);
+        });
+      };
+      const handleDeleteCg = (cg) => {
+        triggerDelete("\u5220\u9664CG", `\u786E\u5B9A\u5220\u9664\u6B64\u5F20 CG \u56FE\u5417\uFF1F\u6B64\u64CD\u4F5C\u65E0\u6CD5\u64A4\u9500\u3002`, async () => {
+          await deleteCg(cg.key, cg.isEventCg);
+          if (lightbox.visible && lightbox.key === cg.key) {
+            closeLightbox();
+          }
+        });
+      };
+      const handleDeleteItem = (item) => {
+        triggerDelete("\u5220\u9664\u9053\u5177", `\u786E\u5B9A\u5220\u9664\u9053\u5177\u300C${item.name}\u300D\u5417\uFF1F`, () => {
+          deleteItem(item.name);
+        });
+      };
+      const handleAcceptStaging = async (stItem, targetType) => {
+        const promptName = window.prompt("\u8BF7\u8F93\u5165\u5165\u5E93\u540D\u79F0\uFF1A", stItem.name || "");
+        if (!promptName) return;
+        await acceptStagingAsset(stItem, promptName.trim(), targetType);
+        await loadData();
+        notifyToast("\u5165\u5E93\u6210\u529F", "info");
+      };
+      const handleDiscardStaging = async (stItem) => {
+        await discardStagingAsset(stItem.key);
+        staging.value = staging.value.filter((s) => s.key !== stItem.key);
+        notifyToast("\u5DF2\u820D\u5F03", "info");
+      };
+      const setCgFilter = (mode) => {
+        cgFilter.value = mode;
+        loadData();
+      };
+      onMounted(() => {
+        loadData();
+        const onKeyDown = (e) => {
+          if (e.key === "Escape") {
+            if (lightbox.visible) {
+              closeLightbox();
+            } else if (editDialog.visible) {
+              editDialog.visible = false;
+            } else if (confirmDialog.visible) {
+              confirmDialog.visible = false;
+            } else if (visible.value) {
+              closeResourcesModal();
+            }
+          }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
+      });
+      return {
+        visible,
+        activeTab,
+        searchQuery,
+        cgFilter,
+        isLoading,
+        themeOptions: THEME_OPTIONS,
+        themeStyleVars,
+        characters,
+        scenes,
+        wardrobe,
+        cgs,
+        items,
+        staging,
+        filteredCharacters,
+        filteredScenes,
+        filteredWardrobe,
+        filteredCgs,
+        filteredItems,
+        filteredStaging,
+        lightbox,
+        openLightbox,
+        closeLightbox,
+        handleDownloadImage,
+        handleCopyPrompt,
+        editDialog,
+        openAddDialog,
+        handleSaveEdit,
+        handleFileUpload,
+        confirmDialog,
+        handleCgFavorite,
+        handleCgHidden,
+        handleDeleteCharacter,
+        handleDeleteMood,
+        handleDeleteScene,
+        handleDeleteSceneTime,
+        handleDeleteWardrobe,
+        handleDeleteCg,
+        handleDeleteItem,
+        handleAcceptStaging,
+        handleDiscardStaging,
+        setCgFilter,
+        loadData,
+        setTheme,
+        close: closeResourcesModal
+      };
+    },
+    template: `
+    <div v-if="visible" class="igs-resources-overlay" :style="themeStyleVars" @click.self="close">
+      <div class="igs-resources-window">
+        <!-- \u9876\u90E8\u5DE5\u5177\u6761 -->
+        <header class="igs-resources-header">
+          <div class="igs-resources-title-row">
+            <h2 class="igs-resources-title">
+              <i class="fa-solid fa-photo-film" style="color: var(--igs-settings-accent);"></i>
+              <span>\u653E\u6620\u8D44\u6E90</span>
+            </h2>
+          </div>
+
+          <!-- \u641C\u7D22\u6846 -->
+          <div class="igs-resources-header-tools">
+            <div class="igs-resources-search-box">
+              <i class="fa-solid fa-magnifying-glass" style="color: var(--igs-settings-ink-3);"></i>
+              <input 
+                v-model="searchQuery" 
+                class="igs-resources-search-input" 
+                placeholder="\u641C\u7D22\u8D44\u6E90..." 
+              />
+            </div>
+          </div>
+
+          <!-- \u9876\u90E8\u53F3\u4FA7\u6309\u952E -->
+          <div class="igs-resources-header-actions">
+            <!-- \u5FEB\u901F\u65B0\u589E\u6309\u94AE -->
+            <button 
+              v-if="activeTab !== 'cgs' && activeTab !== 'review'" 
+              class="igs-btn-primary-compact" 
+              @click="openAddDialog(activeTab === 'characters' ? 'char' : activeTab === 'scenes' ? 'scene' : activeTab === 'wardrobe' ? 'wardrobe' : 'item')"
+            >
+              <i class="fa-solid fa-plus"></i>
+              <span>\u65B0\u589E</span>
+            </button>
+
+            <!-- \u5237\u65B0 -->
+            <button class="igs-btn-icon-round" title="\u5237\u65B0\u5217\u8868" @click="loadData">
+              <i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': isLoading }"></i>
+            </button>
+
+            <!-- \u4E3B\u9898\u5207\u6362 -->
+            <div class="igs-patch-theme-group">
+              <button 
+                v-for="item in themeOptions" 
+                :key="item.id" 
+                class="igs-patch-theme-swatch"
+                :class="{ 'is-active': themeStyleVars['--igs-theme-name'] === item.id }"
+                :title="item.label"
+                :style="{ background: item.primary }"
+                @click="setTheme(item.id)"
+              ></button>
+            </div>
+
+            <!-- \u5173\u95ED -->
+            <button class="igs-btn-icon-round" title="\u5173\u95ED" @click="close">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </header>
+
+        <!-- \u4E3B\u5185\u5BB9\u533A -->
+        <div class="igs-resources-body">
+          <!-- \u4FA7\u8FB9\u5BFC\u822A\u9009\u9879\u5361 -->
+          <nav class="igs-resources-nav">
+            <button 
+              class="igs-resources-nav-btn" 
+              :class="{ 'is-active': activeTab === 'characters' }" 
+              @click="activeTab = 'characters'"
+            >
+              <i class="fa-solid fa-person"></i>
+              <span>\u7ACB\u7ED8</span>
+              <span class="igs-resources-badge">{{ characters.length }}</span>
+            </button>
+
+            <button 
+              class="igs-resources-nav-btn" 
+              :class="{ 'is-active': activeTab === 'scenes' }" 
+              @click="activeTab = 'scenes'"
+            >
+              <i class="fa-solid fa-image"></i>
+              <span>\u80CC\u666F</span>
+              <span class="igs-resources-badge">{{ scenes.length }}</span>
+            </button>
+
+            <button 
+              class="igs-resources-nav-btn" 
+              :class="{ 'is-active': activeTab === 'wardrobe' }" 
+              @click="activeTab = 'wardrobe'"
+            >
+              <i class="fa-solid fa-shirt"></i>
+              <span>\u8863\u67DC</span>
+              <span class="igs-resources-badge">{{ wardrobe.length }}</span>
+            </button>
+
+            <button 
+              class="igs-resources-nav-btn" 
+              :class="{ 'is-active': activeTab === 'cgs' }" 
+              @click="activeTab = 'cgs'"
+            >
+              <i class="fa-solid fa-film"></i>
+              <span>CG</span>
+              <span class="igs-resources-badge">{{ cgs.length }}</span>
+            </button>
+
+            <button 
+              class="igs-resources-nav-btn" 
+              :class="{ 'is-active': activeTab === 'items' }" 
+              @click="activeTab = 'items'"
+            >
+              <i class="fa-solid fa-cube"></i>
+              <span>\u9053\u5177</span>
+              <span class="igs-resources-badge">{{ items.length }}</span>
+            </button>
+
+            <button 
+              class="igs-resources-nav-btn" 
+              :class="{ 'is-active': activeTab === 'review' }" 
+              @click="activeTab = 'review'"
+            >
+              <i class="fa-solid fa-inbox"></i>
+              <span>\u5F85\u786E\u8BA4</span>
+              <span v-if="staging.length" class="igs-resources-badge" style="background: var(--igs-settings-accent); color: #111;">{{ staging.length }}</span>
+            </button>
+          </nav>
+
+          <!-- \u53F3\u4FA7\u5361\u7247\u7011\u5E03\u6D41 -->
+          <main class="igs-resources-content">
+            <!-- 1. \u7ACB\u7ED8\u677F\u5757 -->
+            <section v-if="activeTab === 'characters'">
+              <div v-if="filteredCharacters.length" class="igs-resources-grid">
+                <div v-for="c in filteredCharacters" :key="c.name" class="igs-resource-card">
+                  <!-- \u4E3B\u7ACB\u7ED8\u7F29\u7565\u56FE -->
+                  <div class="igs-resource-thumb-box" @click="openLightbox(c.name, c.baseResolvedUrl || c.baseRawUrl)">
+                    <img v-if="c.baseResolvedUrl || c.baseRawUrl" :src="c.baseResolvedUrl || c.baseRawUrl" class="igs-resource-img" />
+                    <div v-else class="igs-resource-empty-thumb">
+                      <i class="fa-solid fa-image-slash fa-2x"></i>
+                      <span>\u6682\u65E0\u7ACB\u7ED8</span>
+                    </div>
+
+                    <!-- \u60AC\u6D6E\u64CD\u4F5C\u56FE\u6807 -->
+                    <div class="igs-resource-card-overlay-actions" @click.stop>
+                      <button class="igs-icon-tag-btn" title="\u65B0\u589E\u5DEE\u5206" @click="openAddDialog('mood', c)">
+                        <i class="fa-solid fa-plus"></i>
+                      </button>
+                      <button class="igs-icon-tag-btn" title="\u5220\u9664\u89D2\u8272" @click="handleDeleteCharacter(c)">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- \u89D2\u8272\u4FE1\u606F -->
+                  <div class="igs-resource-info">
+                    <div class="igs-resource-name-row">
+                      <span class="igs-resource-name">{{ c.name }}</span>
+                      <span class="igs-resource-desc">{{ c.moodCount }} \u5DEE\u5206</span>
+                    </div>
+
+                    <!-- \u8868\u60C5\u5DEE\u5206\u9884\u89C8\u836F\u4E38 -->
+                    <div v-if="c.moods && c.moods.length" class="igs-resource-diff-row">
+                      <span 
+                        v-for="m in c.moods" 
+                        :key="m.name" 
+                        class="igs-resource-diff-tag"
+                        :title="m.name"
+                        @click="openLightbox(c.name + ' \xB7 ' + m.name, m.resolvedUrl || m.rawUrl)"
+                      >
+                        <span>{{ m.name }}</span>
+                        <i class="fa-solid fa-xmark" style="font-size: 10px;" title="\u5220\u9664\u6B64\u5DEE\u5206" @click.stop="handleDeleteMood(c.name, m.name)"></i>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+                <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
+                <p>\u6682\u65E0\u89D2\u8272\u7ACB\u7ED8\uFF0C\u70B9\u51FB\u53F3\u4E0A\u89D2\u300C\u65B0\u589E\u300D\u5373\u53EF\u6DFB\u52A0</p>
+              </div>
+            </section>
+
+            <!-- 2. \u80CC\u666F\u573A\u666F\u677F\u5757 -->
+            <section v-if="activeTab === 'scenes'">
+              <div v-if="filteredScenes.length" class="igs-resources-grid">
+                <div v-for="s in filteredScenes" :key="s.name" class="igs-resource-card">
+                  <!-- \u80CC\u666F\u7F29\u7565\u56FE -->
+                  <div class="igs-resource-thumb-box is-landscape" @click="openLightbox(s.name, s.baseResolvedUrl || s.baseRawUrl, s.desc)">
+                    <img v-if="s.baseResolvedUrl || s.baseRawUrl" :src="s.baseResolvedUrl || s.baseRawUrl" class="igs-resource-img" />
+                    <div v-else class="igs-resource-empty-thumb">
+                      <i class="fa-solid fa-image-slash fa-2x"></i>
+                      <span>\u6682\u65E0\u80CC\u666F</span>
+                    </div>
+
+                    <div class="igs-resource-card-overlay-actions" @click.stop>
+                      <button class="igs-icon-tag-btn" title="\u65B0\u589E\u65F6\u6BB5\u5DEE\u5206" @click="openAddDialog('sceneTime', s)">
+                        <i class="fa-solid fa-plus"></i>
+                      </button>
+                      <button class="igs-icon-tag-btn" title="\u5220\u9664\u573A\u666F" @click="handleDeleteScene(s)">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="igs-resource-info">
+                    <div class="igs-resource-name-row">
+                      <span class="igs-resource-name">{{ s.name }}</span>
+                      <span class="igs-resource-desc">{{ s.timeCount }} \u65F6\u6BB5</span>
+                    </div>
+                    <div v-if="s.desc" class="igs-resource-desc">{{ s.desc }}</div>
+
+                    <!-- \u65F6\u6BB5\u5DEE\u5206\u9884\u89C8\u836F\u4E38 -->
+                    <div v-if="s.times && s.times.length" class="igs-resource-diff-row">
+                      <span 
+                        v-for="t in s.times" 
+                        :key="t.name" 
+                        class="igs-resource-diff-tag"
+                        :title="t.name"
+                        @click="openLightbox(s.name + ' \xB7 ' + t.name, t.resolvedUrl || t.rawUrl)"
+                      >
+                        <span>{{ t.name }}</span>
+                        <i class="fa-solid fa-xmark" style="font-size: 10px;" title="\u5220\u9664\u6B64\u65F6\u6BB5" @click.stop="handleDeleteSceneTime(s.name, t.name)"></i>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+                <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
+                <p>\u6682\u65E0\u573A\u666F\u80CC\u666F\uFF0C\u70B9\u51FB\u53F3\u4E0A\u89D2\u300C\u65B0\u589E\u300D\u5373\u53EF\u6DFB\u52A0</p>
+              </div>
+            </section>
+
+            <!-- 3. \u6362\u88C5\u8863\u67DC\u677F\u5757 -->
+            <section v-if="activeTab === 'wardrobe'">
+              <div v-if="filteredWardrobe.length" class="igs-resources-grid">
+                <div v-for="w in filteredWardrobe" :key="w.name" class="igs-resource-card">
+                  <div class="igs-resource-thumb-box" @click="openLightbox(w.name, w.resolvedUrl || w.rawUrl, w.prompt)">
+                    <img v-if="w.resolvedUrl || w.rawUrl" :src="w.resolvedUrl || w.rawUrl" class="igs-resource-img" />
+                    <div v-else class="igs-resource-empty-thumb">
+                      <i class="fa-solid fa-shirt fa-2x"></i>
+                      <span>\u53C2\u8003\u56FE\u4E3A\u7A7A</span>
+                    </div>
+
+                    <div class="igs-resource-card-overlay-actions" @click.stop>
+                      <button class="igs-icon-tag-btn" title="\u5220\u9664\u670D\u88C5" @click="handleDeleteWardrobe(w)">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="igs-resource-info">
+                    <div class="igs-resource-name-row">
+                      <span class="igs-resource-name">{{ w.name }}</span>
+                      <span v-if="w.character" class="igs-resources-chip" style="padding: 2px 8px; font-size: 11px;">{{ w.character }}</span>
+                    </div>
+                    <div v-if="w.prompt" class="igs-resource-desc" :title="w.prompt">{{ w.prompt }}</div>
+                  </div>
+                </div>
+              </div>
+              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+                <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
+                <p>\u6682\u65E0\u8863\u67DC\u670D\u88C5\uFF0C\u70B9\u51FB\u53F3\u4E0A\u89D2\u300C\u65B0\u589E\u300D\u5373\u53EF\u6DFB\u52A0</p>
+              </div>
+            </section>
+
+            <!-- 4. CG \u753B\u5ECA\u677F\u5757 -->
+            <section v-if="activeTab === 'cgs'">
+              <!-- CG \u7B5B\u9009\u836F\u4E38 -->
+              <div class="igs-resources-subbar">
+                <div class="igs-resources-filter-chips">
+                  <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'all' }" @click="setCgFilter('all')">\u5168\u90E8</button>
+                  <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'favorites' }" @click="setCgFilter('favorites')">\u6536\u85CF</button>
+                  <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'hidden' }" @click="setCgFilter('hidden')">\u5DF2\u9690\u85CF</button>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--igs-settings-ink-3);">
+                  \u5171 {{ filteredCgs.length }} \u5F20 CG
+                </div>
+              </div>
+
+              <div v-if="filteredCgs.length" class="igs-resources-grid">
+                <div v-for="cg in filteredCgs" :key="cg.key" class="igs-resource-card">
+                  <div class="igs-resource-thumb-box is-landscape" @click="openLightbox(cg.label, cg.resolvedUrl || cg.rawUrl, cg.prompt, cg)">
+                    <img v-if="cg.resolvedUrl || cg.rawUrl" :src="cg.resolvedUrl || cg.rawUrl" class="igs-resource-img" />
+                    <div v-else class="igs-resource-empty-thumb">
+                      <i class="fa-solid fa-film fa-2x"></i>
+                      <span>\u8BFB\u53D6\u4E2D</span>
+                    </div>
+
+                    <!-- \u60AC\u6D6E\u56FE\u6807\uFF1A\u6536\u85CF / \u9690\u85CF / \u5220\u9664 -->
+                    <div class="igs-resource-card-overlay-actions" @click.stop>
+                      <button 
+                        class="igs-icon-tag-btn" 
+                        :class="{ 'is-active': cg.isFavorite }" 
+                        :title="cg.isFavorite ? '\u53D6\u6D88\u6536\u85CF' : '\u6536\u85CF'"
+                        @click="handleCgFavorite(cg)"
+                      >
+                        <i class="fa-solid fa-star"></i>
+                      </button>
+                      <button 
+                        class="igs-icon-tag-btn" 
+                        :class="{ 'is-active': cg.isHidden }" 
+                        :title="cg.isHidden ? '\u53D6\u6D88\u9690\u85CF' : '\u9690\u85CF'"
+                        @click="handleCgHidden(cg)"
+                      >
+                        <i class="fa-solid" :class="cg.isHidden ? 'fa-eye-slash' : 'fa-eye'"></i>
+                      </button>
+                      <button class="igs-icon-tag-btn" title="\u5220\u9664" @click="handleDeleteCg(cg)">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="igs-resource-info">
+                    <div class="igs-resource-name-row">
+                      <span class="igs-resource-name">{{ cg.label }}</span>
+                      <i v-if="cg.isFavorite" class="fa-solid fa-star" style="color: #ffd166; font-size: 12px;"></i>
+                    </div>
+                    <div v-if="cg.prompt" class="igs-resource-desc" :title="cg.prompt">{{ cg.prompt }}</div>
+                  </div>
+                </div>
+              </div>
+              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+                <i class="fa-solid fa-photo-film fa-3x" style="margin-bottom: 12px;"></i>
+                <p>\u6682\u65E0\u7B26\u5408\u7B5B\u9009\u7684\u5267\u60C5 CG</p>
+              </div>
+            </section>
+
+            <!-- 5. \u9053\u5177\u56FE\u9274\u677F\u5757 -->
+            <section v-if="activeTab === 'items'">
+              <div v-if="filteredItems.length" class="igs-resources-grid">
+                <div v-for="it in filteredItems" :key="it.name" class="igs-resource-card">
+                  <div class="igs-resource-thumb-box is-square" @click="openLightbox(it.name, it.resolvedUrl || it.rawUrl, it.desc)">
+                    <img v-if="it.resolvedUrl || it.rawUrl" :src="it.resolvedUrl || it.rawUrl" class="igs-resource-img" />
+                    <div v-else class="igs-resource-empty-thumb">
+                      <i class="fa-solid fa-cube fa-2x"></i>
+                      <span>\u6682\u65E0\u56FE\u6807</span>
+                    </div>
+
+                    <div class="igs-resource-card-overlay-actions" @click.stop>
+                      <button class="igs-icon-tag-btn" title="\u5220\u9664\u9053\u5177" @click="handleDeleteItem(it)">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="igs-resource-info">
+                    <div class="igs-resource-name-row">
+                      <span class="igs-resource-name">{{ it.name }}</span>
+                    </div>
+                    <div v-if="it.desc" class="igs-resource-desc">{{ it.desc }}</div>
+                  </div>
+                </div>
+              </div>
+              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+                <i class="fa-solid fa-cubes fa-3x" style="margin-bottom: 12px;"></i>
+                <p>\u6682\u65E0\u7269\u54C1\u9053\u5177\u56FE\u9274\uFF0C\u70B9\u51FB\u53F3\u4E0A\u89D2\u300C\u65B0\u589E\u300D\u5373\u53EF\u6DFB\u52A0</p>
+              </div>
+            </section>
+
+            <!-- 6. \u5F85\u786E\u8BA4\u6682\u5B58\u6C60 -->
+            <section v-if="activeTab === 'review'">
+              <div v-if="filteredStaging.length" class="igs-resources-grid">
+                <div v-for="st in filteredStaging" :key="st.key" class="igs-resource-card">
+                  <div class="igs-resource-thumb-box" @click="openLightbox(st.name, st.resolvedUrl || st.rawUrl)">
+                    <img v-if="st.resolvedUrl || st.rawUrl" :src="st.resolvedUrl || st.rawUrl" class="igs-resource-img" />
+                    <div v-else class="igs-resource-empty-thumb">
+                      <i class="fa-solid fa-inbox fa-2x"></i>
+                      <span>\u6682\u65E0\u56FE\u50CF</span>
+                    </div>
+                  </div>
+
+                  <div class="igs-resource-info">
+                    <div class="igs-resource-name-row">
+                      <span class="igs-resource-name">{{ st.name }}</span>
+                      <span class="igs-resources-chip" style="font-size: 11px; padding: 1px 6px;">{{ st.type }}</span>
+                    </div>
+
+                    <!-- \u64CD\u4F5C\uFF1A\u5165\u5E93\u5230\u7ACB\u7ED8 / \u5165\u5E93\u5230\u80CC\u666F / \u820D\u5F03 -->
+                    <div style="display: flex; gap: 4px; margin-top: 8px;">
+                      <button class="igs-resources-chip is-active" style="flex: 1; padding: 4px 6px; font-size: 11px;" @click="handleAcceptStaging(st, st.type)">
+                        \u5165\u5E93
+                      </button>
+                      <button class="igs-resources-chip" style="padding: 4px 8px; font-size: 11px;" title="\u820D\u5F03" @click="handleDiscardStaging(st)">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+                <i class="fa-solid fa-circle-check fa-3x" style="margin-bottom: 12px; color: var(--igs-settings-accent);"></i>
+                <p>\u5F53\u524D\u6CA1\u6709\u5F85\u786E\u8BA4\u5165\u5E93\u7684\u6682\u5B58\u7D20\u6750</p>
+              </div>
+            </section>
+          </main>
+        </div>
+
+        <!-- =================== \u5168\u5C4F Lightbox \u5927\u56FE\u67E5\u770B\u5668 =================== -->
+        <div v-if="lightbox.visible" class="igs-lightbox-overlay" @click.self="closeLightbox">
+          <div class="igs-lightbox-topbar">
+            <span class="igs-lightbox-title">{{ lightbox.title }}</span>
+            <div class="igs-lightbox-top-actions">
+              <button 
+                v-if="lightbox.key" 
+                class="igs-btn-icon-round" 
+                :title="lightbox.isFavorite ? '\u53D6\u6D88\u6536\u85CF' : '\u6536\u85CF'"
+                :style="{ color: lightbox.isFavorite ? '#ffd166' : 'inherit' }"
+                @click="handleCgFavorite(lightbox)"
+              >
+                <i class="fa-solid fa-star"></i>
+              </button>
+              <button 
+                v-if="lightbox.prompt" 
+                class="igs-btn-icon-round" 
+                title="\u590D\u5236\u63D0\u793A\u8BCD" 
+                @click="handleCopyPrompt(lightbox.prompt)"
+              >
+                <i class="fa-solid fa-copy"></i>
+              </button>
+              <button 
+                class="igs-btn-icon-round" 
+                title="\u4E0B\u8F7D\u539F\u56FE" 
+                @click="handleDownloadImage(lightbox.src, lightbox.title)"
+              >
+                <i class="fa-solid fa-download"></i>
+              </button>
+              <button 
+                v-if="lightbox.key" 
+                class="igs-btn-icon-round" 
+                title="\u5220\u9664\u6B64\u56FE" 
+                @click="handleDeleteCg(lightbox)"
+              >
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+              <button class="igs-btn-icon-round" title="\u5173\u95ED\u5927\u56FE" @click="closeLightbox">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="igs-lightbox-main" @click="closeLightbox">
+            <img :src="lightbox.src" class="igs-lightbox-img" @click.stop />
+          </div>
+
+          <div v-if="lightbox.prompt" class="igs-lightbox-bottombar">
+            <div style="font-weight: bold; margin-bottom: 4px;">\u751F\u56FE\u63D0\u793A\u8BCD\uFF1A</div>
+            <div style="font-family: monospace; word-break: break-all;">{{ lightbox.prompt }}</div>
+          </div>
+        </div>
+
+        <!-- =================== \u65B0\u589E/\u7F16\u8F91\u5BF9\u8BDD\u6846 =================== -->
+        <div v-if="editDialog.visible" class="igs-dialog-overlay" @click.self="editDialog.visible = false">
+          <div class="igs-dialog-box">
+            <h3 class="igs-dialog-title">{{ editDialog.title }}</h3>
+
+            <div class="igs-form-row">
+              <label class="igs-form-label">\u540D\u79F0</label>
+              <input v-model="editDialog.form.name" class="igs-form-input" placeholder="\u8F93\u5165\u540D\u79F0..." />
+            </div>
+
+            <div v-if="editDialog.type === 'scene' || editDialog.type === 'item'" class="igs-form-row">
+              <label class="igs-form-label">\u8BF4\u660E\u63CF\u8FF0</label>
+              <input v-model="editDialog.form.desc" class="igs-form-input" placeholder="\u7B80\u77ED\u63CF\u8FF0..." />
+            </div>
+
+            <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
+              <label class="igs-form-label">\u6240\u5C5E\u89D2\u8272</label>
+              <input v-model="editDialog.form.character" class="igs-form-input" placeholder="\u6307\u5B9A\u6240\u5C5E\u89D2\u8272..." />
+            </div>
+
+            <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
+              <label class="igs-form-label">\u670D\u88C5\u63D0\u793A\u8BCD</label>
+              <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="\u82F1\u6587\u63D0\u793A\u8BCD TAG..."></textarea>
+            </div>
+
+            <!-- \u56FE\u7247\u8F93\u5165\uFF1A\u652F\u6301 URL \u6216\u672C\u5730\u6587\u4EF6\u4E0A\u4F20 -->
+            <div class="igs-form-row">
+              <label class="igs-form-label">\u56FE\u7247\u6765\u6E90</label>
+              <input v-model="editDialog.form.rawUrl" class="igs-form-input" placeholder="\u53EF\u76F4\u63A5\u586B\u5165\u56FE\u7247\u5730\u5740\u6216\u7C98\u8D34 DataUrl..." />
+              
+              <label class="igs-file-dropzone" style="margin-top: 6px;">
+                <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
+                <span>\u70B9\u51FB\u6216\u62D6\u62FD\u4E0A\u4F20\u672C\u5730\u56FE\u7247</span>
+                <input type="file" accept="image/*" style="display: none;" @change="handleFileUpload" />
+              </label>
+            </div>
+
+            <div class="igs-dialog-actions">
+              <button class="igs-resources-chip" @click="editDialog.visible = false">\u53D6\u6D88</button>
+              <button class="igs-btn-primary-compact" @click="handleSaveEdit">\u4FDD\u5B58</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- =================== \u786E\u8BA4\u5BF9\u8BDD\u6846 =================== -->
+        <div v-if="confirmDialog.visible" class="igs-dialog-overlay" @click.self="confirmDialog.visible = false">
+          <div class="igs-dialog-box" style="width: 380px;">
+            <h3 class="igs-dialog-title" style="color: var(--igs-settings-danger, #e76f51);">{{ confirmDialog.title }}</h3>
+            <p style="font-size: 0.9rem; color: var(--igs-settings-ink-2); line-height: 1.5; margin: 0;">{{ confirmDialog.message }}</p>
+            <div class="igs-dialog-actions">
+              <button class="igs-resources-chip" @click="confirmDialog.visible = false">\u53D6\u6D88</button>
+              <button class="igs-btn-primary-compact" style="background: var(--igs-settings-danger, #e76f51); color: #fff;" @click="confirmDialog.onConfirm">
+                \u786E\u8BA4
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    `
+  };
+
   // src/ui/magic-menu.js
   var MENU_SELECTORS = [
     "#extensionsMenu",
     "#extensions_menu",
     ".extensions_block .list-group"
   ];
-  var ENTRY_ID = "igs-patch-settings-magic-entry";
+  var SETTINGS_ENTRY_ID = "igs-patch-settings-magic-entry";
+  var RESOURCES_ENTRY_ID = "igs-patch-resources-magic-entry";
   function getCandidateDocuments2() {
     const docs = [document];
     try {
@@ -23435,6 +25474,7 @@ ${codeFrame}` : message);
   }
   function setupMagicMenu() {
     injectSettingsStyles();
+    injectResourcesStyles();
     ensureMagicMenuEntry();
     const docs = getCandidateDocuments2();
     for (const doc2 of docs) {
@@ -23447,7 +25487,7 @@ ${codeFrame}` : message);
       }
     }
     setInterval(ensureMagicMenuEntry, 2e3);
-    console.info("[IGS-Patch] \u9B54\u6CD5\u68D2\u83DC\u5355\u3010\u653E\u6620\u8BBE\u7F6E\u3011\u5165\u53E3\u6CE8\u5165\u5668\u5DF2\u5C31\u7EEA\u3002");
+    console.info("[IGS-Patch] \u9B54\u6CD5\u68D2\u83DC\u5355\u3010\u653E\u6620\u8BBE\u7F6E\u3011\u4E0E\u3010\u653E\u6620\u8D44\u6E90\u3011\u5165\u53E3\u6CE8\u5165\u5668\u5DF2\u5C31\u7EEA\u3002");
   }
   function ensureMagicMenuEntry() {
     for (const doc2 of getCandidateDocuments2()) {
@@ -23459,18 +25499,24 @@ ${codeFrame}` : message);
     for (const selector of MENU_SELECTORS) {
       const menu = doc2.querySelector(selector);
       if (menu) {
-        let item = menu.querySelector(`#${ENTRY_ID}`);
-        if (!item) {
-          item = createMagicMenuItem(doc2);
-          menu.appendChild(item);
+        let settingsItem = menu.querySelector(`#${SETTINGS_ENTRY_ID}`);
+        if (!settingsItem) {
+          settingsItem = createMagicSettingsItem(doc2);
+          menu.appendChild(settingsItem);
           console.info("[IGS-Patch] \u6210\u529F\u5411\u9B54\u6CD5\u68D2\u83DC\u5355\u6CE8\u5165\u3010\u653E\u6620\u8BBE\u7F6E\u3011");
+        }
+        let resourcesItem = menu.querySelector(`#${RESOURCES_ENTRY_ID}`);
+        if (!resourcesItem) {
+          resourcesItem = createMagicResourcesItem(doc2);
+          menu.appendChild(resourcesItem);
+          console.info("[IGS-Patch] \u6210\u529F\u5411\u9B54\u6CD5\u68D2\u83DC\u5355\u6CE8\u5165\u3010\u653E\u6620\u8D44\u6E90\u3011");
         }
       }
     }
   }
-  function createMagicMenuItem(doc2) {
+  function createMagicSettingsItem(doc2) {
     const item = doc2.createElement("div");
-    item.id = ENTRY_ID;
+    item.id = SETTINGS_ENTRY_ID;
     item.className = "list-group-item flex-container flexGap5";
     item.title = "\u653E\u6620\u8BBE\u7F6E";
     item.setAttribute("role", "button");
@@ -23500,6 +25546,38 @@ ${codeFrame}` : message);
     });
     return item;
   }
+  function createMagicResourcesItem(doc2) {
+    const item = doc2.createElement("div");
+    item.id = RESOURCES_ENTRY_ID;
+    item.className = "list-group-item flex-container flexGap5";
+    item.title = "\u653E\u6620\u8D44\u6E90";
+    item.setAttribute("role", "button");
+    item.style.cursor = "pointer";
+    item.style.display = "flex";
+    item.style.alignItems = "center";
+    item.innerHTML = `
+        <i class="fa-solid fa-photo-film" aria-hidden="true" style="margin-right: 8px; width: 16px; text-align: center;"></i>
+        <span>\u653E\u6620\u8D44\u6E90</span>
+    `;
+    item.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.info("[IGS-Patch] \u70B9\u51FB\u4E86\u653E\u6620\u8D44\u6E90\u83DC\u5355\u9879");
+      try {
+        const parentMenu = item.closest("#extensionsMenu, #extensions_menu");
+        if (parentMenu) {
+          parentMenu.style.display = "none";
+        }
+      } catch (_) {
+      }
+      try {
+        openResourcesModal();
+      } catch (err) {
+        console.error("[IGS-Patch] \u547C\u51FA\u653E\u6620\u8D44\u6E90\u5F02\u5E38:", err);
+      }
+    });
+    return item;
+  }
 
   // src/index.js
   init_toast();
@@ -23525,11 +25603,13 @@ ${codeFrame}` : message);
       patchState,
       openSettings: openSettingsModal,
       closeSettings: closeSettingsModal,
+      openResources: openResourcesModal,
+      closeResources: closeResourcesModal,
       fullReset: fullResetGalSystem,
       convertMessageToGal,
       processLatestAssistantMessage
     };
-    for (const w of getCandidateWindows7()) {
+    for (const w of getCandidateWindows8()) {
       try {
         w.__IGS_TAURI_PATCH__ = patchApi;
       } catch (_) {
@@ -23537,7 +25617,7 @@ ${codeFrame}` : message);
     }
     console.info("[IGS-Patch] IGS \u8865\u4E01\u521D\u59CB\u5316\u5B8C\u6BD5\uFF1A\u653E\u6620\u952E\u5DF2\u91CD\u6784\uFF0C\u9B54\u6CD5\u68D2\u653E\u6620\u8BBE\u7F6E\u5DF2\u88C5\u8F7D\u3002");
   })();
-  function getCandidateWindows7() {
+  function getCandidateWindows8() {
     const list = [window];
     try {
       if (window.parent && window.parent !== window && !list.includes(window.parent)) list.push(window.parent);
@@ -23550,7 +25630,7 @@ ${codeFrame}` : message);
     return list;
   }
   function bindGenerationEvents() {
-    for (const w of getCandidateWindows7()) {
+    for (const w of getCandidateWindows8()) {
       try {
         const ctx = w.SillyTavern?.getContext?.();
         const eventSource = ctx?.eventSource || w.eventSource;

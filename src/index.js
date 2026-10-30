@@ -18,6 +18,7 @@ import { syncAllStoredScriptsToChat } from './interceptor/render-hook.js';
 import { setupQrHijack } from './ui/qr-hijack.js';
 import { setupMagicMenu } from './ui/magic-menu.js';
 import { openSettingsModal, closeSettingsModal, ensureMounted } from './ui/settings-modal.js';
+import { openResourcesModal, closeResourcesModal } from './ui/resources-modal.js';
 import { fullResetGalSystem } from './tauri/reset.js';
 import { notifyToast } from './ui/toast.js';
 import { setupBaibaiEnhancer } from './image-gen/baibai-enhancer.js';
@@ -65,6 +66,8 @@ import { setupBaiBaiBookBridge } from './baibai/book-bridge.js';
         patchState,
         openSettings: openSettingsModal,
         closeSettings: closeSettingsModal,
+        openResources: openResourcesModal,
+        closeResources: closeResourcesModal,
         fullReset: fullResetGalSystem,
         convertMessageToGal,
         processLatestAssistantMessage,
