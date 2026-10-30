@@ -23931,6 +23931,80 @@ ${codeFrame}` : message);
   color: var(--igs-settings-ink, #ffffff);
 }
 
+/* \u89D2\u8272\u6A2A\u5411\u5207\u6362\u9009\u62E9\u5668 */
+.igs-char-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 12px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  scrollbar-width: none;
+}
+
+.igs-char-selector-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.igs-char-tab-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--igs-settings-surface, #2a3036);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.igs-char-tab-pill:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-char-tab-pill.is-active {
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+.igs-char-tab-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(0,0,0,0.2);
+}
+
+.igs-char-add-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: transparent;
+  border: 1px dashed var(--igs-settings-line, rgba(255,255,255,0.2));
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.6));
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.igs-char-add-tab-btn:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
 /* \u89D2\u8272\u4E0E\u8863\u88C5\u5DEE\u5206\u5C42\u7EA7\u89C6\u56FE */
 .igs-char-item-card {
   background: var(--igs-settings-surface, #2a3036);
@@ -24290,26 +24364,30 @@ ${codeFrame}` : message);
   position: fixed;
   inset: 0;
   z-index: 2147483647;
-  background: rgba(0,0,0,0.88);
-  backdrop-filter: blur(12px);
+  background: rgba(12, 14, 18, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex;
   flex-direction: column;
   animation: igsPatchFadeIn 0.15s ease-out;
 }
 
 .igs-lightbox-topbar {
-  padding: 12px 24px;
+  padding: 14px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(0,0,0,0.5);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  color: #fff;
+  background: #181b20;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  color: #ffffff;
+  flex-shrink: 0;
+  z-index: 100;
 }
 
 .igs-lightbox-title {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
+  color: #ffffff;
 }
 
 .igs-lightbox-top-actions {
@@ -24324,27 +24402,33 @@ ${codeFrame}` : message);
   align-items: center;
   justify-content: center;
   padding: 24px;
-  overflow: hidden;
+  overflow: auto;
   position: relative;
+  min-height: 0;
 }
 
 .igs-lightbox-img {
-  max-width: 92vw;
-  max-height: 80vh;
+  max-width: 90vw;
+  max-height: 82vh;
+  width: auto;
+  height: auto;
   object-fit: contain;
   border-radius: 8px;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+  display: block;
+  margin: auto;
 }
 
 .igs-lightbox-bottombar {
   padding: 12px 24px;
-  background: rgba(0,0,0,0.6);
-  border-top: 1px solid rgba(255,255,255,0.1);
+  background: #181b20;
+  border-top: 1px solid rgba(255,255,255,0.12);
   font-size: 0.85rem;
-  color: rgba(255,255,255,0.8);
+  color: rgba(255,255,255,0.85);
   max-height: 120px;
   overflow-y: auto;
   line-height: 1.5;
+  flex-shrink: 0;
 }
 
 /* \u7F16\u8F91\u4E0E\u65B0\u589E\u5BF9\u8BDD\u6846 */
@@ -25445,35 +25529,11 @@ ${codeFrame}` : message);
       return false;
     }
   }
-  async function listItems(scopeMode = "all", customScopeKey = null) {
-    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
-    const generatedItems = assets.generated?.items || {};
-    const result = [];
-    for (const [name, data] of Object.entries(generatedItems)) {
-      if (!name) continue;
-      const item = data && typeof data === "object" ? data : { url: String(data || "") };
-      const rawUrl = item.url || item.image || "";
-      result.push({
-        name,
-        desc: item.desc || "",
-        rawUrl,
-        resolvedUrl: await resolveImageUrl(rawUrl)
-      });
-    }
-    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
-  }
   function saveItem(name, rawUrl, desc = "", scopeMode = "all") {
     return updateScopedSceneAssets((assets) => {
       if (!assets.generated) assets.generated = {};
       if (!assets.generated.items) assets.generated.items = {};
       assets.generated.items[name] = { url: rawUrl, desc };
-    }, scopeMode);
-  }
-  function deleteItem(name, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (assets.generated?.items) {
-        delete assets.generated.items[name];
-      }
     }, scopeMode);
   }
   async function listStagingAssets() {
@@ -25603,8 +25663,8 @@ ${codeFrame}` : message);
       const scenes = ref([]);
       const wardrobe = ref([]);
       const cgs = ref([]);
-      const items = ref([]);
       const staging = ref([]);
+      const activeCharName = ref("");
       const selectedOutfits = reactive({});
       const lightbox = reactive({
         visible: false,
@@ -25619,7 +25679,7 @@ ${codeFrame}` : message);
       const editDialog = reactive({
         visible: false,
         type: "",
-        // 'char' | 'outfit' | 'mood' | 'scene' | 'sceneTime' | 'wardrobe' | 'item'
+        // 'char' | 'outfit' | 'mood' | 'scene' | 'sceneTime' | 'wardrobe'
         title: "",
         parentName: "",
         secondaryName: "",
@@ -25635,7 +25695,7 @@ ${codeFrame}` : message);
       const genDialog = reactive({
         visible: false,
         type: "",
-        // 'mood' | 'cg' | 'scene' | 'item'
+        // 'mood' | 'cg' | 'scene'
         title: "",
         charName: "",
         outfitName: "",
@@ -25675,20 +25735,25 @@ ${codeFrame}` : message);
           scopeCounts.card = charsCard.length;
           scopeCounts.global = charsGlobal.length;
           const curMode = scopeMode.value;
-          const [curChars, curScenes, curWardrobe, curCgs, curItems, curStaging] = await Promise.all([
+          const [curChars, curScenes, curWardrobe, curCgs, curStaging] = await Promise.all([
             curMode === "all" ? charsAll : curMode === "card" ? charsCard : charsGlobal,
             listScenes(curMode),
             listWardrobe(curMode),
             listAllCgs(cgFilter.value),
-            listItems(curMode),
             listStagingAssets()
           ]);
           characters.value = curChars;
           scenes.value = curScenes;
           wardrobe.value = curWardrobe;
           cgs.value = curCgs;
-          items.value = curItems;
           staging.value = curStaging;
+          if (curChars.length > 0) {
+            if (!activeCharName.value || !curChars.some((c) => c.name === activeCharName.value)) {
+              activeCharName.value = curChars[0].name;
+            }
+          } else {
+            activeCharName.value = "";
+          }
           for (const c of curChars) {
             if (!selectedOutfits[c.name]) {
               selectedOutfits[c.name] = c.defaultOutfit || c.outfits && c.outfits[0]?.name || "";
@@ -25704,6 +25769,11 @@ ${codeFrame}` : message);
         scopeMode.value = mode;
         loadData();
       };
+      const activeCharacter = computed2(() => {
+        if (!characters.value.length) return null;
+        const target = characters.value.find((c) => c.name === activeCharName.value);
+        return target || characters.value[0];
+      });
       const getCurrentOutfit = (charObj) => {
         if (!charObj || !charObj.outfits || !charObj.outfits.length) return null;
         const targetName = selectedOutfits[charObj.name] || charObj.defaultOutfit;
@@ -25729,11 +25799,6 @@ ${codeFrame}` : message);
         const q = searchQuery.value.trim().toLowerCase();
         if (!q) return cgs.value;
         return cgs.value.filter((c) => c.label.toLowerCase().includes(q) || c.prompt.toLowerCase().includes(q));
-      });
-      const filteredItems = computed2(() => {
-        const q = searchQuery.value.trim().toLowerCase();
-        if (!q) return items.value;
-        return items.value.filter((i) => i.name.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q));
       });
       const filteredStaging = computed2(() => {
         const q = searchQuery.value.trim().toLowerCase();
@@ -25876,8 +25941,7 @@ ${codeFrame}` : message);
           mood: `\u65B0\u589E\u8868\u60C5\u5DEE\u5206 - ${parent?.name}`,
           scene: "\u65B0\u589E\u573A\u666F\u80CC\u666F",
           sceneTime: `\u65B0\u589E\u65F6\u6BB5\u5DEE\u5206 - ${parent?.name}`,
-          wardrobe: "\u65B0\u589E\u6362\u88C5\u8863\u67DC",
-          item: "\u65B0\u589E\u9053\u5177\u56FE\u9274"
+          wardrobe: "\u65B0\u589E\u6362\u88C5\u8863\u67DC"
         };
         editDialog.title = titleMap[type] || "\u65B0\u589E\u8D44\u6E90";
         editDialog.visible = true;
@@ -25891,6 +25955,7 @@ ${codeFrame}` : message);
         try {
           if (editDialog.type === "char") {
             saveCharacterMood(f.name.trim(), "\u9ED8\u8BA4", f.rawUrl.trim(), "\u521D\u59CB\u8863\u88C5", scopeMode.value);
+            activeCharName.value = f.name.trim();
           } else if (editDialog.type === "outfit") {
             saveCharacterOutfit(editDialog.parentName, f.name.trim(), scopeMode.value);
             selectedOutfits[editDialog.parentName] = f.name.trim();
@@ -25903,8 +25968,6 @@ ${codeFrame}` : message);
             saveSceneTime(editDialog.parentName, f.name.trim(), f.rawUrl.trim(), scopeMode.value);
           } else if (editDialog.type === "wardrobe") {
             saveWardrobeItem(f.name.trim(), f.rawUrl.trim(), f.prompt.trim(), f.character.trim(), scopeMode.value);
-          } else if (editDialog.type === "item") {
-            saveItem(f.name.trim(), f.rawUrl.trim(), f.desc.trim(), scopeMode.value);
           }
           notifyToast("\u4FDD\u5B58\u6210\u529F", "info");
           editDialog.visible = false;
@@ -25996,11 +26059,6 @@ ${codeFrame}` : message);
           }
         });
       };
-      const handleDeleteItem = (item) => {
-        triggerDelete("\u5220\u9664\u9053\u5177", `\u786E\u5B9A\u5220\u9664\u9053\u5177\u300C${item.name}\u300D\u5417\uFF1F`, () => {
-          deleteItem(item.name, scopeMode.value);
-        });
-      };
       const handleAcceptStaging = async (stItem, targetType) => {
         const promptName = window.prompt("\u8BF7\u8F93\u5165\u5165\u5E93\u540D\u79F0\uFF1A", stItem.name || "");
         if (!promptName) return;
@@ -26051,20 +26109,21 @@ ${codeFrame}` : message);
         scopeMode,
         scopeCounts,
         activeCardScope,
+        activeCharName,
+        activeCharacter,
         selectedOutfits,
         themeOptions: THEME_OPTIONS,
         themeStyleVars,
+        patchState,
         characters,
         scenes,
         wardrobe,
         cgs,
-        items,
         staging,
         filteredCharacters,
         filteredScenes,
         filteredWardrobe,
         filteredCgs,
-        filteredItems,
         filteredStaging,
         lightbox,
         openLightbox,
@@ -26093,7 +26152,6 @@ ${codeFrame}` : message);
         handleDeleteSceneTime,
         handleDeleteWardrobe,
         handleDeleteCg,
-        handleDeleteItem,
         handleAcceptStaging,
         handleDiscardStaging,
         setScope,
@@ -26133,7 +26191,7 @@ ${codeFrame}` : message);
             <button 
               v-if="activeTab !== 'cgs' && activeTab !== 'review'" 
               class="igs-btn-primary-compact" 
-              @click="openAddDialog(activeTab === 'characters' ? 'char' : activeTab === 'scenes' ? 'scene' : activeTab === 'wardrobe' ? 'wardrobe' : 'item')"
+              @click="openAddDialog(activeTab === 'characters' ? 'char' : activeTab === 'scenes' ? 'scene' : 'wardrobe')"
             >
               <i class="fa-solid fa-plus"></i>
               <span>\u65B0\u589E</span>
@@ -26144,16 +26202,16 @@ ${codeFrame}` : message);
               <i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': isLoading }"></i>
             </button>
 
-            <!-- \u4E3B\u9898\u5207\u6362 -->
+            <!-- \u4E3B\u9898\u5207\u6362 (\u4F7F\u7528 value \u4E0E swatch \u989C\u8272\u771F\u5B9E\u6E32\u67D3) -->
             <div class="igs-patch-theme-group">
               <button 
                 v-for="item in themeOptions" 
-                :key="item.id" 
+                :key="item.value" 
                 class="igs-patch-theme-swatch"
-                :class="{ 'is-active': themeStyleVars['--igs-theme-name'] === item.id }"
+                :class="{ 'is-active': (themeStyleVars['--igs-theme-name'] || patchState.theme) === item.value }"
                 :title="item.label"
-                :style="{ background: item.primary }"
-                @click="setTheme(item.id)"
+                :style="{ backgroundColor: item.swatch.accent, borderColor: item.swatch.base }"
+                @click="setTheme(item.value)"
               ></button>
             </div>
 
@@ -26166,7 +26224,7 @@ ${codeFrame}` : message);
 
         <!-- \u4E3B\u5185\u5BB9\u533A -->
         <div class="igs-resources-body">
-          <!-- \u4FA7\u8FB9\u5BFC\u822A\u9009\u9879\u5361 -->
+          <!-- \u4FA7\u8FB9\u5BFC\u822A\u9009\u9879\u5361 (\u5B8C\u5168\u5BF9\u9F50\u539F\u7248 IGS 5 \u5927\u7D20\u6750\u677F\u5757\uFF0C\u5254\u9664\u591A\u4F59\u7684\u9053\u5177\u9879) -->
           <nav class="igs-resources-nav">
             <button 
               class="igs-resources-nav-btn" 
@@ -26210,16 +26268,6 @@ ${codeFrame}` : message);
 
             <button 
               class="igs-resources-nav-btn" 
-              :class="{ 'is-active': activeTab === 'items' }" 
-              @click="activeTab = 'items'"
-            >
-              <i class="fa-solid fa-cube"></i>
-              <span>\u9053\u5177</span>
-              <span class="igs-resources-badge">{{ items.length }}</span>
-            </button>
-
-            <button 
-              class="igs-resources-nav-btn" 
               :class="{ 'is-active': activeTab === 'review' }" 
               @click="activeTab = 'review'"
             >
@@ -26253,101 +26301,122 @@ ${codeFrame}` : message);
               </div>
             </div>
 
-            <!-- 1. \u7ACB\u7ED8\u677F\u5757 (\u89D2\u8272\u5361\u4E0E\u670D\u88C5\u5DEE\u5206\u5C42\u7EA7\u89C6\u56FE) -->
+            <!-- 1. \u7ACB\u7ED8\u677F\u5757 (\u53EF\u5207\u6362\u5F0F\u89D2\u8272\u5217\u8868\u4E0E\u670D\u88C5\u5DEE\u5206\u5C42\u7EA7\u89C6\u56FE) -->
             <section v-if="activeTab === 'characters'">
-              <div v-if="filteredCharacters.length">
-                <div v-for="c in filteredCharacters" :key="c.name" class="igs-char-item-card">
-                  <!-- \u89D2\u8272\u5934\u90E8 -->
-                  <div class="igs-char-header-row">
-                    <div class="igs-char-title-group">
-                      <div class="igs-char-avatar-circle" @click="openLightbox(c.name, c.baseResolvedUrl || c.baseRawUrl)">
-                        <img v-if="c.baseResolvedUrl || c.baseRawUrl" :src="c.baseResolvedUrl || c.baseRawUrl" />
-                        <i v-else class="fa-solid fa-user"></i>
+              <!-- \u89D2\u8272\u6A2A\u5411\u5207\u6362\u9009\u62E9\u5668 (\u975E\u5E73\u94FA\u5F0F) -->
+              <div v-if="filteredCharacters.length" class="igs-char-selector-bar">
+                <button 
+                  v-for="c in filteredCharacters" 
+                  :key="c.name" 
+                  class="igs-char-tab-pill" 
+                  :class="{ 'is-active': activeCharName === c.name }"
+                  @click="activeCharName = c.name"
+                >
+                  <img v-if="c.baseResolvedUrl || c.baseRawUrl" :src="c.baseResolvedUrl || c.baseRawUrl" class="igs-char-tab-avatar" />
+                  <i v-else class="fa-solid fa-user" style="font-size: 11px;"></i>
+                  <span>{{ c.name }}</span>
+                  <span v-if="c.isUser" class="igs-char-user-badge" style="padding: 1px 5px; font-size: 10px;">User</span>
+                </button>
+
+                <button class="igs-char-add-tab-btn" @click="openAddDialog('char')">
+                  <i class="fa-solid fa-plus"></i>
+                  <span>\u65B0\u589E\u89D2\u8272</span>
+                </button>
+              </div>
+
+              <!-- \u5F53\u524D\u6FC0\u6D3B\u89D2\u8272\u7684\u6DF1\u5EA6\u8D44\u4EA7\u8BE6\u60C5 -->
+              <div v-if="activeCharacter" class="igs-char-item-card">
+                <!-- \u89D2\u8272\u5934\u90E8\u4FE1\u606F -->
+                <div class="igs-char-header-row">
+                  <div class="igs-char-title-group">
+                    <div class="igs-char-avatar-circle" @click="openLightbox(activeCharacter.name, activeCharacter.baseResolvedUrl || activeCharacter.baseRawUrl)">
+                      <img v-if="activeCharacter.baseResolvedUrl || activeCharacter.baseRawUrl" :src="activeCharacter.baseResolvedUrl || activeCharacter.baseRawUrl" />
+                      <i v-else class="fa-solid fa-user"></i>
+                    </div>
+                    <span class="igs-char-name-text">{{ activeCharacter.name }}</span>
+                    <span 
+                      class="igs-char-user-badge" 
+                      :style="{ opacity: activeCharacter.isUser ? 1 : 0.4 }"
+                      title="\u70B9\u51FB\u5207\u6362\u4E3B\u89D2\u8EAB\u4EFD"
+                      @click="handleToggleUser(activeCharacter)"
+                    >User</span>
+                  </div>
+
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="igs-icon-tag-btn" title="\u5220\u9664\u6B64\u89D2\u8272" @click="handleDeleteCharacter(activeCharacter)">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- \u7ACB\u7ED8\u9AD8\u5EA6 % \u8C03\u8282 -->
+                <div class="igs-char-height-row">
+                  <span>\u7ACB\u7ED8\u9AD8\u5EA6 %</span>
+                  <input 
+                    type="number" 
+                    :value="activeCharacter.height || 100" 
+                    @change="e => handleSetHeight(activeCharacter, e.target.value)" 
+                    class="igs-char-height-input" 
+                  />
+                  <span style="opacity: 0.6; font-size: 0.78rem;">\u9ED8\u8BA4 \u57FA\u51C6\u9AD8\u5EA6 100%</span>
+                </div>
+
+                <!-- \u670D\u88C5\u5217\u8868\u680F -->
+                <div class="igs-outfits-bar">
+                  <button 
+                    v-for="outfit in activeCharacter.outfits" 
+                    :key="outfit.name" 
+                    class="igs-outfit-tab-btn" 
+                    :class="{ 'is-active': (selectedOutfits[activeCharacter.name] || activeCharacter.defaultOutfit || activeCharacter.outfits[0]?.name) === outfit.name }"
+                    @click="selectedOutfits[activeCharacter.name] = outfit.name"
+                  >
+                    <span>{{ outfit.name }}</span>
+                    <span v-if="outfit.isDefault" class="igs-outfit-default-tag">\u9ED8\u8BA4</span>
+                    <span style="opacity: 0.65; font-size: 0.72rem;">{{ outfit.moodCount }}</span>
+                  </button>
+
+                  <button class="igs-outfit-action-btn" title="\u65B0\u589E\u670D\u88C5" @click="openAddDialog('outfit', activeCharacter)">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>\u670D\u88C5</span>
+                  </button>
+                  <button class="igs-outfit-action-btn" title="\u65B0\u589E\u5DEE\u5206" @click="openAddDialog('mood', activeCharacter, getCurrentOutfit(activeCharacter))">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>\u5DEE\u5206</span>
+                  </button>
+                </div>
+
+                <!-- \u9009\u4E2D\u7684\u670D\u88C5\u4E0B\u7684\u5DEE\u5206\u5217\u8868\u4E0E\u52A8\u4F5C\u680F -->
+                <div v-if="getCurrentOutfit(activeCharacter) && getCurrentOutfit(activeCharacter).moods && getCurrentOutfit(activeCharacter).moods.length" class="igs-char-diffs-container">
+                  <div v-for="m in getCurrentOutfit(activeCharacter).moods" :key="m.name" class="igs-diff-item-row">
+                    <div class="igs-diff-left">
+                      <div class="igs-diff-thumb" @click="openLightbox(activeCharacter.name + ' \xB7 ' + m.name, m.resolvedUrl || m.rawUrl)">
+                        <img v-if="m.resolvedUrl || m.rawUrl" :src="m.resolvedUrl || m.rawUrl" />
+                        <i v-else class="fa-solid fa-image" style="opacity: 0.35;"></i>
                       </div>
-                      <span class="igs-char-name-text">{{ c.name }}</span>
-                      <span 
-                        class="igs-char-user-badge" 
-                        :style="{ opacity: c.isUser ? 1 : 0.4 }"
-                        title="\u70B9\u51FB\u5207\u6362\u4E3B\u89D2\u8EAB\u4EFD"
-                        @click="handleToggleUser(c)"
-                      >User</span>
+                      <span class="igs-diff-name">{{ m.name }}</span>
                     </div>
 
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <button class="igs-icon-tag-btn" title="\u5220\u9664\u6B64\u89D2\u8272" @click="handleDeleteCharacter(c)">
+                    <div class="igs-diff-actions">
+                      <button class="igs-diff-act-btn" title="\u751F\u56FE" @click="openGenPromptDialog('mood', activeCharacter, getCurrentOutfit(activeCharacter), m)">
+                        <i class="fa-solid fa-rotate"></i>
+                      </button>
+                      <button class="igs-diff-act-btn" title="\u4E0B\u8F7D" @click="handleDownloadImage(m.resolvedUrl || m.rawUrl, activeCharacter.name + '_' + m.name)">
+                        <i class="fa-solid fa-download"></i>
+                      </button>
+                      <button class="igs-diff-act-btn" title="\u4E0A\u4F20\u66FF\u6362" @click="triggerDiffUpload(activeCharacter, getCurrentOutfit(activeCharacter), m)">
+                        <i class="fa-solid fa-upload"></i>
+                      </button>
+                      <button class="igs-diff-act-btn" title="\u5220\u9664\u5DEE\u5206" @click="handleDeleteMood(activeCharacter.name, m.name, getCurrentOutfit(activeCharacter).name)">
                         <i class="fa-solid fa-trash-can"></i>
                       </button>
                     </div>
                   </div>
-
-                  <!-- \u7ACB\u7ED8\u9AD8\u5EA6 % \u8C03\u8282 -->
-                  <div class="igs-char-height-row">
-                    <span>\u7ACB\u7ED8\u9AD8\u5EA6 %</span>
-                    <input 
-                      type="number" 
-                      :value="c.height || 100" 
-                      @change="e => handleSetHeight(c, e.target.value)" 
-                      class="igs-char-height-input" 
-                    />
-                    <span style="opacity: 0.6; font-size: 0.78rem;">\u9ED8\u8BA4 \u57FA\u51C6\u9AD8\u5EA6 100%</span>
-                  </div>
-
-                  <!-- \u670D\u88C5\u5217\u8868\u680F -->
-                  <div class="igs-outfits-bar">
-                    <button 
-                      v-for="outfit in c.outfits" 
-                      :key="outfit.name" 
-                      class="igs-outfit-tab-btn" 
-                      :class="{ 'is-active': (selectedOutfits[c.name] || c.defaultOutfit || c.outfits[0]?.name) === outfit.name }"
-                      @click="selectedOutfits[c.name] = outfit.name"
-                    >
-                      <span>{{ outfit.name }}</span>
-                      <span v-if="outfit.isDefault" class="igs-outfit-default-tag">\u9ED8\u8BA4</span>
-                      <span style="opacity: 0.65; font-size: 0.72rem;">{{ outfit.moodCount }}</span>
-                    </button>
-
-                    <button class="igs-outfit-action-btn" title="\u65B0\u589E\u670D\u88C5" @click="openAddDialog('outfit', c)">
-                      <i class="fa-solid fa-plus"></i>
-                      <span>\u670D\u88C5</span>
-                    </button>
-                    <button class="igs-outfit-action-btn" title="\u65B0\u589E\u5DEE\u5206" @click="openAddDialog('mood', c, getCurrentOutfit(c))">
-                      <i class="fa-solid fa-plus"></i>
-                      <span>\u5DEE\u5206</span>
-                    </button>
-                  </div>
-
-                  <!-- \u5DEE\u5206\u5217\u8868\u4E0E\u52A8\u4F5C\u680F -->
-                  <div v-if="getCurrentOutfit(c) && getCurrentOutfit(c).moods && getCurrentOutfit(c).moods.length" class="igs-char-diffs-container">
-                    <div v-for="m in getCurrentOutfit(c).moods" :key="m.name" class="igs-diff-item-row">
-                      <div class="igs-diff-left">
-                        <div class="igs-diff-thumb" @click="openLightbox(c.name + ' \xB7 ' + m.name, m.resolvedUrl || m.rawUrl)">
-                          <img v-if="m.resolvedUrl || m.rawUrl" :src="m.resolvedUrl || m.rawUrl" />
-                          <i v-else class="fa-solid fa-image" style="opacity: 0.35;"></i>
-                        </div>
-                        <span class="igs-diff-name">{{ m.name }}</span>
-                      </div>
-
-                      <div class="igs-diff-actions">
-                        <button class="igs-diff-act-btn" title="\u751F\u56FE" @click="openGenPromptDialog('mood', c, getCurrentOutfit(c), m)">
-                          <i class="fa-solid fa-rotate"></i>
-                        </button>
-                        <button class="igs-diff-act-btn" title="\u4E0B\u8F7D" @click="handleDownloadImage(m.resolvedUrl || m.rawUrl, c.name + '_' + m.name)">
-                          <i class="fa-solid fa-download"></i>
-                        </button>
-                        <button class="igs-diff-act-btn" title="\u4E0A\u4F20\u66FF\u6362" @click="triggerDiffUpload(c, getCurrentOutfit(c), m)">
-                          <i class="fa-solid fa-upload"></i>
-                        </button>
-                        <button class="igs-diff-act-btn" title="\u5220\u9664\u5DEE\u5206" @click="handleDeleteMood(c.name, m.name, getCurrentOutfit(c).name)">
-                          <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-else style="padding: 12px; text-align: center; color: var(--igs-settings-ink-3); font-size: 0.8rem;">
-                    \u5F53\u524D\u670D\u88C5\u6682\u65E0\u8868\u60C5\u5DEE\u5206\uFF0C\u70B9\u51FB\u4E0A\u65B9\u300C+\u5DEE\u5206\u300D\u5373\u53EF\u6DFB\u52A0
-                  </div>
+                </div>
+                <div v-else style="padding: 12px; text-align: center; color: var(--igs-settings-ink-3); font-size: 0.8rem;">
+                  \u5F53\u524D\u670D\u88C5\u6682\u65E0\u8868\u60C5\u5DEE\u5206\uFF0C\u70B9\u51FB\u4E0A\u65B9\u300C+\u5DEE\u5206\u300D\u5373\u53EF\u6DFB\u52A0
                 </div>
               </div>
+
               <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
                 <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
                 <p>\u6682\u65E0\u89D2\u8272\u7ACB\u7ED8\uFF0C\u70B9\u51FB\u53F3\u4E0A\u89D2\u300C\u65B0\u589E\u300D\u5373\u53EF\u6DFB\u52A0</p>
@@ -26510,39 +26579,7 @@ ${codeFrame}` : message);
               </div>
             </section>
 
-            <!-- 5. \u9053\u5177\u56FE\u9274\u677F\u5757 -->
-            <section v-if="activeTab === 'items'">
-              <div v-if="filteredItems.length" class="igs-resources-grid">
-                <div v-for="it in filteredItems" :key="it.name" class="igs-resource-card">
-                  <div class="igs-resource-thumb-box is-square" @click="openLightbox(it.name, it.resolvedUrl || it.rawUrl, it.desc)">
-                    <img v-if="it.resolvedUrl || it.rawUrl" :src="it.resolvedUrl || it.rawUrl" class="igs-resource-img" />
-                    <div v-else class="igs-resource-empty-thumb">
-                      <i class="fa-solid fa-cube fa-2x"></i>
-                      <span>\u6682\u65E0\u56FE\u6807</span>
-                    </div>
-
-                    <div class="igs-resource-card-overlay-actions" @click.stop>
-                      <button class="igs-icon-tag-btn" title="\u5220\u9664\u9053\u5177" @click="handleDeleteItem(it)">
-                        <i class="fa-solid fa-trash-can"></i>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="igs-resource-info">
-                    <div class="igs-resource-name-row">
-                      <span class="igs-resource-name">{{ it.name }}</span>
-                    </div>
-                    <div v-if="it.desc" class="igs-resource-desc">{{ it.desc }}</div>
-                  </div>
-                </div>
-              </div>
-              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
-                <i class="fa-solid fa-cubes fa-3x" style="margin-bottom: 12px;"></i>
-                <p>\u6682\u65E0\u7269\u54C1\u9053\u5177\u56FE\u9274\uFF0C\u70B9\u51FB\u53F3\u4E0A\u89D2\u300C\u65B0\u589E\u300D\u5373\u53EF\u6DFB\u52A0</p>
-              </div>
-            </section>
-
-            <!-- 6. \u5F85\u786E\u8BA4\u6682\u5B58\u6C60 -->
+            <!-- 5. \u5F85\u786E\u8BA4\u6682\u5B58\u6C60 -->
             <section v-if="activeTab === 'review'">
               <div v-if="filteredStaging.length" class="igs-resources-grid">
                 <div v-for="st in filteredStaging" :key="st.key" class="igs-resource-card">
@@ -26594,49 +26631,6 @@ ${codeFrame}` : message);
           @change="onHiddenFileChange" 
         />
 
-        <!-- \u5168\u5C4F Lightbox \u5927\u56FE\u9884\u89C8 -->
-        <div v-if="lightbox.visible" class="igs-lightbox-overlay" @click.self="closeLightbox">
-          <header class="igs-lightbox-topbar">
-            <span class="igs-lightbox-title">{{ lightbox.title }}</span>
-            <div class="igs-lightbox-top-actions">
-              <button 
-                v-if="lightbox.key && !lightbox.isEventCg" 
-                class="igs-btn-icon-round" 
-                :title="lightbox.isFavorite ? '\u53D6\u6D88\u6536\u85CF' : '\u6536\u85CF'"
-                @click="handleCgFavorite(lightbox)"
-              >
-                <i class="fa-solid fa-star" :style="{ color: lightbox.isFavorite ? '#ffd166' : '#fff' }"></i>
-              </button>
-              <button 
-                v-if="lightbox.prompt" 
-                class="igs-btn-icon-round" 
-                title="\u590D\u5236\u63D0\u793A\u8BCD" 
-                @click="handleCopyPrompt(lightbox.prompt)"
-              >
-                <i class="fa-solid fa-copy"></i>
-              </button>
-              <button 
-                class="igs-btn-icon-round" 
-                title="\u4E0B\u8F7D\u539F\u56FE" 
-                @click="handleDownloadImage(lightbox.src, lightbox.title)"
-              >
-                <i class="fa-solid fa-download"></i>
-              </button>
-              <button class="igs-btn-icon-round" title="\u5173\u95ED" @click="closeLightbox">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-          </header>
-
-          <main class="igs-lightbox-main" @click.self="closeLightbox">
-            <img :src="lightbox.src" class="igs-lightbox-img" />
-          </main>
-
-          <footer v-if="lightbox.prompt" class="igs-lightbox-bottombar">
-            <span>{{ lightbox.prompt }}</span>
-          </footer>
-        </div>
-
         <!-- \u751F\u56FE\u4E0E\u63D0\u793A\u8BCD\u786E\u8BA4\u5BF9\u8BDD\u6846 -->
         <div v-if="genDialog.visible" class="igs-dialog-overlay" @click.self="genDialog.visible = false">
           <div class="igs-dialog-box">
@@ -26684,7 +26678,7 @@ ${codeFrame}` : message);
               <input v-model="editDialog.form.name" class="igs-form-input" placeholder="\u8F93\u5165\u540D\u79F0..." />
             </div>
 
-            <div v-if="editDialog.type === 'scene' || editDialog.type === 'item'" class="igs-form-row">
+            <div v-if="editDialog.type === 'scene'" class="igs-form-row">
               <label class="igs-form-label">\u63CF\u8FF0</label>
               <input v-model="editDialog.form.desc" class="igs-form-input" placeholder="\u7B80\u77ED\u63CF\u8FF0..." />
             </div>
@@ -26728,6 +26722,49 @@ ${codeFrame}` : message);
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- \u5168\u5C4F Lightbox \u5927\u56FE\u9884\u89C8 (\u7F6E\u4E8E\u9876\u5C42\uFF0C\u5F7B\u5E95\u9694\u79BB\u7236\u5BB9\u5668\u5F62\u53D8\u4E0E\u906E\u7F69\u91CD\u53E0) -->
+      <div v-if="lightbox.visible" class="igs-lightbox-overlay" @click.self="closeLightbox">
+        <header class="igs-lightbox-topbar">
+          <span class="igs-lightbox-title">{{ lightbox.title }}</span>
+          <div class="igs-lightbox-top-actions">
+            <button 
+              v-if="lightbox.key && !lightbox.isEventCg" 
+              class="igs-btn-icon-round" 
+              :title="lightbox.isFavorite ? '\u53D6\u6D88\u6536\u85CF' : '\u6536\u85CF'"
+              @click="handleCgFavorite(lightbox)"
+            >
+              <i class="fa-solid fa-star" :style="{ color: lightbox.isFavorite ? '#ffd166' : '#fff' }"></i>
+            </button>
+            <button 
+              v-if="lightbox.prompt" 
+              class="igs-btn-icon-round" 
+              title="\u590D\u5236\u63D0\u793A\u8BCD" 
+              @click="handleCopyPrompt(lightbox.prompt)"
+            >
+              <i class="fa-solid fa-copy"></i>
+            </button>
+            <button 
+              class="igs-btn-icon-round" 
+              title="\u4E0B\u8F7D\u539F\u56FE" 
+              @click="handleDownloadImage(lightbox.src, lightbox.title)"
+            >
+              <i class="fa-solid fa-download"></i>
+            </button>
+            <button class="igs-btn-icon-round" title="\u5173\u95ED" @click="closeLightbox">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </header>
+
+        <main class="igs-lightbox-main" @click.self="closeLightbox">
+          <img :src="lightbox.src" class="igs-lightbox-img" />
+        </main>
+
+        <footer v-if="lightbox.prompt" class="igs-lightbox-bottombar">
+          <span>{{ lightbox.prompt }}</span>
+        </footer>
       </div>
     </div>
     `

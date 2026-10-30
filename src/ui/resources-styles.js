@@ -498,6 +498,80 @@ export const RESOURCES_MODAL_CSS = `
   color: var(--igs-settings-ink, #ffffff);
 }
 
+/* 角色横向切换选择器 */
+.igs-char-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 12px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  scrollbar-width: none;
+}
+
+.igs-char-selector-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.igs-char-tab-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--igs-settings-surface, #2a3036);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.igs-char-tab-pill:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-char-tab-pill.is-active {
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+.igs-char-tab-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(0,0,0,0.2);
+}
+
+.igs-char-add-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: transparent;
+  border: 1px dashed var(--igs-settings-line, rgba(255,255,255,0.2));
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.6));
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.igs-char-add-tab-btn:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
 /* 角色与衣装差分层级视图 */
 .igs-char-item-card {
   background: var(--igs-settings-surface, #2a3036);
@@ -857,26 +931,30 @@ export const RESOURCES_MODAL_CSS = `
   position: fixed;
   inset: 0;
   z-index: 2147483647;
-  background: rgba(0,0,0,0.88);
-  backdrop-filter: blur(12px);
+  background: rgba(12, 14, 18, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex;
   flex-direction: column;
   animation: igsPatchFadeIn 0.15s ease-out;
 }
 
 .igs-lightbox-topbar {
-  padding: 12px 24px;
+  padding: 14px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(0,0,0,0.5);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  color: #fff;
+  background: #181b20;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  color: #ffffff;
+  flex-shrink: 0;
+  z-index: 100;
 }
 
 .igs-lightbox-title {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
+  color: #ffffff;
 }
 
 .igs-lightbox-top-actions {
@@ -891,27 +969,33 @@ export const RESOURCES_MODAL_CSS = `
   align-items: center;
   justify-content: center;
   padding: 24px;
-  overflow: hidden;
+  overflow: auto;
   position: relative;
+  min-height: 0;
 }
 
 .igs-lightbox-img {
-  max-width: 92vw;
-  max-height: 80vh;
+  max-width: 90vw;
+  max-height: 82vh;
+  width: auto;
+  height: auto;
   object-fit: contain;
   border-radius: 8px;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+  display: block;
+  margin: auto;
 }
 
 .igs-lightbox-bottombar {
   padding: 12px 24px;
-  background: rgba(0,0,0,0.6);
-  border-top: 1px solid rgba(255,255,255,0.1);
+  background: #181b20;
+  border-top: 1px solid rgba(255,255,255,0.12);
   font-size: 0.85rem;
-  color: rgba(255,255,255,0.8);
+  color: rgba(255,255,255,0.85);
   max-height: 120px;
   overflow-y: auto;
   line-height: 1.5;
+  flex-shrink: 0;
 }
 
 /* 编辑与新增对话框 */
