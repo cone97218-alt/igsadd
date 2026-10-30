@@ -22186,11 +22186,11 @@ ${codeFrame}` : message);
   var isModalVisible = ref(false);
   var appInstance = null;
   var containerEl = null;
-  function openSettingsModal() {
+  function openSettingsModal(targetDoc = null) {
     console.info("[IGS-Patch] \u6B63\u5728\u547C\u51FA\u653E\u6620\u8BBE\u7F6E\u5168\u5C4F\u63A7\u5236\u53F0...");
     injectSettingsStyles();
     detectAndSyncIgsTheme();
-    ensureMounted();
+    ensureMounted(targetDoc);
     triggerIgsPromptResync();
     isModalVisible.value = true;
   }
@@ -22208,8 +22208,8 @@ ${codeFrame}` : message);
     }
     return document;
   }
-  function ensureMounted() {
-    const doc2 = getCandidateDocument2();
+  function ensureMounted(targetDoc = null) {
+    const doc2 = targetDoc || getCandidateDocument2();
     if (!doc2) return;
     let container = doc2.getElementById("igs-patch-settings-mount-root");
     if (!container) {
@@ -22225,6 +22225,8 @@ ${codeFrame}` : message);
       } catch (err) {
         console.error("[IGS-Patch] \u6302\u8F7D Vue 3 \u8BBE\u7F6E\u9762\u677F\u5931\u8D25:", err);
       }
+    } else if (containerEl && !doc2.body.contains(containerEl)) {
+      (doc2.body || doc2.documentElement).appendChild(containerEl);
     }
   }
   var SettingsRootComponent = {
@@ -23432,6 +23434,11 @@ ${codeFrame}` : message);
   box-sizing: border-box;
 }
 
+@keyframes igsPatchFadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .igs-resources-overlay *, .igs-resources-overlay *::before, .igs-resources-overlay *::after {
   box-sizing: border-box;
 }
@@ -24014,9 +24021,7 @@ ${codeFrame}` : message);
   }
 }
 `;
-  var stylesInjected = false;
   function injectResourcesStyles() {
-    if (stylesInjected) return;
     const docs = [document];
     try {
       if (window.parent?.document && !docs.includes(window.parent.document)) docs.push(window.parent.document);
@@ -24032,12 +24037,11 @@ ${codeFrame}` : message);
           const styleEl = doc2.createElement("style");
           styleEl.id = "igs-patch-resources-styles";
           styleEl.textContent = RESOURCES_MODAL_CSS;
-          doc2.head.appendChild(styleEl);
+          (doc2.head || doc2.body || doc2.documentElement).appendChild(styleEl);
         }
       } catch (_) {
       }
     }
-    stylesInjected = true;
   }
 
   // src/resources/asset-service.js
@@ -24110,9 +24114,17 @@ ${codeFrame}` : message);
     updater(bridge.sceneAssets);
     return saveRawBridgeConfig(bridge);
   }
-  function openDb(name, version2 = 1, onUpgrade = null) {
+  function openDb(name, version2 = void 0, onUpgrade = null) {
     return new Promise((resolve2, reject) => {
-      const req = window.indexedDB.open(name, version2);
+      let req;
+      try {
+        if (!window.indexedDB) {
+          return reject(new Error("IndexedDB not supported"));
+        }
+        req = typeof version2 === "number" ? window.indexedDB.open(name, version2) : window.indexedDB.open(name);
+      } catch (err) {
+        return reject(err);
+      }
       req.onupgradeneeded = (e) => {
         if (typeof onUpgrade === "function") onUpgrade(req.result, e);
       };
@@ -24134,7 +24146,7 @@ ${codeFrame}` : message);
         return resolvedImageCache.get(imageId);
       }
       try {
-        const db = await openDb(DB_GENERATED_ASSETS, 1);
+        const db = await openDb(DB_GENERATED_ASSETS);
         if (!db.objectStoreNames.contains("images")) {
           db.close();
           return "";
@@ -24339,7 +24351,7 @@ ${codeFrame}` : message);
     const list = [];
     const marksMap = /* @__PURE__ */ new Map();
     try {
-      const dbMarks = await openDb(DB_CG_GALLERY, 1);
+      const dbMarks = await openDb(DB_CG_GALLERY);
       if (dbMarks.objectStoreNames.contains("marks")) {
         const tx = dbMarks.transaction("marks", "readonly");
         const allMarks = await new Promise((res) => {
@@ -24355,7 +24367,7 @@ ${codeFrame}` : message);
     } catch (_) {
     }
     try {
-      const dbCg = await openDb(DB_ILLUSTRATIONS, 1);
+      const dbCg = await openDb(DB_ILLUSTRATIONS);
       if (dbCg.objectStoreNames.contains("slots")) {
         const tx = dbCg.transaction("slots", "readonly");
         const allSlots = await new Promise((res) => {
@@ -24415,7 +24427,7 @@ ${codeFrame}` : message);
   async function toggleCgFavorite(cgKey, currentVal) {
     const nextVal = !currentVal;
     try {
-      const dbMarks = await openDb(DB_CG_GALLERY, 1, (db) => {
+      const dbMarks = await openDb(DB_CG_GALLERY, void 0, (db) => {
         if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
       });
       const tx = dbMarks.transaction("marks", "readwrite");
@@ -24438,7 +24450,7 @@ ${codeFrame}` : message);
   async function toggleCgHidden(cgKey, currentVal) {
     const nextVal = !currentVal;
     try {
-      const dbMarks = await openDb(DB_CG_GALLERY, 1, (db) => {
+      const dbMarks = await openDb(DB_CG_GALLERY, void 0, (db) => {
         if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
       });
       const tx = dbMarks.transaction("marks", "readwrite");
@@ -24466,7 +24478,7 @@ ${codeFrame}` : message);
       });
     }
     try {
-      const dbCg = await openDb(DB_ILLUSTRATIONS, 1);
+      const dbCg = await openDb(DB_ILLUSTRATIONS);
       const tx = dbCg.transaction("slots", "readwrite");
       tx.objectStore("slots").delete(cgKey);
       dbCg.close();
@@ -24510,7 +24522,7 @@ ${codeFrame}` : message);
   async function listStagingAssets() {
     const list = [];
     try {
-      const db = await openDb(DB_GENERATED_ASSETS, 1);
+      const db = await openDb(DB_GENERATED_ASSETS);
       if (db.objectStoreNames.contains("assets")) {
         const tx = db.transaction("assets", "readonly");
         const all = await new Promise((res) => {
@@ -24550,7 +24562,7 @@ ${codeFrame}` : message);
   }
   async function discardStagingAsset(key) {
     try {
-      const db = await openDb(DB_GENERATED_ASSETS, 1);
+      const db = await openDb(DB_GENERATED_ASSETS);
       const tx = db.transaction("assets", "readwrite");
       tx.objectStore("assets").delete(key);
       db.close();
@@ -24572,24 +24584,49 @@ ${codeFrame}` : message);
   var isResourcesModalVisible = ref(false);
   var appInstance2 = null;
   var containerEl2 = null;
-  function openResourcesModal() {
+  function getCandidateDocument3() {
+    try {
+      if (window.parent && window.parent.document) return window.parent.document;
+    } catch (_) {
+    }
+    try {
+      if (window.top && window.top.document) return window.top.document;
+    } catch (_) {
+    }
+    return document;
+  }
+  function ensureResourcesMounted(targetDoc = null) {
+    const doc2 = targetDoc || getCandidateDocument3();
+    if (!doc2) return;
+    injectResourcesStyles();
+    let container = doc2.getElementById("igs-patch-resources-modal-container");
+    if (!container) {
+      container = doc2.createElement("div");
+      container.id = "igs-patch-resources-modal-container";
+      (doc2.body || doc2.documentElement).appendChild(container);
+    }
+    containerEl2 = container;
+    if (!appInstance2) {
+      try {
+        appInstance2 = createApp(ResourcesModalRoot);
+        appInstance2.mount(containerEl2);
+        console.info("[IGS-Patch] \u653E\u6620\u8D44\u6E90\u63A7\u5236\u53F0 Vue 3 \u6302\u8F7D\u6210\u529F\u3002");
+      } catch (err) {
+        console.error("[IGS-Patch] \u6302\u8F7D Vue 3 \u653E\u6620\u8D44\u6E90\u9762\u677F\u5931\u8D25:", err);
+      }
+    } else if (containerEl2 && !doc2.body.contains(containerEl2)) {
+      (doc2.body || doc2.documentElement).appendChild(containerEl2);
+    }
+  }
+  function openResourcesModal(targetDoc = null) {
     console.info("[IGS-Patch] \u6B63\u5728\u547C\u51FA\u653E\u6620\u8D44\u6E90\u63A7\u5236\u53F0...");
     injectResourcesStyles();
     detectAndSyncIgsTheme();
-    ensureMounted2();
+    ensureResourcesMounted(targetDoc);
     isResourcesModalVisible.value = true;
   }
   function closeResourcesModal() {
     isResourcesModalVisible.value = false;
-  }
-  function ensureMounted2() {
-    if (appInstance2 && containerEl2 && document.body.contains(containerEl2)) return;
-    injectResourcesStyles();
-    containerEl2 = document.createElement("div");
-    containerEl2.id = "igs-patch-resources-modal-container";
-    document.body.appendChild(containerEl2);
-    appInstance2 = createApp(ResourcesModalRoot);
-    appInstance2.mount(containerEl2);
   }
   var ResourcesModalRoot = {
     setup() {
@@ -24872,6 +24909,11 @@ ${codeFrame}` : message);
         cgFilter.value = mode;
         loadData();
       };
+      watch2(visible, (isOpen) => {
+        if (isOpen) {
+          loadData();
+        }
+      });
       onMounted(() => {
         loadData();
         const onKeyDown = (e) => {
@@ -25539,7 +25581,7 @@ ${codeFrame}` : message);
       } catch (_) {
       }
       try {
-        openSettingsModal();
+        openSettingsModal(doc2);
       } catch (err) {
         console.error("[IGS-Patch] \u547C\u51FA\u653E\u6620\u8BBE\u7F6E\u5F02\u5E38:", err);
       }
@@ -25571,7 +25613,7 @@ ${codeFrame}` : message);
       } catch (_) {
       }
       try {
-        openResourcesModal();
+        openResourcesModal(doc2);
       } catch (err) {
         console.error("[IGS-Patch] \u547C\u51FA\u653E\u6620\u8D44\u6E90\u5F02\u5E38:", err);
       }
@@ -25597,6 +25639,7 @@ ${codeFrame}` : message);
     setupBaibaiEnhancer();
     setupMagicMenu();
     ensureMounted();
+    ensureResourcesMounted();
     bindGenerationEvents();
     const patchApi = {
       version: "2.0.0",

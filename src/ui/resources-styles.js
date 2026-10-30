@@ -20,6 +20,11 @@ export const RESOURCES_MODAL_CSS = `
   box-sizing: border-box;
 }
 
+@keyframes igsPatchFadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .igs-resources-overlay *, .igs-resources-overlay *::before, .igs-resources-overlay *::after {
   box-sizing: border-box;
 }
@@ -603,10 +608,7 @@ export const RESOURCES_MODAL_CSS = `
 }
 `;
 
-let stylesInjected = false;
-
 export function injectResourcesStyles() {
-    if (stylesInjected) return;
     const docs = [document];
     try {
         if (window.parent?.document && !docs.includes(window.parent.document)) docs.push(window.parent.document);
@@ -621,9 +623,8 @@ export function injectResourcesStyles() {
                 const styleEl = doc.createElement('style');
                 styleEl.id = 'igs-patch-resources-styles';
                 styleEl.textContent = RESOURCES_MODAL_CSS;
-                doc.head.appendChild(styleEl);
+                (doc.head || doc.body || doc.documentElement).appendChild(styleEl);
             }
         } catch (_) { }
     }
-    stylesInjected = true;
 }

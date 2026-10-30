@@ -115,7 +115,7 @@ function createMagicSettingsItem(doc) {
         } catch (_) { }
 
         try {
-            openSettingsModal();
+            openSettingsModal(doc);
         } catch (err) {
             console.error('[IGS-Patch] 呼出放映设置异常:', err);
         }
@@ -152,7 +152,7 @@ function createMagicResourcesItem(doc) {
         } catch (_) { }
 
         try {
-            openResourcesModal();
+            openResourcesModal(doc);
         } catch (err) {
             console.error('[IGS-Patch] 呼出放映资源异常:', err);
         }

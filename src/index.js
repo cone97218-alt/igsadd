@@ -18,7 +18,7 @@ import { syncAllStoredScriptsToChat } from './interceptor/render-hook.js';
 import { setupQrHijack } from './ui/qr-hijack.js';
 import { setupMagicMenu } from './ui/magic-menu.js';
 import { openSettingsModal, closeSettingsModal, ensureMounted } from './ui/settings-modal.js';
-import { openResourcesModal, closeResourcesModal } from './ui/resources-modal.js';
+import { openResourcesModal, closeResourcesModal, ensureResourcesMounted } from './ui/resources-modal.js';
 import { fullResetGalSystem } from './tauri/reset.js';
 import { notifyToast } from './ui/toast.js';
 import { setupBaibaiEnhancer } from './image-gen/baibai-enhancer.js';
@@ -53,9 +53,10 @@ import { setupBaiBaiBookBridge } from './baibai/book-bridge.js';
     // 7. 启动柏宝绘分区画师增强引擎
     setupBaibaiEnhancer();
 
-    // 8. 启动魔法棒菜单【放映设置】注入并预热挂载
+    // 8. 启动魔法棒菜单【放映设置】与【放映资源】注入并预热挂载
     setupMagicMenu();
     ensureMounted();
+    ensureResourcesMounted();
 
     // 9. 绑定正文生成生命周期事件
     bindGenerationEvents();

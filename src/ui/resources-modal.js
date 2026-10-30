@@ -11,7 +11,7 @@
  * 规范：纯 FontAwesome 图标，严禁 Emoji；标题严禁使用括号；极简按键与全屏大图预览 Lightbox
  */
 
-import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { patchState, setTheme, subscribeState, detectAndSyncIgsTheme } from '../state/state.js';
 import { THEME_OPTIONS, generateThemeCssVariables } from './theme.js';
 import { notifyToast } from './toast.js';
@@ -48,28 +48,53 @@ export const isResourcesModalVisible = ref(false);
 let appInstance = null;
 let containerEl = null;
 
-export function openResourcesModal() {
+function getCandidateDocument() {
+    try {
+        if (window.parent && window.parent.document) return window.parent.document;
+    } catch (_) { }
+    try {
+        if (window.top && window.top.document) return window.top.document;
+    } catch (_) { }
+    return document;
+}
+
+export function ensureResourcesMounted(targetDoc = null) {
+    const doc = targetDoc || getCandidateDocument();
+    if (!doc) return;
+
+    injectResourcesStyles();
+
+    let container = doc.getElementById('igs-patch-resources-modal-container');
+    if (!container) {
+        container = doc.createElement('div');
+        container.id = 'igs-patch-resources-modal-container';
+        (doc.body || doc.documentElement).appendChild(container);
+    }
+    containerEl = container;
+
+    if (!appInstance) {
+        try {
+            appInstance = createApp(ResourcesModalRoot);
+            appInstance.mount(containerEl);
+            console.info('[IGS-Patch] 放映资源控制台 Vue 3 挂载成功。');
+        } catch (err) {
+            console.error('[IGS-Patch] 挂载 Vue 3 放映资源面板失败:', err);
+        }
+    } else if (containerEl && !doc.body.contains(containerEl)) {
+        (doc.body || doc.documentElement).appendChild(containerEl);
+    }
+}
+
+export function openResourcesModal(targetDoc = null) {
     console.info('[IGS-Patch] 正在呼出放映资源控制台...');
     injectResourcesStyles();
     detectAndSyncIgsTheme();
-    ensureMounted();
+    ensureResourcesMounted(targetDoc);
     isResourcesModalVisible.value = true;
 }
 
 export function closeResourcesModal() {
     isResourcesModalVisible.value = false;
-}
-
-function ensureMounted() {
-    if (appInstance && containerEl && document.body.contains(containerEl)) return;
-
-    injectResourcesStyles();
-    containerEl = document.createElement('div');
-    containerEl.id = 'igs-patch-resources-modal-container';
-    document.body.appendChild(containerEl);
-
-    appInstance = createApp(ResourcesModalRoot);
-    appInstance.mount(containerEl);
 }
 
 const ResourcesModalRoot = {
@@ -396,6 +421,12 @@ const ResourcesModalRoot = {
             cgFilter.value = mode;
             loadData();
         };
+
+        watch(visible, (isOpen) => {
+            if (isOpen) {
+                loadData();
+            }
+        });
 
         onMounted(() => {
             loadData();

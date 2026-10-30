@@ -37,11 +37,11 @@ export const isModalVisible = ref(false);
 let appInstance = null;
 let containerEl = null;
 
-export function openSettingsModal() {
+export function openSettingsModal(targetDoc = null) {
     console.info('[IGS-Patch] 正在呼出放映设置全屏控制台...');
     injectSettingsStyles();
     detectAndSyncIgsTheme();
-    ensureMounted();
+    ensureMounted(targetDoc);
 
     // 每次打开面板时，主动触发一次 IGS 规则同步
     triggerIgsPromptResync();
@@ -63,8 +63,8 @@ function getCandidateDocument() {
     return document;
 }
 
-export function ensureMounted() {
-    const doc = getCandidateDocument();
+export function ensureMounted(targetDoc = null) {
+    const doc = targetDoc || getCandidateDocument();
     if (!doc) return;
 
     let container = doc.getElementById('igs-patch-settings-mount-root');
@@ -82,6 +82,8 @@ export function ensureMounted() {
         } catch (err) {
             console.error('[IGS-Patch] 挂载 Vue 3 设置面板失败:', err);
         }
+    } else if (containerEl && !doc.body.contains(containerEl)) {
+        (doc.body || doc.documentElement).appendChild(containerEl);
     }
 }
 

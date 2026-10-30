@@ -94,9 +94,17 @@ export function updateSceneAssets(updater) {
 /*                          IndexedDB 辅助操作封装                            */
 /* ========================================================================= */
 
-function openDb(name, version = 1, onUpgrade = null) {
+function openDb(name, version = undefined, onUpgrade = null) {
     return new Promise((resolve, reject) => {
-        const req = window.indexedDB.open(name, version);
+        let req;
+        try {
+            if (!window.indexedDB) {
+                return reject(new Error('IndexedDB not supported'));
+            }
+            req = typeof version === 'number' ? window.indexedDB.open(name, version) : window.indexedDB.open(name);
+        } catch (err) {
+            return reject(err);
+        }
         req.onupgradeneeded = (e) => {
             if (typeof onUpgrade === 'function') onUpgrade(req.result, e);
         };
@@ -127,7 +135,7 @@ export async function resolveImageUrl(url) {
         }
 
         try {
-            const db = await openDb(DB_GENERATED_ASSETS, 1);
+            const db = await openDb(DB_GENERATED_ASSETS);
             if (!db.objectStoreNames.contains('images')) {
                 db.close();
                 return '';
@@ -378,7 +386,7 @@ export async function listAllCgs(filter = 'all') {
     // 1. 读取 IndexedDB igs-cg-gallery 的标记 (收藏与隐藏)
     const marksMap = new Map();
     try {
-        const dbMarks = await openDb(DB_CG_GALLERY, 1);
+        const dbMarks = await openDb(DB_CG_GALLERY);
         if (dbMarks.objectStoreNames.contains('marks')) {
             const tx = dbMarks.transaction('marks', 'readonly');
             const allMarks = await new Promise((res) => {
@@ -395,7 +403,7 @@ export async function listAllCgs(filter = 'all') {
 
     // 2. 读取 IndexedDB igs-illustrations 中的槽位记录
     try {
-        const dbCg = await openDb(DB_ILLUSTRATIONS, 1);
+        const dbCg = await openDb(DB_ILLUSTRATIONS);
         if (dbCg.objectStoreNames.contains('slots')) {
             const tx = dbCg.transaction('slots', 'readonly');
             const allSlots = await new Promise((res) => {
@@ -464,7 +472,7 @@ export async function listAllCgs(filter = 'all') {
 export async function toggleCgFavorite(cgKey, currentVal) {
     const nextVal = !currentVal;
     try {
-        const dbMarks = await openDb(DB_CG_GALLERY, 1, (db) => {
+        const dbMarks = await openDb(DB_CG_GALLERY, undefined, (db) => {
             if (!db.objectStoreNames.contains('marks')) db.createObjectStore('marks', { keyPath: 'key' });
         });
         const tx = dbMarks.transaction('marks', 'readwrite');
@@ -488,7 +496,7 @@ export async function toggleCgFavorite(cgKey, currentVal) {
 export async function toggleCgHidden(cgKey, currentVal) {
     const nextVal = !currentVal;
     try {
-        const dbMarks = await openDb(DB_CG_GALLERY, 1, (db) => {
+        const dbMarks = await openDb(DB_CG_GALLERY, undefined, (db) => {
             if (!db.objectStoreNames.contains('marks')) db.createObjectStore('marks', { keyPath: 'key' });
         });
         const tx = dbMarks.transaction('marks', 'readwrite');
@@ -518,7 +526,7 @@ export async function deleteCg(cgKey, isEventCg = false) {
     }
 
     try {
-        const dbCg = await openDb(DB_ILLUSTRATIONS, 1);
+        const dbCg = await openDb(DB_ILLUSTRATIONS);
         const tx = dbCg.transaction('slots', 'readwrite');
         tx.objectStore('slots').delete(cgKey);
         dbCg.close();
@@ -577,7 +585,7 @@ export function deleteItem(name) {
 export async function listStagingAssets() {
     const list = [];
     try {
-        const db = await openDb(DB_GENERATED_ASSETS, 1);
+        const db = await openDb(DB_GENERATED_ASSETS);
         if (db.objectStoreNames.contains('assets')) {
             const tx = db.transaction('assets', 'readonly');
             const all = await new Promise((res) => {
@@ -620,7 +628,7 @@ export async function acceptStagingAsset(item, targetName, targetType) {
 
 export async function discardStagingAsset(key) {
     try {
-        const db = await openDb(DB_GENERATED_ASSETS, 1);
+        const db = await openDb(DB_GENERATED_ASSETS);
         const tx = db.transaction('assets', 'readwrite');
         tx.objectStore('assets').delete(key);
         db.close();
