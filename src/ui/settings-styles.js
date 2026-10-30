@@ -1114,6 +1114,8 @@ export const SETTINGS_MODAL_CSS = `
     max-height: 100dvh;
     border-radius: 0;
     border: none;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .igs-patch-header {
@@ -1275,6 +1277,23 @@ export const SETTINGS_MODAL_CSS = `
     border-radius: 0;
     border: none;
     margin: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .expanded-editor-textarea,
+  .igs-form-input,
+  .igs-form-textarea {
+    font-size: 16px !important; /* 彻底防止 iOS Safari 聚焦拉近放大 */
+  }
+
+  /* 触摸操作即时反馈 */
+  .igs-btn:active,
+  .igs-patch-nav-item:active,
+  .igs-icon-btn:active,
+  .mode-card:active {
+    transform: scale(0.98);
+    opacity: 0.85;
   }
 }
 `;

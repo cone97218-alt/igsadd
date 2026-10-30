@@ -584,26 +584,298 @@ export const RESOURCES_MODAL_CSS = `
   margin-top: 6px;
 }
 
-/* 响应式适配 */
+/* =========================================
+   移动端响应式深度适配 (@media <= 768px)
+   ========================================= */
 @media (max-width: 768px) {
+  .igs-resources-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .igs-resources-window {
+    width: 100vw;
+    height: 100dvh;
+    max-width: 100vw;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* 顶部栏双行优雅排版：第一行标题与操作，第二行全宽搜索与新增 */
+  .igs-resources-header {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+    background-color: var(--igs-settings-surface, #2a3036);
+  }
+
+  .igs-resources-title-row {
+    flex: 1;
+    min-width: 110px;
+  }
+
+  .igs-resources-title {
+    font-size: 1.05rem;
+    gap: 6px;
+  }
+
+  .igs-resources-header-actions {
+    margin-left: auto;
+    gap: 6px;
+    display: flex;
+    align-items: center;
+  }
+
+  .igs-patch-theme-group {
+    max-width: 96px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px;
+    gap: 4px;
+  }
+
+  .igs-patch-theme-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .igs-patch-theme-swatch {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .igs-btn-icon-round {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+
+  .igs-btn-primary-compact {
+    padding: 5px 10px;
+    font-size: 12px;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .igs-resources-header-tools {
+    order: 3;
+    width: 100%;
+    max-width: 100%;
+    margin: 2px 0 0 0;
+    flex: 1 1 100%;
+  }
+
+  .igs-resources-search-box {
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--igs-settings-field, #1f2428);
+  }
+
+  .igs-resources-search-input {
+    font-size: 16px; /* 防止 iOS 自动聚焦拉近 */
+  }
+
+  /* 移动端横向滑动导航药丸 */
   .igs-resources-body {
     flex-direction: column;
+    min-height: 0;
+    flex: 1;
   }
+
   .igs-resources-nav {
     width: 100%;
     flex-direction: row;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border-right: none;
     border-bottom: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
-    padding: 8px;
+    padding: 6px 8px;
+    gap: 4px;
+    scrollbar-width: none;
+    flex-shrink: 0;
   }
+
+  .igs-resources-nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .igs-resources-nav-btn {
-    padding: 8px 12px;
+    padding: 6px 10px;
+    font-size: 0.82rem;
     white-space: nowrap;
     width: auto;
+    border-radius: 8px;
+    gap: 5px;
+    flex-shrink: 0;
   }
-  .igs-resources-header-tools {
-    max-width: 160px;
+
+  .igs-resources-nav-btn i {
+    font-size: 13px;
+    width: auto;
+  }
+
+  .igs-resources-badge {
+    font-size: 10px;
+    padding: 1px 5px;
+    min-width: 16px;
+  }
+
+  /* 内容区域与双列相册 */
+  .igs-resources-content {
+    padding: 10px 8px;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .igs-resources-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .igs-resource-card {
+    border-radius: 10px;
+  }
+
+  /* 移动端触摸屏无 hover，右上角管理操作图标始终清晰可见 */
+  .igs-resource-card-overlay-actions {
+    opacity: 1 !important;
+    top: 6px;
+    right: 6px;
+    gap: 4px;
+  }
+
+  .igs-icon-tag-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+
+  .igs-resource-info {
+    padding: 8px;
+    gap: 3px;
+  }
+
+  .igs-resource-name {
+    font-size: 0.82rem;
+  }
+
+  .igs-resource-desc {
+    font-size: 0.72rem;
+  }
+
+  .igs-resource-diff-row {
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .igs-resource-diff-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .igs-resource-diff-tag {
+    padding: 2px 6px;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  /* CG 筛选药丸栏 */
+  .igs-resources-subbar {
+    padding: 0 4px 8px 4px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .igs-resources-filter-chips {
+    gap: 4px;
+  }
+
+  .igs-resources-chip {
+    padding: 4px 10px;
+    font-size: 0.76rem;
+  }
+
+  /* 全屏 Lightbox 大图预览深度适配移动端与刘海屏 */
+  .igs-lightbox-topbar {
+    padding: 8px 10px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    gap: 8px;
+  }
+
+  .igs-lightbox-title {
+    font-size: 0.88rem;
+    max-width: 140px;
+  }
+
+  .igs-lightbox-top-actions {
+    gap: 4px;
+  }
+
+  .igs-lightbox-top-actions .igs-btn-icon-round {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+  .igs-lightbox-main {
+    padding: 8px 4px;
+  }
+
+  .igs-lightbox-img {
+    max-width: 100vw;
+    max-height: calc(85dvh - 120px);
+  }
+
+  .igs-lightbox-bottombar {
+    padding: 10px 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    font-size: 0.78rem;
+    max-height: 28vh;
+  }
+
+  /* 弹出对话框居中与全屏适配 */
+  .igs-dialog-overlay {
+    padding: 10px;
+    align-items: center;
+  }
+
+  .igs-dialog-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 88dvh;
+    overflow-y: auto;
+    padding: 16px 14px;
+    border-radius: 14px;
+    gap: 12px;
+  }
+
+  .igs-form-input, .igs-form-textarea {
+    font-size: 16px !important; /* 彻底防止 iOS 浏览器自动缩放页面 */
+    padding: 10px 12px;
+  }
+
+  .igs-file-dropzone {
+    padding: 14px;
+  }
+
+  /* 移动端触摸反馈 */
+  .igs-btn-icon-round:active,
+  .igs-icon-tag-btn:active,
+  .igs-resources-nav-btn:active,
+  .igs-resources-chip:active,
+  .igs-btn-primary-compact:active {
+    transform: scale(0.95);
+    opacity: 0.85;
   }
 }
 `;

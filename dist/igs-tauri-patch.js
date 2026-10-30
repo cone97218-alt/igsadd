@@ -678,8 +678,8 @@
       toastContainer.id = "igs-patch-mini-toast-root";
       toastContainer.style.cssText = `
             position: fixed;
-            top: 16px;
-            right: 16px;
+            top: max(16px, env(safe-area-inset-top));
+            right: max(16px, env(safe-area-inset-right));
             z-index: 2147483647;
             pointer-events: none;
             display: flex;
@@ -21411,6 +21411,8 @@ ${codeFrame}` : message);
     max-height: 100dvh;
     border-radius: 0;
     border: none;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .igs-patch-header {
@@ -21572,6 +21574,23 @@ ${codeFrame}` : message);
     border-radius: 0;
     border: none;
     margin: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .expanded-editor-textarea,
+  .igs-form-input,
+  .igs-form-textarea {
+    font-size: 16px !important; /* \u5F7B\u5E95\u9632\u6B62 iOS Safari \u805A\u7126\u62C9\u8FD1\u653E\u5927 */
+  }
+
+  /* \u89E6\u6478\u64CD\u4F5C\u5373\u65F6\u53CD\u9988 */
+  .igs-btn:active,
+  .igs-patch-nav-item:active,
+  .igs-icon-btn:active,
+  .mode-card:active {
+    transform: scale(0.98);
+    opacity: 0.85;
   }
 }
 `;
@@ -23998,26 +24017,298 @@ ${codeFrame}` : message);
   margin-top: 6px;
 }
 
-/* \u54CD\u5E94\u5F0F\u9002\u914D */
+/* =========================================
+   \u79FB\u52A8\u7AEF\u54CD\u5E94\u5F0F\u6DF1\u5EA6\u9002\u914D (@media <= 768px)
+   ========================================= */
 @media (max-width: 768px) {
+  .igs-resources-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .igs-resources-window {
+    width: 100vw;
+    height: 100dvh;
+    max-width: 100vw;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* \u9876\u90E8\u680F\u53CC\u884C\u4F18\u96C5\u6392\u7248\uFF1A\u7B2C\u4E00\u884C\u6807\u9898\u4E0E\u64CD\u4F5C\uFF0C\u7B2C\u4E8C\u884C\u5168\u5BBD\u641C\u7D22\u4E0E\u65B0\u589E */
+  .igs-resources-header {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+    background-color: var(--igs-settings-surface, #2a3036);
+  }
+
+  .igs-resources-title-row {
+    flex: 1;
+    min-width: 110px;
+  }
+
+  .igs-resources-title {
+    font-size: 1.05rem;
+    gap: 6px;
+  }
+
+  .igs-resources-header-actions {
+    margin-left: auto;
+    gap: 6px;
+    display: flex;
+    align-items: center;
+  }
+
+  .igs-patch-theme-group {
+    max-width: 96px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px;
+    gap: 4px;
+  }
+
+  .igs-patch-theme-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .igs-patch-theme-swatch {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .igs-btn-icon-round {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+
+  .igs-btn-primary-compact {
+    padding: 5px 10px;
+    font-size: 12px;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .igs-resources-header-tools {
+    order: 3;
+    width: 100%;
+    max-width: 100%;
+    margin: 2px 0 0 0;
+    flex: 1 1 100%;
+  }
+
+  .igs-resources-search-box {
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--igs-settings-field, #1f2428);
+  }
+
+  .igs-resources-search-input {
+    font-size: 16px; /* \u9632\u6B62 iOS \u81EA\u52A8\u805A\u7126\u62C9\u8FD1 */
+  }
+
+  /* \u79FB\u52A8\u7AEF\u6A2A\u5411\u6ED1\u52A8\u5BFC\u822A\u836F\u4E38 */
   .igs-resources-body {
     flex-direction: column;
+    min-height: 0;
+    flex: 1;
   }
+
   .igs-resources-nav {
     width: 100%;
     flex-direction: row;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border-right: none;
     border-bottom: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
-    padding: 8px;
+    padding: 6px 8px;
+    gap: 4px;
+    scrollbar-width: none;
+    flex-shrink: 0;
   }
+
+  .igs-resources-nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .igs-resources-nav-btn {
-    padding: 8px 12px;
+    padding: 6px 10px;
+    font-size: 0.82rem;
     white-space: nowrap;
     width: auto;
+    border-radius: 8px;
+    gap: 5px;
+    flex-shrink: 0;
   }
-  .igs-resources-header-tools {
-    max-width: 160px;
+
+  .igs-resources-nav-btn i {
+    font-size: 13px;
+    width: auto;
+  }
+
+  .igs-resources-badge {
+    font-size: 10px;
+    padding: 1px 5px;
+    min-width: 16px;
+  }
+
+  /* \u5185\u5BB9\u533A\u57DF\u4E0E\u53CC\u5217\u76F8\u518C */
+  .igs-resources-content {
+    padding: 10px 8px;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .igs-resources-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .igs-resource-card {
+    border-radius: 10px;
+  }
+
+  /* \u79FB\u52A8\u7AEF\u89E6\u6478\u5C4F\u65E0 hover\uFF0C\u53F3\u4E0A\u89D2\u7BA1\u7406\u64CD\u4F5C\u56FE\u6807\u59CB\u7EC8\u6E05\u6670\u53EF\u89C1 */
+  .igs-resource-card-overlay-actions {
+    opacity: 1 !important;
+    top: 6px;
+    right: 6px;
+    gap: 4px;
+  }
+
+  .igs-icon-tag-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+
+  .igs-resource-info {
+    padding: 8px;
+    gap: 3px;
+  }
+
+  .igs-resource-name {
+    font-size: 0.82rem;
+  }
+
+  .igs-resource-desc {
+    font-size: 0.72rem;
+  }
+
+  .igs-resource-diff-row {
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .igs-resource-diff-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .igs-resource-diff-tag {
+    padding: 2px 6px;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  /* CG \u7B5B\u9009\u836F\u4E38\u680F */
+  .igs-resources-subbar {
+    padding: 0 4px 8px 4px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .igs-resources-filter-chips {
+    gap: 4px;
+  }
+
+  .igs-resources-chip {
+    padding: 4px 10px;
+    font-size: 0.76rem;
+  }
+
+  /* \u5168\u5C4F Lightbox \u5927\u56FE\u9884\u89C8\u6DF1\u5EA6\u9002\u914D\u79FB\u52A8\u7AEF\u4E0E\u5218\u6D77\u5C4F */
+  .igs-lightbox-topbar {
+    padding: 8px 10px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    gap: 8px;
+  }
+
+  .igs-lightbox-title {
+    font-size: 0.88rem;
+    max-width: 140px;
+  }
+
+  .igs-lightbox-top-actions {
+    gap: 4px;
+  }
+
+  .igs-lightbox-top-actions .igs-btn-icon-round {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+  .igs-lightbox-main {
+    padding: 8px 4px;
+  }
+
+  .igs-lightbox-img {
+    max-width: 100vw;
+    max-height: calc(85dvh - 120px);
+  }
+
+  .igs-lightbox-bottombar {
+    padding: 10px 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    font-size: 0.78rem;
+    max-height: 28vh;
+  }
+
+  /* \u5F39\u51FA\u5BF9\u8BDD\u6846\u5C45\u4E2D\u4E0E\u5168\u5C4F\u9002\u914D */
+  .igs-dialog-overlay {
+    padding: 10px;
+    align-items: center;
+  }
+
+  .igs-dialog-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 88dvh;
+    overflow-y: auto;
+    padding: 16px 14px;
+    border-radius: 14px;
+    gap: 12px;
+  }
+
+  .igs-form-input, .igs-form-textarea {
+    font-size: 16px !important; /* \u5F7B\u5E95\u9632\u6B62 iOS \u6D4F\u89C8\u5668\u81EA\u52A8\u7F29\u653E\u9875\u9762 */
+    padding: 10px 12px;
+  }
+
+  .igs-file-dropzone {
+    padding: 14px;
+  }
+
+  /* \u79FB\u52A8\u7AEF\u89E6\u6478\u53CD\u9988 */
+  .igs-btn-icon-round:active,
+  .igs-icon-tag-btn:active,
+  .igs-resources-nav-btn:active,
+  .igs-resources-chip:active,
+  .igs-btn-primary-compact:active {
+    transform: scale(0.95);
+    opacity: 0.85;
   }
 }
 `;
@@ -25565,6 +25856,10 @@ ${codeFrame}` : message);
     item.style.cursor = "pointer";
     item.style.display = "flex";
     item.style.alignItems = "center";
+    item.style.minHeight = "38px";
+    item.style.userSelect = "none";
+    item.style.touchAction = "manipulation";
+    item.style.webkitTapHighlightColor = "transparent";
     item.innerHTML = `
         <i class="fa-solid fa-film" aria-hidden="true" style="margin-right: 8px; width: 16px; text-align: center;"></i>
         <span>\u653E\u6620\u8BBE\u7F6E</span>
@@ -25597,6 +25892,10 @@ ${codeFrame}` : message);
     item.style.cursor = "pointer";
     item.style.display = "flex";
     item.style.alignItems = "center";
+    item.style.minHeight = "38px";
+    item.style.userSelect = "none";
+    item.style.touchAction = "manipulation";
+    item.style.webkitTapHighlightColor = "transparent";
     item.innerHTML = `
         <i class="fa-solid fa-photo-film" aria-hidden="true" style="margin-right: 8px; width: 16px; text-align: center;"></i>
         <span>\u653E\u6620\u8D44\u6E90</span>

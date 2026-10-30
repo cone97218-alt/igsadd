@@ -96,6 +96,10 @@ function createMagicSettingsItem(doc) {
     item.style.cursor = 'pointer';
     item.style.display = 'flex';
     item.style.alignItems = 'center';
+    item.style.minHeight = '38px';
+    item.style.userSelect = 'none';
+    item.style.touchAction = 'manipulation';
+    item.style.webkitTapHighlightColor = 'transparent';
 
     item.innerHTML = `
         <i class="fa-solid fa-film" aria-hidden="true" style="margin-right: 8px; width: 16px; text-align: center;"></i>
@@ -133,6 +137,10 @@ function createMagicResourcesItem(doc) {
     item.style.cursor = 'pointer';
     item.style.display = 'flex';
     item.style.alignItems = 'center';
+    item.style.minHeight = '38px';
+    item.style.userSelect = 'none';
+    item.style.touchAction = 'manipulation';
+    item.style.webkitTapHighlightColor = 'transparent';
 
     item.innerHTML = `
         <i class="fa-solid fa-photo-film" aria-hidden="true" style="margin-right: 8px; width: 16px; text-align: center;"></i>

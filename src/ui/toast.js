@@ -38,8 +38,8 @@ export function notifyToast(message, type = 'info', duration = 2200) {
         toastContainer.id = 'igs-patch-mini-toast-root';
         toastContainer.style.cssText = `
             position: fixed;
-            top: 16px;
-            right: 16px;
+            top: max(16px, env(safe-area-inset-top));
+            right: max(16px, env(safe-area-inset-right));
             z-index: 2147483647;
             pointer-events: none;
             display: flex;
