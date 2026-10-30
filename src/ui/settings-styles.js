@@ -88,10 +88,13 @@ export const SETTINGS_MODAL_CSS = `
   gap: 14px;
 }
 
-/* 主题选择色块 */
+/* 主题选择色块 (强制保持水平排列，不受外部样式干扰) */
+.igs-patch-header-actions .igs-patch-theme-group,
 .igs-patch-theme-group {
-  display: flex;
-  gap: 6px;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px !important;
   background: var(--igs-settings-field, #1f2428);
   padding: 4px 6px;
   border-radius: 20px;

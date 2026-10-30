@@ -59,16 +59,38 @@ export const RESOURCES_MODAL_CSS = `
   justify-content: space-between;
   padding: 14px 10px;
   z-index: 2;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), padding 0.2s ease;
+  position: relative;
 }
 
-/* 侧边栏顶部大标题 */
+.igs-resources-sidebar.is-collapsed {
+  width: 52px;
+  padding: 12px 6px;
+  align-items: center;
+}
+
+/* 侧边栏顶部大标题与折叠开关 */
 .igs-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 6px 14px 6px;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 2px 12px 2px;
   border-bottom: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
   color: var(--igs-settings-ink, #ffffff);
+  width: 100%;
+}
+
+.igs-resources-sidebar.is-collapsed .igs-sidebar-brand {
+  justify-content: center;
+  padding: 4px 0 10px 0;
+}
+
+.igs-sidebar-brand-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .igs-sidebar-brand-icon {
@@ -86,6 +108,55 @@ export const RESOURCES_MODAL_CSS = `
   white-space: nowrap;
 }
 
+.igs-sidebar-collapse-btn {
+  background: transparent;
+  border: none;
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.5));
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.igs-sidebar-collapse-btn:hover {
+  background: var(--igs-settings-hover, rgba(255,255,255,0.08));
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-resources-sidebar.is-collapsed .igs-sidebar-nav-btn {
+  padding: 10px 0;
+  justify-content: center;
+  width: 100%;
+}
+
+.igs-resources-sidebar.is-collapsed .igs-sidebar-nav-btn span {
+  display: none;
+}
+
+.igs-resources-sidebar.is-collapsed .igs-sidebar-nav-btn i {
+  font-size: 16px;
+  margin: 0;
+}
+
+.igs-resources-sidebar.is-collapsed .igs-sidebar-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 1px 4px;
+  font-size: 9px;
+}
+
+.igs-resources-sidebar.is-collapsed .igs-patch-theme-group {
+  flex-direction: column;
+  padding: 4px 2px;
+  gap: 4px;
+}
+
 /* 侧边栏垂直导航项 */
 .igs-sidebar-nav {
   display: flex;
@@ -93,6 +164,7 @@ export const RESOURCES_MODAL_CSS = `
   gap: 4px;
   margin-top: 10px;
   flex: 1;
+  width: 100%;
 }
 
 .igs-sidebar-nav-btn {
@@ -491,25 +563,50 @@ export const RESOURCES_MODAL_CSS = `
 .igs-diff-card-info {
   padding: 8px 10px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 6px;
   background: var(--igs-settings-field, rgba(0,0,0,0.08));
 }
 
 .igs-diff-card-name {
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   font-weight: 700;
   color: var(--igs-settings-ink, #ffffff);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .igs-diff-card-acts {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.igs-diff-act-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+  background: var(--igs-settings-surface, #2a3036);
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.igs-diff-act-btn:hover {
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+  border-color: var(--igs-settings-accent, #7fd6ca);
 }
 
 /* 背景、衣柜、CG、道具通用卡片网格 */
@@ -878,19 +975,25 @@ export const RESOURCES_MODAL_CSS = `
    全屏 Lightbox 大图查看器
    ========================================= */
 .igs-lightbox-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483647;
-  background: rgba(12, 14, 18, 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  display: flex;
-  flex-direction: column;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 2147483647 !important;
+  background: rgba(10, 12, 16, 0.96) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  display: flex !important;
+  flex-direction: column !important;
   animation: igsPatchFadeIn 0.15s ease-out;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .igs-lightbox-topbar {
-  padding: 12px 20px;
+  padding: 10px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -898,19 +1001,24 @@ export const RESOURCES_MODAL_CSS = `
   border-bottom: 1px solid rgba(255,255,255,0.12);
   color: #ffffff;
   flex-shrink: 0;
-  z-index: 100;
+  z-index: 10;
+  min-height: 48px;
 }
 
 .igs-lightbox-title {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .igs-lightbox-top-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .igs-lightbox-main {
@@ -918,26 +1026,29 @@ export const RESOURCES_MODAL_CSS = `
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  overflow: auto;
+  padding: 16px;
+  overflow: hidden;
   position: relative;
   min-height: 0;
+  cursor: zoom-out;
 }
 
 .igs-lightbox-img {
-  max-width: 90vw;
-  max-height: 82vh;
-  width: auto;
-  height: auto;
-  object-fit: contain;
+  max-width: 95vw !important;
+  max-height: calc(100dvh - 120px) !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
   border-radius: 8px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.85);
   display: block;
   margin: auto;
+  cursor: default;
+  transition: transform 0.2s ease;
 }
 
 .igs-lightbox-bottombar {
-  padding: 10px 20px;
+  padding: 10px 18px;
   background: #181b20;
   border-top: 1px solid rgba(255,255,255,0.12);
   font-size: 0.82rem;
@@ -1011,7 +1122,7 @@ export const RESOURCES_MODAL_CSS = `
     font-size: 9px;
   }
 
-  .igs-patch-theme-group {
+  .igs-resources-sidebar .igs-patch-theme-group {
     flex-direction: column;
     padding: 4px 2px;
     gap: 4px;
