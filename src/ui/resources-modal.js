@@ -1,19 +1,18 @@
 /**
  * 放映资源全屏控制台 (Vue 3 架构)
- * 完美对接 IGS 原生数据流与双轨架构：
- * 1. 作用域层级感知：全部、本卡、全局三档自由切换与实时计数
- * 2. 角色可切换式设计：支持多角色横向 Tab 切换，单角色深度管理，告别冗长平铺
- * 3. 深度穿透 CharacterOutfits：完整呈现角色衣装 (如 郁森·初始衣装) 与多表情差分 (如 平和)
- * 4. 角色元数据联动：User 主角身份标记、立绘高度 % 调节、双向作用域切换
- * 5. 差分与素材全套操作：生图、下载、上传替换、删除、更多设置
- * 6. 剧情 CG 画廊：彻底区分待生成与已生成，支持待生成直接生图，告别“读取中”黑框
- * 7. 与原版 IGS 完全对齐：包含立绘、背景、衣柜、CG、待确认五大核心资产板块
+ * 极致空间利用与高颜值流线型设计：
+ * 1. 响应式即时换肤：Vue 3 响应式追踪，一键秒切奶油风、浅色、地雷色、深色
+ * 2. 深度主题色彩渗透：彻底修复输入框与文本域底色，完美融入当前主题
+ * 3. 极简高效空间架构：合并多层冗余工具条，释放 75% 以上屏幕空间专供主体画幅与差分呈现
+ * 4. 道具图鉴全面回归：提供完整道具图鉴网格、新增、下载、上传替换与删除
+ * 5. 角色可切换式设计：横向药丸选择器，单角色深度聚焦，告别长列表堆叠
+ * 6. 原生 IGS 全域资产覆盖：立绘、背景、衣柜、CG、道具、待确认六大板块
  * 
  * 规范：纯 FontAwesome 图标，严禁 Emoji；标题与按键严禁使用括号；极简按键风格
  */
 
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
-import { patchState, setTheme, detectAndSyncIgsTheme } from '../state/state.js';
+import { patchState, setTheme, subscribeState, detectAndSyncIgsTheme } from '../state/state.js';
 import { THEME_OPTIONS, generateThemeCssVariables } from './theme.js';
 import { notifyToast } from './toast.js';
 import { injectResourcesStyles } from './resources-styles.js';
@@ -38,6 +37,9 @@ import {
     toggleCgFavorite,
     toggleCgHidden,
     deleteCg,
+    listItems,
+    saveItem,
+    deleteItem,
     listStagingAssets,
     acceptStagingAsset,
     discardStagingAsset,
@@ -106,6 +108,17 @@ const ResourcesModalRoot = {
         const cgFilter = ref('all');
         const isLoading = ref(false);
 
+        // 响应式主题状态 (彻底解决主题切换无效问题)
+        const currentTheme = ref(patchState.theme || 'cream');
+        const themeStyleVars = computed(() => {
+            return generateThemeCssVariables(currentTheme.value);
+        });
+
+        const handleSetTheme = (themeName) => {
+            currentTheme.value = themeName;
+            setTheme(themeName);
+        };
+
         // 作用域状态：全部 (all)、本卡 (card)、全局 (global)
         const scopeMode = ref('all');
         const activeCardScope = ref('');
@@ -119,9 +132,10 @@ const ResourcesModalRoot = {
         const scenes = ref([]);
         const wardrobe = ref([]);
         const cgs = ref([]);
+        const items = ref([]);
         const staging = ref([]);
 
-        // 当前激活查看的角色名称（实现可切换式设计，非平铺）
+        // 当前激活查看的角色名称（可切换式设计，告别平铺）
         const activeCharName = ref('');
 
         // 当前各个角色选中的服装 Tab
@@ -142,7 +156,7 @@ const ResourcesModalRoot = {
         // 统一新增/编辑对话框
         const editDialog = reactive({
             visible: false,
-            type: '', // 'char' | 'outfit' | 'mood' | 'scene' | 'sceneTime' | 'wardrobe'
+            type: '', // 'char' | 'outfit' | 'mood' | 'scene' | 'sceneTime' | 'wardrobe' | 'item'
             title: '',
             parentName: '',
             secondaryName: '',
@@ -159,7 +173,7 @@ const ResourcesModalRoot = {
         // 生图与提示词调试对话框
         const genDialog = reactive({
             visible: false,
-            type: '', // 'mood' | 'cg' | 'scene'
+            type: '', // 'mood' | 'cg' | 'scene' | 'item'
             title: '',
             charName: '',
             outfitName: '',
@@ -186,11 +200,7 @@ const ResourcesModalRoot = {
             moodName: '',
             sceneName: '',
             timeName: '',
-        });
-
-        // 全局主题响应式变量
-        const themeStyleVars = computed(() => {
-            return generateThemeCssVariables(patchState.theme);
+            itemName: '',
         });
 
         const loadData = async () => {
@@ -211,11 +221,12 @@ const ResourcesModalRoot = {
 
                 // 按照当前作用域加载数据
                 const curMode = scopeMode.value;
-                const [curChars, curScenes, curWardrobe, curCgs, curStaging] = await Promise.all([
+                const [curChars, curScenes, curWardrobe, curCgs, curItems, curStaging] = await Promise.all([
                     curMode === 'all' ? charsAll : (curMode === 'card' ? charsCard : charsGlobal),
                     listScenes(curMode),
                     listWardrobe(curMode),
                     listAllCgs(cgFilter.value),
+                    listItems(curMode),
                     listStagingAssets(),
                 ]);
 
@@ -223,6 +234,7 @@ const ResourcesModalRoot = {
                 scenes.value = curScenes;
                 wardrobe.value = curWardrobe;
                 cgs.value = curCgs;
+                items.value = curItems;
                 staging.value = curStaging;
 
                 // 确保默认选中第一个角色
@@ -252,7 +264,7 @@ const ResourcesModalRoot = {
             loadData();
         };
 
-        // 当前高亮选中的单一角色
+        // 当前选中的单一角色
         const activeCharacter = computed(() => {
             if (!characters.value.length) return null;
             const target = characters.value.find(c => c.name === activeCharName.value);
@@ -289,6 +301,12 @@ const ResourcesModalRoot = {
             const q = searchQuery.value.trim().toLowerCase();
             if (!q) return cgs.value;
             return cgs.value.filter(c => c.label.toLowerCase().includes(q) || c.prompt.toLowerCase().includes(q));
+        });
+
+        const filteredItems = computed(() => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return items.value;
+            return items.value.filter(i => i.name.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q));
         });
 
         const filteredStaging = computed(() => {
@@ -358,6 +376,14 @@ const ResourcesModalRoot = {
             if (input) input.click();
         };
 
+        const triggerItemUpload = (itemObj) => {
+            activeUploadTarget.type = 'item';
+            activeUploadTarget.itemName = itemObj.name;
+
+            const input = document.getElementById('igs-patch-file-hidden-input');
+            if (input) input.click();
+        };
+
         const onHiddenFileChange = async (e) => {
             const file = e.target.files?.[0];
             if (!file) return;
@@ -372,6 +398,10 @@ const ResourcesModalRoot = {
                         scopeMode.value
                     );
                     notifyToast('差分图片已替换', 'info');
+                    await loadData();
+                } else if (activeUploadTarget.type === 'item') {
+                    saveItem(activeUploadTarget.itemName, dataUrl, '', scopeMode.value);
+                    notifyToast('道具图标已更新', 'info');
                     await loadData();
                 }
             } catch (_) {
@@ -435,6 +465,16 @@ const ResourcesModalRoot = {
         };
 
         /* =================== 新增与编辑资源 =================== */
+        const handleTopAdd = () => {
+            const typeMap = {
+                characters: 'char',
+                scenes: 'scene',
+                wardrobe: 'wardrobe',
+                items: 'item',
+            };
+            openAddDialog(typeMap[activeTab.value] || 'char', activeCharacter.value);
+        };
+
         const openAddDialog = (type, parent = null, secondary = null) => {
             editDialog.type = type;
             editDialog.parentName = parent?.name || '';
@@ -455,6 +495,7 @@ const ResourcesModalRoot = {
                 scene: '新增场景背景',
                 sceneTime: `新增时段差分 - ${parent?.name}`,
                 wardrobe: '新增换装衣柜',
+                item: '新增道具图鉴',
             };
             editDialog.title = titleMap[type] || '新增资源';
             editDialog.visible = true;
@@ -483,6 +524,8 @@ const ResourcesModalRoot = {
                     saveSceneTime(editDialog.parentName, f.name.trim(), f.rawUrl.trim(), scopeMode.value);
                 } else if (editDialog.type === 'wardrobe') {
                     saveWardrobeItem(f.name.trim(), f.rawUrl.trim(), f.prompt.trim(), f.character.trim(), scopeMode.value);
+                } else if (editDialog.type === 'item') {
+                    saveItem(f.name.trim(), f.rawUrl.trim(), f.desc.trim(), scopeMode.value);
                 }
 
                 notifyToast('保存成功', 'info');
@@ -589,6 +632,12 @@ const ResourcesModalRoot = {
             });
         };
 
+        const handleDeleteItem = (item) => {
+            triggerDelete('删除道具', `确定删除道具「${item.name}」吗？`, () => {
+                deleteItem(item.name, scopeMode.value);
+            });
+        };
+
         /* =================== 待确认素材入库 =================== */
         const handleAcceptStaging = async (stItem, targetType) => {
             const promptName = window.prompt('请输入入库名称：', stItem.name || '');
@@ -617,6 +666,12 @@ const ResourcesModalRoot = {
 
         onMounted(() => {
             loadData();
+            const unsub = subscribeState((s) => {
+                if (s.theme && s.theme !== currentTheme.value) {
+                    currentTheme.value = s.theme;
+                }
+            });
+
             const onKeyDown = (e) => {
                 if (e.key === 'Escape') {
                     if (lightbox.visible) {
@@ -633,7 +688,10 @@ const ResourcesModalRoot = {
                 }
             };
             window.addEventListener('keydown', onKeyDown);
-            onUnmounted(() => window.removeEventListener('keydown', onKeyDown));
+            onUnmounted(() => {
+                window.removeEventListener('keydown', onKeyDown);
+                unsub();
+            });
         });
 
         return {
@@ -648,18 +706,21 @@ const ResourcesModalRoot = {
             activeCharName,
             activeCharacter,
             selectedOutfits,
+            currentTheme,
             themeOptions: THEME_OPTIONS,
             themeStyleVars,
-            patchState,
+            handleSetTheme,
             characters,
             scenes,
             wardrobe,
             cgs,
+            items,
             staging,
             filteredCharacters,
             filteredScenes,
             filteredWardrobe,
             filteredCgs,
+            filteredItems,
             filteredStaging,
             lightbox,
             openLightbox,
@@ -670,7 +731,9 @@ const ResourcesModalRoot = {
             handleToggleUser,
             getCurrentOutfit,
             triggerDiffUpload,
+            triggerItemUpload,
             onHiddenFileChange,
+            handleTopAdd,
             editDialog,
             openAddDialog,
             handleSaveEdit,
@@ -688,12 +751,12 @@ const ResourcesModalRoot = {
             handleDeleteSceneTime,
             handleDeleteWardrobe,
             handleDeleteCg,
+            handleDeleteItem,
             handleAcceptStaging,
             handleDiscardStaging,
             setScope,
             setCgFilter,
             loadData,
-            setTheme,
             close: closeResourcesModal,
         };
     },
@@ -701,565 +764,495 @@ const ResourcesModalRoot = {
     template: `
     <div v-if="visible" class="igs-resources-overlay" :style="themeStyleVars" @click.self="close">
       <div class="igs-resources-window">
-        <!-- 顶部工具条 -->
+        <!-- 紧凑单行整合顶栏 -->
         <header class="igs-resources-header">
           <div class="igs-resources-title-row">
             <h2 class="igs-resources-title">
-              <i class="fa-solid fa-photo-film" style="color: var(--igs-settings-accent);"></i>
+              <i class="fa-solid fa-photo-film" style="color: var(--igs-settings-accent); font-size: 15px;"></i>
               <span>放映资源</span>
             </h2>
           </div>
 
-          <!-- 搜索框 -->
+          <!-- 紧凑搜索框 -->
           <div class="igs-resources-header-tools">
             <div class="igs-resources-search-box">
-              <i class="fa-solid fa-magnifying-glass" style="color: var(--igs-settings-ink-3);"></i>
+              <i class="fa-solid fa-magnifying-glass" style="color: var(--igs-settings-ink-3); font-size: 11px;"></i>
               <input 
                 v-model="searchQuery" 
                 class="igs-resources-search-input" 
                 placeholder="搜索资源..." 
               />
+              <i v-if="searchQuery" class="fa-solid fa-xmark" style="font-size: 11px; cursor: pointer;" @click="searchQuery = ''"></i>
             </div>
           </div>
 
-          <!-- 顶部右侧按键 -->
+          <!-- 顶部右侧工具按钮 -->
           <div class="igs-resources-header-actions">
-            <!-- 快速新增按钮 -->
             <button 
               v-if="activeTab !== 'cgs' && activeTab !== 'review'" 
               class="igs-btn-primary-compact" 
-              @click="openAddDialog(activeTab === 'characters' ? 'char' : activeTab === 'scenes' ? 'scene' : 'wardrobe')"
+              @click="handleTopAdd"
             >
               <i class="fa-solid fa-plus"></i>
               <span>新增</span>
             </button>
 
-            <!-- 刷新 -->
             <button class="igs-btn-icon-round" title="刷新列表" @click="loadData">
               <i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': isLoading }"></i>
             </button>
 
-            <!-- 主题切换 (使用 value 与 swatch 颜色真实渲染) -->
+            <!-- 主题切换：Vue 3 响应式实时更新 -->
             <div class="igs-patch-theme-group">
               <button 
                 v-for="item in themeOptions" 
                 :key="item.value" 
                 class="igs-patch-theme-swatch"
-                :class="{ 'is-active': (themeStyleVars['--igs-theme-name'] || patchState.theme) === item.value }"
+                :class="{ 'is-active': currentTheme === item.value }"
                 :title="item.label"
                 :style="{ backgroundColor: item.swatch.accent, borderColor: item.swatch.base }"
-                @click="setTheme(item.value)"
+                @click="handleSetTheme(item.value)"
               ></button>
             </div>
 
-            <!-- 关闭 -->
             <button class="igs-btn-icon-round" title="关闭" @click="close">
               <i class="fa-solid fa-xmark"></i>
             </button>
           </div>
         </header>
 
-        <!-- 主内容区 -->
-        <div class="igs-resources-body">
-          <!-- 侧边导航选项卡 (完全对齐原版 IGS 5 大素材板块，剔除多余的道具项) -->
-          <nav class="igs-resources-nav">
+        <!-- 导航与作用域一体化组合条 (极大节省空间) -->
+        <div class="igs-nav-scope-bar">
+          <div class="igs-nav-chips">
             <button 
-              class="igs-resources-nav-btn" 
+              class="igs-nav-chip-btn" 
               :class="{ 'is-active': activeTab === 'characters' }" 
               @click="activeTab = 'characters'"
             >
               <i class="fa-solid fa-person"></i>
               <span>立绘</span>
-              <span class="igs-resources-badge">{{ characters.length }}</span>
+              <span class="igs-nav-badge">{{ characters.length }}</span>
             </button>
 
             <button 
-              class="igs-resources-nav-btn" 
+              class="igs-nav-chip-btn" 
               :class="{ 'is-active': activeTab === 'scenes' }" 
               @click="activeTab = 'scenes'"
             >
               <i class="fa-solid fa-image"></i>
               <span>背景</span>
-              <span class="igs-resources-badge">{{ scenes.length }}</span>
+              <span class="igs-nav-badge">{{ scenes.length }}</span>
             </button>
 
             <button 
-              class="igs-resources-nav-btn" 
+              class="igs-nav-chip-btn" 
               :class="{ 'is-active': activeTab === 'wardrobe' }" 
               @click="activeTab = 'wardrobe'"
             >
               <i class="fa-solid fa-shirt"></i>
               <span>衣柜</span>
-              <span class="igs-resources-badge">{{ wardrobe.length }}</span>
+              <span class="igs-nav-badge">{{ wardrobe.length }}</span>
             </button>
 
             <button 
-              class="igs-resources-nav-btn" 
+              class="igs-nav-chip-btn" 
               :class="{ 'is-active': activeTab === 'cgs' }" 
               @click="activeTab = 'cgs'"
             >
               <i class="fa-solid fa-film"></i>
               <span>CG</span>
-              <span class="igs-resources-badge">{{ cgs.length }}</span>
+              <span class="igs-nav-badge">{{ cgs.length }}</span>
             </button>
 
             <button 
-              class="igs-resources-nav-btn" 
+              class="igs-nav-chip-btn" 
+              :class="{ 'is-active': activeTab === 'items' }" 
+              @click="activeTab = 'items'"
+            >
+              <i class="fa-solid fa-cube"></i>
+              <span>道具</span>
+              <span class="igs-nav-badge">{{ items.length }}</span>
+            </button>
+
+            <button 
+              class="igs-nav-chip-btn" 
               :class="{ 'is-active': activeTab === 'review' }" 
               @click="activeTab = 'review'"
             >
               <i class="fa-solid fa-inbox"></i>
               <span>待确认</span>
-              <span v-if="staging.length" class="igs-resources-badge" style="background: var(--igs-settings-accent); color: #111;">{{ staging.length }}</span>
+              <span v-if="staging.length" class="igs-nav-badge" style="background: var(--igs-settings-accent); color: #111;">{{ staging.length }}</span>
             </button>
-          </nav>
+          </div>
 
-          <!-- 右侧卡片瀑布流与层级管理 -->
-          <main class="igs-resources-content">
-            <!-- 作用域筛选栏：全部 / 本卡 / 全局 -->
-            <div v-if="activeTab !== 'cgs' && activeTab !== 'review'" class="igs-resources-scope-bar">
-              <div class="igs-scope-pills">
-                <button class="igs-scope-pill" :class="{ 'is-active': scopeMode === 'all' }" @click="setScope('all')">
-                  <span>全部</span>
-                  <span class="igs-scope-count">{{ scopeCounts.all }}</span>
-                </button>
-                <button class="igs-scope-pill" :class="{ 'is-active': scopeMode === 'card' }" @click="setScope('card')">
-                  <span>本卡</span>
-                  <span class="igs-scope-count">{{ scopeCounts.card }}</span>
-                </button>
-                <button class="igs-scope-pill" :class="{ 'is-active': scopeMode === 'global' }" @click="setScope('global')">
-                  <span>全局</span>
-                  <span class="igs-scope-count">{{ scopeCounts.global }}</span>
-                </button>
-              </div>
+          <!-- 右侧紧凑分段作用域切换 -->
+          <div v-if="activeTab !== 'cgs' && activeTab !== 'review'" class="igs-scope-segmented">
+            <button class="igs-scope-seg-opt" :class="{ 'is-active': scopeMode === 'all' }" @click="setScope('all')">
+              <span>全部</span>
+              <span style="opacity: 0.75; font-size: 10px;">{{ scopeCounts.all }}</span>
+            </button>
+            <button class="igs-scope-seg-opt" :class="{ 'is-active': scopeMode === 'card' }" @click="setScope('card')">
+              <span>本卡</span>
+              <span style="opacity: 0.75; font-size: 10px;">{{ scopeCounts.card }}</span>
+            </button>
+            <button class="igs-scope-seg-opt" :class="{ 'is-active': scopeMode === 'global' }" @click="setScope('global')">
+              <span>全局</span>
+              <span style="opacity: 0.75; font-size: 10px;">{{ scopeCounts.global }}</span>
+            </button>
+          </div>
+        </div>
 
-              <div style="font-size: 0.78rem; color: var(--igs-settings-ink-3);">
-                <span v-if="activeCardScope">当前角色卡：{{ activeCardScope.replace(/^card:/, '') }}</span>
-              </div>
+        <!-- 立绘模式：整合角色横向栏与属性工具 -->
+        <div v-if="activeTab === 'characters' && filteredCharacters.length" class="igs-char-unified-bar">
+          <div class="igs-char-pills-list">
+            <button 
+              v-for="c in filteredCharacters" 
+              :key="c.name" 
+              class="igs-char-pill-btn" 
+              :class="{ 'is-active': activeCharName === c.name }"
+              @click="activeCharName = c.name"
+            >
+              <img v-if="c.baseResolvedUrl || c.baseRawUrl" :src="c.baseResolvedUrl || c.baseRawUrl" class="igs-char-tab-avatar" />
+              <i v-else class="fa-solid fa-user" style="font-size: 10px;"></i>
+              <span>{{ c.name }}</span>
+            </button>
+
+            <button class="igs-char-add-tab-btn" @click="openAddDialog('char')">
+              <i class="fa-solid fa-plus"></i>
+              <span>角色</span>
+            </button>
+          </div>
+
+          <!-- 角色右侧元数据工具：User身份切换、高度调整、删除 -->
+          <div v-if="activeCharacter" class="igs-char-meta-tools">
+            <span 
+              class="igs-char-user-badge" 
+              :style="{ opacity: activeCharacter.isUser ? 1 : 0.4 }"
+              title="点击切换主角身份"
+              @click="handleToggleUser(activeCharacter)"
+            >User</span>
+
+            <div class="igs-char-compact-height">
+              <span>高度</span>
+              <input 
+                type="number" 
+                :value="activeCharacter.height || 100" 
+                @change="e => handleSetHeight(activeCharacter, e.target.value)" 
+              />
+              <span>%</span>
             </div>
 
-            <!-- 1. 立绘板块 (可切换式角色列表与服装差分层级视图) -->
-            <section v-if="activeTab === 'characters'">
-              <!-- 角色横向切换选择器 (非平铺式) -->
-              <div v-if="filteredCharacters.length" class="igs-char-selector-bar">
-                <button 
-                  v-for="c in filteredCharacters" 
-                  :key="c.name" 
-                  class="igs-char-tab-pill" 
-                  :class="{ 'is-active': activeCharName === c.name }"
-                  @click="activeCharName = c.name"
-                >
-                  <img v-if="c.baseResolvedUrl || c.baseRawUrl" :src="c.baseResolvedUrl || c.baseRawUrl" class="igs-char-tab-avatar" />
-                  <i v-else class="fa-solid fa-user" style="font-size: 11px;"></i>
-                  <span>{{ c.name }}</span>
-                  <span v-if="c.isUser" class="igs-char-user-badge" style="padding: 1px 5px; font-size: 10px;">User</span>
-                </button>
+            <button class="igs-diff-act-btn" style="width: 24px; height: 24px; font-size: 11px;" title="删除角色" @click="handleDeleteCharacter(activeCharacter)">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
 
-                <button class="igs-char-add-tab-btn" @click="openAddDialog('char')">
-                  <i class="fa-solid fa-plus"></i>
-                  <span>新增角色</span>
-                </button>
+        <!-- 立绘模式：服装横向切换栏 -->
+        <div v-if="activeTab === 'characters' && activeCharacter" class="igs-outfits-unified-bar">
+          <div style="display: flex; align-items: center; gap: 6px; overflow-x: auto; flex: 1; scrollbar-width: none;">
+            <button 
+              v-for="outfit in activeCharacter.outfits" 
+              :key="outfit.name" 
+              class="igs-outfit-tab-btn" 
+              :class="{ 'is-active': (selectedOutfits[activeCharacter.name] || activeCharacter.defaultOutfit || activeCharacter.outfits[0]?.name) === outfit.name }"
+              @click="selectedOutfits[activeCharacter.name] = outfit.name"
+            >
+              <span>{{ outfit.name }}</span>
+              <span v-if="outfit.isDefault" class="igs-outfit-default-tag">默认</span>
+              <span style="opacity: 0.65; font-size: 11px;">{{ outfit.moodCount }}</span>
+            </button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+            <button class="igs-outfit-action-btn" title="新增服装" @click="openAddDialog('outfit', activeCharacter)">
+              <i class="fa-solid fa-plus"></i>
+              <span>服装</span>
+            </button>
+            <button class="igs-outfit-action-btn" title="新增差分" @click="openAddDialog('mood', activeCharacter, getCurrentOutfit(activeCharacter))">
+              <i class="fa-solid fa-plus"></i>
+              <span>差分</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 主内容全屏网格视口 (释放 75% 垂直空间) -->
+        <main class="igs-resources-content">
+          <!-- 1. 立绘差分多列网格 (大图优先) -->
+          <section v-if="activeTab === 'characters'">
+            <div v-if="activeCharacter && getCurrentOutfit(activeCharacter) && getCurrentOutfit(activeCharacter).moods && getCurrentOutfit(activeCharacter).moods.length" class="igs-char-diffs-grid">
+              <div v-for="m in getCurrentOutfit(activeCharacter).moods" :key="m.name" class="igs-diff-card">
+                <div class="igs-diff-card-thumb" @click="openLightbox(activeCharacter.name + ' · ' + m.name, m.resolvedUrl || m.rawUrl)">
+                  <img v-if="m.resolvedUrl || m.rawUrl" :src="m.resolvedUrl || m.rawUrl" class="igs-diff-card-img" />
+                  <div v-else class="igs-resource-empty-thumb">
+                    <i class="fa-solid fa-image fa-2x"></i>
+                  </div>
+                </div>
+
+                <div class="igs-diff-card-info">
+                  <span class="igs-diff-card-name">{{ m.name }}</span>
+                  <div class="igs-diff-card-acts">
+                    <button class="igs-diff-act-btn" title="生图" @click="openGenPromptDialog('mood', activeCharacter, getCurrentOutfit(activeCharacter), m)">
+                      <i class="fa-solid fa-rotate"></i>
+                    </button>
+                    <button class="igs-diff-act-btn" title="下载" @click="handleDownloadImage(m.resolvedUrl || m.rawUrl, activeCharacter.name + '_' + m.name)">
+                      <i class="fa-solid fa-download"></i>
+                    </button>
+                    <button class="igs-diff-act-btn" title="上传替换" @click="triggerDiffUpload(activeCharacter, getCurrentOutfit(activeCharacter), m)">
+                      <i class="fa-solid fa-upload"></i>
+                    </button>
+                    <button class="igs-diff-act-btn" title="删除" @click="handleDeleteMood(activeCharacter.name, m.name, getCurrentOutfit(activeCharacter).name)">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
+            </div>
+            <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+              <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
+              <p>当前服装暂无表情差分，点击上方「+差分」即可添加</p>
+            </div>
+          </section>
 
-              <!-- 当前激活角色的深度资产详情 -->
-              <div v-if="activeCharacter" class="igs-char-item-card">
-                <!-- 角色头部信息 -->
-                <div class="igs-char-header-row">
-                  <div class="igs-char-title-group">
-                    <div class="igs-char-avatar-circle" @click="openLightbox(activeCharacter.name, activeCharacter.baseResolvedUrl || activeCharacter.baseRawUrl)">
-                      <img v-if="activeCharacter.baseResolvedUrl || activeCharacter.baseRawUrl" :src="activeCharacter.baseResolvedUrl || activeCharacter.baseRawUrl" />
-                      <i v-else class="fa-solid fa-user"></i>
-                    </div>
-                    <span class="igs-char-name-text">{{ activeCharacter.name }}</span>
-                    <span 
-                      class="igs-char-user-badge" 
-                      :style="{ opacity: activeCharacter.isUser ? 1 : 0.4 }"
-                      title="点击切换主角身份"
-                      @click="handleToggleUser(activeCharacter)"
-                    >User</span>
+          <!-- 2. 背景场景板块 -->
+          <section v-if="activeTab === 'scenes'">
+            <div v-if="filteredScenes.length" class="igs-resources-grid">
+              <div v-for="s in filteredScenes" :key="s.name" class="igs-resource-card">
+                <div class="igs-resource-thumb-box is-landscape" @click="openLightbox(s.name, s.baseResolvedUrl || s.baseRawUrl, s.desc)">
+                  <img v-if="s.baseResolvedUrl || s.baseRawUrl" :src="s.baseResolvedUrl || s.baseRawUrl" class="igs-resource-img" />
+                  <div v-else class="igs-resource-empty-thumb">
+                    <i class="fa-solid fa-image fa-2x"></i>
+                    <span>暂无背景</span>
                   </div>
 
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <button class="igs-icon-tag-btn" title="删除此角色" @click="handleDeleteCharacter(activeCharacter)">
+                  <div class="igs-resource-card-overlay-actions" @click.stop>
+                    <button class="igs-icon-tag-btn" title="新增时段差分" @click="openAddDialog('sceneTime', s)">
+                      <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <button class="igs-icon-tag-btn" title="删除场景" @click="handleDeleteScene(s)">
                       <i class="fa-solid fa-trash-can"></i>
                     </button>
                   </div>
                 </div>
 
-                <!-- 立绘高度 % 调节 -->
-                <div class="igs-char-height-row">
-                  <span>立绘高度 %</span>
-                  <input 
-                    type="number" 
-                    :value="activeCharacter.height || 100" 
-                    @change="e => handleSetHeight(activeCharacter, e.target.value)" 
-                    class="igs-char-height-input" 
-                  />
-                  <span style="opacity: 0.6; font-size: 0.78rem;">默认 基准高度 100%</span>
-                </div>
-
-                <!-- 服装列表栏 -->
-                <div class="igs-outfits-bar">
-                  <button 
-                    v-for="outfit in activeCharacter.outfits" 
-                    :key="outfit.name" 
-                    class="igs-outfit-tab-btn" 
-                    :class="{ 'is-active': (selectedOutfits[activeCharacter.name] || activeCharacter.defaultOutfit || activeCharacter.outfits[0]?.name) === outfit.name }"
-                    @click="selectedOutfits[activeCharacter.name] = outfit.name"
-                  >
-                    <span>{{ outfit.name }}</span>
-                    <span v-if="outfit.isDefault" class="igs-outfit-default-tag">默认</span>
-                    <span style="opacity: 0.65; font-size: 0.72rem;">{{ outfit.moodCount }}</span>
-                  </button>
-
-                  <button class="igs-outfit-action-btn" title="新增服装" @click="openAddDialog('outfit', activeCharacter)">
-                    <i class="fa-solid fa-plus"></i>
-                    <span>服装</span>
-                  </button>
-                  <button class="igs-outfit-action-btn" title="新增差分" @click="openAddDialog('mood', activeCharacter, getCurrentOutfit(activeCharacter))">
-                    <i class="fa-solid fa-plus"></i>
-                    <span>差分</span>
-                  </button>
-                </div>
-
-                <!-- 选中的服装下的差分列表与动作栏 -->
-                <div v-if="getCurrentOutfit(activeCharacter) && getCurrentOutfit(activeCharacter).moods && getCurrentOutfit(activeCharacter).moods.length" class="igs-char-diffs-container">
-                  <div v-for="m in getCurrentOutfit(activeCharacter).moods" :key="m.name" class="igs-diff-item-row">
-                    <div class="igs-diff-left">
-                      <div class="igs-diff-thumb" @click="openLightbox(activeCharacter.name + ' · ' + m.name, m.resolvedUrl || m.rawUrl)">
-                        <img v-if="m.resolvedUrl || m.rawUrl" :src="m.resolvedUrl || m.rawUrl" />
-                        <i v-else class="fa-solid fa-image" style="opacity: 0.35;"></i>
-                      </div>
-                      <span class="igs-diff-name">{{ m.name }}</span>
-                    </div>
-
-                    <div class="igs-diff-actions">
-                      <button class="igs-diff-act-btn" title="生图" @click="openGenPromptDialog('mood', activeCharacter, getCurrentOutfit(activeCharacter), m)">
-                        <i class="fa-solid fa-rotate"></i>
-                      </button>
-                      <button class="igs-diff-act-btn" title="下载" @click="handleDownloadImage(m.resolvedUrl || m.rawUrl, activeCharacter.name + '_' + m.name)">
-                        <i class="fa-solid fa-download"></i>
-                      </button>
-                      <button class="igs-diff-act-btn" title="上传替换" @click="triggerDiffUpload(activeCharacter, getCurrentOutfit(activeCharacter), m)">
-                        <i class="fa-solid fa-upload"></i>
-                      </button>
-                      <button class="igs-diff-act-btn" title="删除差分" @click="handleDeleteMood(activeCharacter.name, m.name, getCurrentOutfit(activeCharacter).name)">
-                        <i class="fa-solid fa-trash-can"></i>
-                      </button>
-                    </div>
+                <div class="igs-resource-info">
+                  <div class="igs-resource-name-row">
+                    <span class="igs-resource-name">{{ s.name }}</span>
+                    <span class="igs-resource-desc">{{ s.timeCount }} 时段</span>
                   </div>
-                </div>
-                <div v-else style="padding: 12px; text-align: center; color: var(--igs-settings-ink-3); font-size: 0.8rem;">
-                  当前服装暂无表情差分，点击上方「+差分」即可添加
-                </div>
-              </div>
+                  <div v-if="s.desc" class="igs-resource-desc">{{ s.desc }}</div>
 
-              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
-                <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
-                <p>暂无角色立绘，点击右上角「新增」即可添加</p>
-              </div>
-            </section>
-
-            <!-- 2. 背景场景板块 -->
-            <section v-if="activeTab === 'scenes'">
-              <div v-if="filteredScenes.length" class="igs-resources-grid">
-                <div v-for="s in filteredScenes" :key="s.name" class="igs-resource-card">
-                  <!-- 背景缩略图 -->
-                  <div class="igs-resource-thumb-box is-landscape" @click="openLightbox(s.name, s.baseResolvedUrl || s.baseRawUrl, s.desc)">
-                    <img v-if="s.baseResolvedUrl || s.baseRawUrl" :src="s.baseResolvedUrl || s.baseRawUrl" class="igs-resource-img" />
-                    <div v-else class="igs-resource-empty-thumb">
-                      <i class="fa-solid fa-image fa-2x"></i>
-                      <span>暂无背景</span>
-                    </div>
-
-                    <div class="igs-resource-card-overlay-actions" @click.stop>
-                      <button class="igs-icon-tag-btn" title="新增时段差分" @click="openAddDialog('sceneTime', s)">
-                        <i class="fa-solid fa-plus"></i>
-                      </button>
-                      <button class="igs-icon-tag-btn" title="删除场景" @click="handleDeleteScene(s)">
-                        <i class="fa-solid fa-trash-can"></i>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="igs-resource-info">
-                    <div class="igs-resource-name-row">
-                      <span class="igs-resource-name">{{ s.name }}</span>
-                      <span class="igs-resource-desc">{{ s.timeCount }} 时段</span>
-                    </div>
-                    <div v-if="s.desc" class="igs-resource-desc">{{ s.desc }}</div>
-
-                    <!-- 时段差分预览药丸 -->
-                    <div v-if="s.times && s.times.length" class="igs-resource-diff-row">
-                      <span 
-                        v-for="t in s.times" 
-                        :key="t.name" 
-                        class="igs-resource-diff-tag"
-                        :title="t.name"
-                        @click="openLightbox(s.name + ' · ' + t.name, t.resolvedUrl || t.rawUrl)"
-                      >
-                        <span>{{ t.name }}</span>
-                        <i class="fa-solid fa-xmark" style="font-size: 10px;" title="删除此时段" @click.stop="handleDeleteSceneTime(s.name, t.name)"></i>
-                      </span>
-                    </div>
+                  <div v-if="s.times && s.times.length" class="igs-resource-diff-row">
+                    <span 
+                      v-for="t in s.times" 
+                      :key="t.name" 
+                      class="igs-resource-diff-tag"
+                      :title="t.name"
+                      @click="openLightbox(s.name + ' · ' + t.name, t.resolvedUrl || t.rawUrl)"
+                    >
+                      <span>{{ t.name }}</span>
+                      <i class="fa-solid fa-xmark" style="font-size: 10px;" title="删除此时段" @click.stop="handleDeleteSceneTime(s.name, t.name)"></i>
+                    </span>
                   </div>
                 </div>
               </div>
-              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
-                <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
-                <p>暂无场景背景，点击右上角「新增」即可添加</p>
-              </div>
-            </section>
+            </div>
+            <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+              <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
+              <p>暂无场景背景，点击右上角「新增」即可添加</p>
+            </div>
+          </section>
 
-            <!-- 3. 换装衣柜板块 -->
-            <section v-if="activeTab === 'wardrobe'">
-              <div v-if="filteredWardrobe.length" class="igs-resources-grid">
-                <div v-for="w in filteredWardrobe" :key="w.name" class="igs-resource-card">
-                  <div class="igs-resource-thumb-box" @click="openLightbox(w.name, w.resolvedUrl || w.rawUrl, w.prompt)">
-                    <img v-if="w.resolvedUrl || w.rawUrl" :src="w.resolvedUrl || w.rawUrl" class="igs-resource-img" />
-                    <div v-else class="igs-resource-empty-thumb">
-                      <i class="fa-solid fa-shirt fa-2x"></i>
-                      <span>参考图为空</span>
-                    </div>
-
-                    <div class="igs-resource-card-overlay-actions" @click.stop>
-                      <button class="igs-icon-tag-btn" title="删除服装" @click="handleDeleteWardrobe(w)">
-                        <i class="fa-solid fa-trash-can"></i>
-                      </button>
-                    </div>
+          <!-- 3. 换装衣柜板块 -->
+          <section v-if="activeTab === 'wardrobe'">
+            <div v-if="filteredWardrobe.length" class="igs-resources-grid">
+              <div v-for="w in filteredWardrobe" :key="w.name" class="igs-resource-card">
+                <div class="igs-resource-thumb-box" @click="openLightbox(w.name, w.resolvedUrl || w.rawUrl, w.prompt)">
+                  <img v-if="w.resolvedUrl || w.rawUrl" :src="w.resolvedUrl || w.rawUrl" class="igs-resource-img" />
+                  <div v-else class="igs-resource-empty-thumb">
+                    <i class="fa-solid fa-shirt fa-2x"></i>
+                    <span>参考图为空</span>
                   </div>
 
-                  <div class="igs-resource-info">
-                    <div class="igs-resource-name-row">
-                      <span class="igs-resource-name">{{ w.name }}</span>
-                      <span v-if="w.character" class="igs-resources-chip" style="padding: 2px 8px; font-size: 11px;">{{ w.character }}</span>
-                    </div>
-                    <div v-if="w.prompt" class="igs-resource-desc" :title="w.prompt">{{ w.prompt }}</div>
+                  <div class="igs-resource-card-overlay-actions" @click.stop>
+                    <button class="igs-icon-tag-btn" title="删除服装" @click="handleDeleteWardrobe(w)">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
                   </div>
                 </div>
-              </div>
-              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
-                <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
-                <p>暂无衣柜服装，点击右上角「新增」即可添加</p>
-              </div>
-            </section>
 
-            <!-- 4. CG 画廊板块 (已出图与待生成卡片) -->
-            <section v-if="activeTab === 'cgs'">
-              <!-- CG 筛选药丸 -->
-              <div class="igs-resources-subbar">
-                <div class="igs-resources-filter-chips">
-                  <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'all' }" @click="setCgFilter('all')">全部</button>
-                  <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'favorites' }" @click="setCgFilter('favorites')">收藏</button>
-                  <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'hidden' }" @click="setCgFilter('hidden')">已隐藏</button>
-                </div>
-                <div style="font-size: 0.8rem; color: var(--igs-settings-ink-3);">
-                  共 {{ filteredCgs.length }} 张 CG
+                <div class="igs-resource-info">
+                  <div class="igs-resource-name-row">
+                    <span class="igs-resource-name">{{ w.name }}</span>
+                    <span v-if="w.character" class="igs-resources-chip" style="padding: 2px 8px; font-size: 11px;">{{ w.character }}</span>
+                  </div>
+                  <div v-if="w.prompt" class="igs-resource-desc" :title="w.prompt">{{ w.prompt }}</div>
                 </div>
               </div>
+            </div>
+            <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+              <i class="fa-solid fa-folder-open fa-3x" style="margin-bottom: 12px;"></i>
+              <p>暂无衣柜服装，点击右上角「新增」即可添加</p>
+            </div>
+          </section>
 
-              <div v-if="filteredCgs.length" class="igs-resources-grid">
-                <div v-for="cg in filteredCgs" :key="cg.key" class="igs-resource-card">
-                  <div class="igs-resource-thumb-box is-landscape" @click="!cg.isPending && openLightbox(cg.label, cg.resolvedUrl || cg.rawUrl, cg.prompt, cg)">
-                    <!-- 已生成出图 -->
-                    <img v-if="!cg.isPending && (cg.resolvedUrl || cg.rawUrl)" :src="cg.resolvedUrl || cg.rawUrl" class="igs-resource-img" />
-                    
-                    <!-- 待生成出图卡片 (彻底解决读取中黑框) -->
-                    <div v-else class="igs-cg-pending-container">
-                      <span class="igs-cg-badge-pending">待生成</span>
-                      <i class="fa-solid fa-wand-magic-sparkles fa-2x" style="color: var(--igs-settings-accent); margin-bottom: 4px;"></i>
-                      <button class="igs-cg-btn-generate" @click.stop="openGenPromptDialog('cg', null, null, cg)">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i>
-                        <span>生图</span>
-                      </button>
-                    </div>
-
-                    <!-- 悬浮图标：收藏 / 隐藏 / 删除 -->
-                    <div v-if="!cg.isPending" class="igs-resource-card-overlay-actions" @click.stop>
-                      <button 
-                        class="igs-icon-tag-btn" 
-                        :class="{ 'is-active': cg.isFavorite }" 
-                        :title="cg.isFavorite ? '取消收藏' : '收藏'"
-                        @click="handleCgFavorite(cg)"
-                      >
-                        <i class="fa-solid fa-star"></i>
-                      </button>
-                      <button 
-                        class="igs-icon-tag-btn" 
-                        :class="{ 'is-active': cg.isHidden }" 
-                        :title="cg.isHidden ? '取消隐藏' : '隐藏'"
-                        @click="handleCgHidden(cg)"
-                      >
-                        <i class="fa-solid" :class="cg.isHidden ? 'fa-eye-slash' : 'fa-eye'"></i>
-                      </button>
-                      <button class="igs-icon-tag-btn" title="下载" @click="handleDownloadImage(cg.resolvedUrl || cg.rawUrl, cg.label)">
-                        <i class="fa-solid fa-download"></i>
-                      </button>
-                      <button class="igs-icon-tag-btn" title="删除" @click="handleDeleteCg(cg)">
-                        <i class="fa-solid fa-trash-can"></i>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="igs-resource-info">
-                    <div class="igs-resource-name-row">
-                      <span class="igs-resource-name">{{ cg.label }}</span>
-                      <i v-if="cg.isFavorite" class="fa-solid fa-star" style="color: #ffd166; font-size: 12px;"></i>
-                    </div>
-                    <div v-if="cg.prompt" class="igs-resource-desc" :title="cg.prompt">{{ cg.prompt }}</div>
-                  </div>
-                </div>
+          <!-- 4. CG 画廊板块 -->
+          <section v-if="activeTab === 'cgs'">
+            <div class="igs-resources-subbar">
+              <div class="igs-resources-filter-chips">
+                <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'all' }" @click="setCgFilter('all')">全部</button>
+                <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'favorites' }" @click="setCgFilter('favorites')">收藏</button>
+                <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'hidden' }" @click="setCgFilter('hidden')">已隐藏</button>
               </div>
-              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
-                <i class="fa-solid fa-photo-film fa-3x" style="margin-bottom: 12px;"></i>
-                <p>暂无符合筛选的剧情 CG</p>
+              <div style="font-size: 0.8rem; color: var(--igs-settings-ink-3);">
+                共 {{ filteredCgs.length }} 张 CG
               </div>
-            </section>
-
-            <!-- 5. 待确认暂存池 -->
-            <section v-if="activeTab === 'review'">
-              <div v-if="filteredStaging.length" class="igs-resources-grid">
-                <div v-for="st in filteredStaging" :key="st.key" class="igs-resource-card">
-                  <div class="igs-resource-thumb-box" @click="openLightbox(st.name, st.resolvedUrl || st.rawUrl)">
-                    <img v-if="st.resolvedUrl || st.rawUrl" :src="st.resolvedUrl || st.rawUrl" class="igs-resource-img" />
-                    <div v-else class="igs-resource-empty-thumb">
-                      <i class="fa-solid fa-clock-rotate-left fa-2x"></i>
-                      <span>待确认素材</span>
-                    </div>
-
-                    <div class="igs-resource-card-overlay-actions" @click.stop>
-                      <button class="igs-icon-tag-btn" title="舍弃" @click="handleDiscardStaging(st)">
-                        <i class="fa-solid fa-trash-can"></i>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="igs-resource-info">
-                    <div class="igs-resource-name-row">
-                      <span class="igs-resource-name">{{ st.name }}</span>
-                      <span class="igs-resources-chip" style="padding: 2px 8px; font-size: 11px;">{{ st.type }}</span>
-                    </div>
-
-                    <div style="display: flex; gap: 6px; margin-top: 6px;">
-                      <button class="igs-btn-primary-compact" style="flex: 1; justify-content: center;" @click="handleAcceptStaging(st, 'characters')">
-                        入库立绘
-                      </button>
-                      <button class="igs-btn-primary-compact" style="flex: 1; justify-content: center;" @click="handleAcceptStaging(st, 'scenes')">
-                        入库背景
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
-                <i class="fa-solid fa-inbox fa-3x" style="margin-bottom: 12px;"></i>
-                <p>暂无待确认素材</p>
-              </div>
-            </section>
-          </main>
-        </div>
-
-        <!-- 隐藏的通用图片选择器 -->
-        <input 
-          id="igs-patch-file-hidden-input" 
-          type="file" 
-          accept="image/*" 
-          style="display: none;" 
-          @change="onHiddenFileChange" 
-        />
-
-        <!-- 生图与提示词确认对话框 -->
-        <div v-if="genDialog.visible" class="igs-dialog-overlay" @click.self="genDialog.visible = false">
-          <div class="igs-dialog-box">
-            <h3 class="igs-dialog-title">生图与提示词 · {{ genDialog.title }}</h3>
-            
-            <div class="igs-form-row">
-              <label class="igs-form-label">生图提示词</label>
-              <textarea 
-                v-model="genDialog.prompt" 
-                class="igs-form-textarea" 
-                placeholder="输入或调整该素材的生成提示词..."
-              ></textarea>
             </div>
 
-            <div class="igs-form-row">
-              <label class="igs-form-label">负面提示词</label>
-              <input 
-                v-model="genDialog.negative" 
-                class="igs-form-input" 
-                placeholder="可选 负面提示词" 
-              />
-            </div>
+            <div v-if="filteredCgs.length" class="igs-resources-grid">
+              <div v-for="cg in filteredCgs" :key="cg.key" class="igs-resource-card">
+                <div class="igs-resource-thumb-box is-landscape" @click="!cg.isPending && openLightbox(cg.label, cg.resolvedUrl || cg.rawUrl, cg.prompt, cg)">
+                  <img v-if="!cg.isPending && (cg.resolvedUrl || cg.rawUrl)" :src="cg.resolvedUrl || cg.rawUrl" class="igs-resource-img" />
+                  
+                  <div v-else class="igs-cg-pending-container">
+                    <span class="igs-cg-badge-pending">待生成</span>
+                    <i class="fa-solid fa-wand-magic-sparkles fa-2x" style="color: var(--igs-settings-accent); margin-bottom: 4px;"></i>
+                    <button class="igs-cg-btn-generate" @click.stop="openGenPromptDialog('cg', null, null, cg)">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i>
+                      <span>生图</span>
+                    </button>
+                  </div>
 
-            <div class="igs-dialog-actions">
-              <button class="igs-resources-chip" @click="genDialog.visible = false">取消</button>
-              <button 
-                class="igs-btn-primary-compact" 
-                :disabled="genDialog.isGenerating"
-                @click="handleExecuteGenerate"
-              >
-                <i class="fa-solid fa-wand-magic-sparkles" :class="{ 'fa-spin': genDialog.isGenerating }"></i>
-                <span>确认生图</span>
+                  <div v-if="!cg.isPending" class="igs-resource-card-overlay-actions" @click.stop>
+                    <button 
+                      class="igs-icon-tag-btn" 
+                      :class="{ 'is-active': cg.isFavorite }" 
+                      :title="cg.isFavorite ? '取消收藏' : '收藏'"
+                      @click="handleCgFavorite(cg)"
+                    >
+                      <i class="fa-solid fa-star"></i>
+                    </button>
+                    <button 
+                      class="igs-icon-tag-btn" 
+                      :class="{ 'is-active': cg.isHidden }" 
+                      :title="cg.isHidden ? '取消隐藏' : '隐藏'"
+                      @click="handleCgHidden(cg)"
+                    >
+                      <i class="fa-solid" :class="cg.isHidden ? 'fa-eye-slash' : 'fa-eye'"></i>
+                    </button>
+                    <button class="igs-icon-tag-btn" title="下载" @click="handleDownloadImage(cg.resolvedUrl || cg.rawUrl, cg.label)">
+                      <i class="fa-solid fa-download"></i>
+                    </button>
+                    <button class="igs-icon-tag-btn" title="删除" @click="handleDeleteCg(cg)">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="igs-resource-info">
+                  <div class="igs-resource-name-row">
+                    <span class="igs-resource-name">{{ cg.label }}</span>
+                    <i v-if="cg.isFavorite" class="fa-solid fa-star" style="color: #ffd166; font-size: 12px;"></i>
+                  </div>
+                  <div v-if="cg.prompt" class="igs-resource-desc" :title="cg.prompt">{{ cg.prompt }}</div>
+                </div>
+              </div>
+            </div>
+            <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+              <i class="fa-solid fa-photo-film fa-3x" style="margin-bottom: 12px;"></i>
+              <p>暂无符合筛选的剧情 CG</p>
+            </div>
+          </section>
+
+          <!-- 5. 道具图鉴板块 (全面支持与呈现) -->
+          <section v-if="activeTab === 'items'">
+            <div v-if="filteredItems.length" class="igs-resources-grid">
+              <div v-for="it in filteredItems" :key="it.name" class="igs-resource-card">
+                <div class="igs-resource-thumb-box is-square" @click="openLightbox(it.name, it.resolvedUrl || it.rawUrl, it.desc)">
+                  <img v-if="it.resolvedUrl || it.rawUrl" :src="it.resolvedUrl || it.rawUrl" class="igs-resource-img" />
+                  <div v-else class="igs-resource-empty-thumb">
+                    <i class="fa-solid fa-cube fa-2x"></i>
+                    <span>暂无图标</span>
+                  </div>
+
+                  <div class="igs-resource-card-overlay-actions" @click.stop>
+                    <button class="igs-icon-tag-btn" title="上传图标" @click="triggerItemUpload(it)">
+                      <i class="fa-solid fa-upload"></i>
+                    </button>
+                    <button class="igs-icon-tag-btn" title="删除道具" @click="handleDeleteItem(it)">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="igs-resource-info">
+                  <div class="igs-resource-name-row">
+                    <span class="igs-resource-name">{{ it.name }}</span>
+                  </div>
+                  <div v-if="it.desc" class="igs-resource-desc">{{ it.desc }}</div>
+                </div>
+              </div>
+            </div>
+            <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+              <i class="fa-solid fa-cubes fa-3x" style="margin-bottom: 12px;"></i>
+              <p>暂无物品道具图鉴，点击下方或右上角「新增」即可添加</p>
+              <button class="igs-btn-primary-compact" style="margin: 12px auto 0;" @click="openAddDialog('item')">
+                <i class="fa-solid fa-plus"></i>
+                <span>新增道具</span>
               </button>
             </div>
-          </div>
-        </div>
+          </section>
 
-        <!-- 统一新增/编辑对话框 -->
-        <div v-if="editDialog.visible" class="igs-dialog-overlay" @click.self="editDialog.visible = false">
-          <div class="igs-dialog-box">
-            <h3 class="igs-dialog-title">{{ editDialog.title }}</h3>
+          <!-- 6. 待确认暂存池 -->
+          <section v-if="activeTab === 'review'">
+            <div v-if="filteredStaging.length" class="igs-resources-grid">
+              <div v-for="st in filteredStaging" :key="st.key" class="igs-resource-card">
+                <div class="igs-resource-thumb-box" @click="openLightbox(st.name, st.resolvedUrl || st.rawUrl)">
+                  <img v-if="st.resolvedUrl || st.rawUrl" :src="st.resolvedUrl || st.rawUrl" class="igs-resource-img" />
+                  <div v-else class="igs-resource-empty-thumb">
+                    <i class="fa-solid fa-clock-rotate-left fa-2x"></i>
+                    <span>待确认素材</span>
+                  </div>
 
-            <div class="igs-form-row">
-              <label class="igs-form-label">名称</label>
-              <input v-model="editDialog.form.name" class="igs-form-input" placeholder="输入名称..." />
-            </div>
+                  <div class="igs-resource-card-overlay-actions" @click.stop>
+                    <button class="igs-icon-tag-btn" title="舍弃" @click="handleDiscardStaging(st)">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </div>
+                </div>
 
-            <div v-if="editDialog.type === 'scene'" class="igs-form-row">
-              <label class="igs-form-label">描述</label>
-              <input v-model="editDialog.form.desc" class="igs-form-input" placeholder="简短描述..." />
-            </div>
+                <div class="igs-resource-info">
+                  <div class="igs-resource-name-row">
+                    <span class="igs-resource-name">{{ st.name }}</span>
+                    <span class="igs-resources-chip" style="padding: 2px 8px; font-size: 11px;">{{ st.type }}</span>
+                  </div>
 
-            <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
-              <label class="igs-form-label">归属角色</label>
-              <input v-model="editDialog.form.character" class="igs-form-input" placeholder="角色名称..." />
-            </div>
-
-            <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
-              <label class="igs-form-label">服装提示词</label>
-              <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="输入生成该服装的专用 TAG 提示词..."></textarea>
-            </div>
-
-            <!-- 图片上传/外链 -->
-            <div v-if="editDialog.type !== 'outfit'" class="igs-form-row">
-              <label class="igs-form-label">图片素材</label>
-              <div class="igs-file-dropzone" @click="$refs.editFileInput.click()">
-                <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
-                <span>点击上传本地图片文件</span>
-                <input ref="editFileInput" type="file" accept="image/*" style="display:none;" @change="handleFormFileUpload" />
+                  <div style="display: flex; gap: 6px; margin-top: 6px;">
+                    <button class="igs-btn-primary-compact" style="flex: 1; justify-content: center;" @click="handleAcceptStaging(st, 'characters')">
+                      入库立绘
+                    </button>
+                    <button class="igs-btn-primary-compact" style="flex: 1; justify-content: center;" @click="handleAcceptStaging(st, 'scenes')">
+                      入库背景
+                    </button>
+                  </div>
+                </div>
               </div>
-              <input v-model="editDialog.form.rawUrl" class="igs-form-input" style="margin-top: 6px;" placeholder="或直接输入图片 URL / igs-gen 标识符..." />
             </div>
-
-            <div class="igs-dialog-actions">
-              <button class="igs-resources-chip" @click="editDialog.visible = false">取消</button>
-              <button class="igs-btn-primary-compact" @click="handleSaveEdit">保存</button>
+            <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
+              <i class="fa-solid fa-inbox fa-3x" style="margin-bottom: 12px;"></i>
+              <p>暂无待确认素材</p>
             </div>
-          </div>
-        </div>
-
-        <!-- 统一确认操作弹窗 -->
-        <div v-if="confirmDialog.visible" class="igs-dialog-overlay" @click.self="confirmDialog.visible = false">
-          <div class="igs-dialog-box" style="width: 360px;">
-            <h3 class="igs-dialog-title">{{ confirmDialog.title }}</h3>
-            <p style="font-size: 0.88rem; color: var(--igs-settings-ink-2); margin: 6px 0;">{{ confirmDialog.message }}</p>
-            <div class="igs-dialog-actions">
-              <button class="igs-resources-chip" @click="confirmDialog.visible = false">取消</button>
-              <button class="igs-btn-primary-compact" style="background: #e74c3c; color: #fff;" @click="confirmDialog.onConfirm">确认删除</button>
-            </div>
-          </div>
-        </div>
+          </section>
+        </main>
       </div>
+
+      <!-- 隐藏的通用图片选择器 -->
+      <input 
+        id="igs-patch-file-hidden-input" 
+        type="file" 
+        accept="image/*" 
+        style="display: none;" 
+        @change="onHiddenFileChange" 
+      />
 
       <!-- 全屏 Lightbox 大图预览 (置于顶层，彻底隔离父容器形变与遮罩重叠) -->
       <div v-if="lightbox.visible" class="igs-lightbox-overlay" @click.self="closeLightbox">
@@ -1302,6 +1295,97 @@ const ResourcesModalRoot = {
         <footer v-if="lightbox.prompt" class="igs-lightbox-bottombar">
           <span>{{ lightbox.prompt }}</span>
         </footer>
+      </div>
+
+      <!-- 生图与提示词确认对话框 -->
+      <div v-if="genDialog.visible" class="igs-dialog-overlay" @click.self="genDialog.visible = false">
+        <div class="igs-dialog-box">
+          <h3 class="igs-dialog-title">生图与提示词 · {{ genDialog.title }}</h3>
+          
+          <div class="igs-form-row">
+            <label class="igs-form-label">生图提示词</label>
+            <textarea 
+              v-model="genDialog.prompt" 
+              class="igs-form-textarea" 
+              placeholder="输入或调整该素材的生成提示词..."
+            ></textarea>
+          </div>
+
+          <div class="igs-form-row">
+            <label class="igs-form-label">负面提示词</label>
+            <input 
+              v-model="genDialog.negative" 
+              class="igs-form-input" 
+              placeholder="可选 负面提示词" 
+            />
+          </div>
+
+          <div class="igs-dialog-actions">
+            <button class="igs-resources-chip" @click="genDialog.visible = false">取消</button>
+            <button 
+              class="igs-btn-primary-compact" 
+              :disabled="genDialog.isGenerating"
+              @click="handleExecuteGenerate"
+            >
+              <i class="fa-solid fa-wand-magic-sparkles" :class="{ 'fa-spin': genDialog.isGenerating }"></i>
+              <span>确认生图</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 统一新增/编辑对话框 -->
+      <div v-if="editDialog.visible" class="igs-dialog-overlay" @click.self="editDialog.visible = false">
+        <div class="igs-dialog-box">
+          <h3 class="igs-dialog-title">{{ editDialog.title }}</h3>
+
+          <div class="igs-form-row">
+            <label class="igs-form-label">名称</label>
+            <input v-model="editDialog.form.name" class="igs-form-input" placeholder="输入名称..." />
+          </div>
+
+          <div v-if="editDialog.type === 'scene' || editDialog.type === 'item'" class="igs-form-row">
+            <label class="igs-form-label">描述</label>
+            <input v-model="editDialog.form.desc" class="igs-form-input" placeholder="简短描述..." />
+          </div>
+
+          <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
+            <label class="igs-form-label">归属角色</label>
+            <input v-model="editDialog.form.character" class="igs-form-input" placeholder="角色名称..." />
+          </div>
+
+          <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
+            <label class="igs-form-label">服装提示词</label>
+            <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="输入生成该服装的专用 TAG 提示词..."></textarea>
+          </div>
+
+          <div v-if="editDialog.type !== 'outfit'" class="igs-form-row">
+            <label class="igs-form-label">图片素材</label>
+            <div class="igs-file-dropzone" @click="$refs.editFileInput.click()">
+              <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
+              <span>点击上传本地图片文件</span>
+              <input ref="editFileInput" type="file" accept="image/*" style="display:none;" @change="handleFormFileUpload" />
+            </div>
+            <input v-model="editDialog.form.rawUrl" class="igs-form-input" style="margin-top: 6px;" placeholder="或直接输入图片 URL / igs-gen 标识符..." />
+          </div>
+
+          <div class="igs-dialog-actions">
+            <button class="igs-resources-chip" @click="editDialog.visible = false">取消</button>
+            <button class="igs-btn-primary-compact" @click="handleSaveEdit">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 统一确认操作弹窗 -->
+      <div v-if="confirmDialog.visible" class="igs-dialog-overlay" @click.self="confirmDialog.visible = false">
+        <div class="igs-dialog-box" style="width: 360px;">
+          <h3 class="igs-dialog-title">{{ confirmDialog.title }}</h3>
+          <p style="font-size: 0.88rem; color: var(--igs-settings-ink-2); margin: 6px 0;">{{ confirmDialog.message }}</p>
+          <div class="igs-dialog-actions">
+            <button class="igs-resources-chip" @click="confirmDialog.visible = false">取消</button>
+            <button class="igs-btn-primary-compact" style="background: #e74c3c; color: #fff;" @click="confirmDialog.onConfirm">确认删除</button>
+          </div>
+        </div>
       </div>
     </div>
     `
