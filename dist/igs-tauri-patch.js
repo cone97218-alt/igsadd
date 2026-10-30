@@ -23825,6 +23825,427 @@ ${codeFrame}` : message);
   font-weight: 600;
 }
 
+/* \u4E3B\u9898\u8272\u5207\u6362\u836F\u4E38\u4E0E\u5706\u70B9 (\u684C\u9762\u7AEF\u57FA\u7840\u6837\u5F0F) */
+.igs-patch-theme-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.15));
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+}
+
+.igs-patch-theme-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  padding: 0;
+  margin: 0;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  outline: none;
+  box-sizing: border-box;
+  background-clip: padding-box;
+}
+
+.igs-patch-theme-swatch:hover {
+  transform: scale(1.18);
+}
+
+.igs-patch-theme-swatch.is-active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 1.5px var(--igs-settings-accent, #689f38);
+  transform: scale(1.1);
+}
+
+/* \u4F5C\u7528\u57DF\u7B5B\u9009\u680F\uFF1A\u5168\u90E8 / \u672C\u5361 / \u5168\u5C40 */
+.igs-resources-scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0 12px 0;
+  border-bottom: 1px solid var(--igs-settings-line, rgba(255,255,255,0.06));
+  flex-wrap: wrap;
+}
+
+.igs-scope-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.15));
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+}
+
+.igs-scope-pill {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.65));
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.igs-scope-pill:hover {
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-scope-pill.is-active {
+  background: var(--igs-settings-panel, #24292e);
+  color: var(--igs-settings-ink, #ffffff);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+.igs-scope-count {
+  font-size: 0.72rem;
+  opacity: 0.75;
+  font-weight: normal;
+}
+
+.igs-scope-tool-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  background: var(--igs-settings-field, rgba(0,0,0,0.15));
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.igs-scope-tool-btn:hover {
+  background: var(--igs-settings-hover, rgba(255,255,255,0.08));
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+/* \u89D2\u8272\u4E0E\u8863\u88C5\u5DEE\u5206\u5C42\u7EA7\u89C6\u56FE */
+.igs-char-item-card {
+  background: var(--igs-settings-surface, #2a3036);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.igs-char-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.igs-char-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.igs-char-avatar-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--igs-settings-field, rgba(0,0,0,0.2));
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.12));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  flex-shrink: 0;
+}
+
+.igs-char-avatar-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.igs-char-name-text {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-char-user-badge {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(142, 68, 173, 0.18);
+  border: 1px solid rgba(142, 68, 173, 0.4);
+  color: #c39bd3;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.igs-char-user-badge:hover {
+  background: rgba(142, 68, 173, 0.3);
+}
+
+.igs-char-scope-switch {
+  display: inline-flex;
+  align-items: center;
+  background: var(--igs-settings-field, rgba(0,0,0,0.18));
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.igs-char-scope-opt {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.5));
+  cursor: pointer;
+}
+
+.igs-char-scope-opt.is-active {
+  background: var(--igs-settings-panel, #24292e);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+/* \u7ACB\u7ED8\u9AD8\u5EA6\u8C03\u8282 */
+.igs-char-height-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  padding-bottom: 4px;
+}
+
+.igs-char-height-input {
+  width: 64px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.2));
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.12));
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--igs-settings-ink, #ffffff);
+  font-size: 0.82rem;
+  text-align: center;
+  outline: none;
+}
+
+.igs-char-height-input:focus {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+}
+
+/* \u670D\u88C5\u6807\u7B7E\u680F */
+.igs-outfits-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.igs-outfit-tab-btn {
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.18));
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.75));
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.igs-outfit-tab-btn:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-outfit-tab-btn.is-active {
+  background: var(--igs-settings-panel, #24292e);
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-outfit-default-tag {
+  font-size: 0.7rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(104, 159, 56, 0.2);
+  color: var(--igs-settings-accent, #7fd6ca);
+  font-weight: normal;
+}
+
+.igs-outfit-action-btn {
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px dashed var(--igs-settings-line, rgba(255,255,255,0.15));
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.6));
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.igs-outfit-action-btn:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+/* \u5DEE\u5206\u5217\u8868\u4E0E\u52A8\u4F5C\u680F */
+.igs-char-diffs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.12));
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.igs-diff-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  background: var(--igs-settings-surface, #2a3036);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.06));
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.igs-diff-item-row:hover {
+  border-color: var(--igs-settings-line-strong, rgba(255,255,255,0.18));
+}
+
+.igs-diff-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.igs-diff-thumb {
+  width: 38px;
+  height: 48px;
+  border-radius: 6px;
+  background: #1a1e22;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.igs-diff-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.igs-diff-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.igs-diff-act-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  background: var(--igs-settings-field, rgba(0,0,0,0.15));
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.75));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.igs-diff-act-btn:hover {
+  background: var(--igs-settings-hover, rgba(255,255,255,0.1));
+  color: var(--igs-settings-ink, #ffffff);
+  border-color: var(--igs-settings-accent, #7fd6ca);
+}
+
+/* CG \u5F85\u751F\u6210\u4E0E\u5361\u7247\u589E\u5F3A */
+.igs-cg-pending-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: radial-gradient(circle at center, rgba(127, 214, 202, 0.08) 0%, rgba(0, 0, 0, 0.4) 100%);
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  padding: 12px;
+  text-align: center;
+}
+
+.igs-cg-badge-pending {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(230, 126, 34, 0.85);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.igs-cg-btn-generate {
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.15s ease;
+}
+
+.igs-cg-btn-generate:hover {
+  transform: scale(1.05);
+}
+
 /* \u6309\u94AE\u89C4\u8303 */
 .igs-btn-icon-round {
   width: 32px;
@@ -24343,6 +24764,18 @@ ${codeFrame}` : message);
   function getStorage() {
     return window.localStorage;
   }
+  function getCandidateWindows7() {
+    const wins = [window];
+    try {
+      if (window.parent && !wins.includes(window.parent)) wins.push(window.parent);
+    } catch (_) {
+    }
+    try {
+      if (window.top && !wins.includes(window.top)) wins.push(window.top);
+    } catch (_) {
+    }
+    return wins;
+  }
   function getRawBridgeConfig() {
     try {
       const raw = getStorage().getItem(STORAGE_KEY_BRIDGE);
@@ -24372,37 +24805,137 @@ ${codeFrame}` : message);
       }
     }
   }
-  function getCandidateWindows7() {
-    const wins = [window];
-    try {
-      if (window.parent && !wins.includes(window.parent)) wins.push(window.parent);
-    } catch (_) {
+  function getActiveCardScope() {
+    for (const w of getCandidateWindows7()) {
+      try {
+        const ctx = w.SillyTavern?.getContext?.();
+        if (ctx) {
+          if (ctx.groupId != null && String(ctx.groupId) !== "") {
+            return `group:${ctx.groupId}`;
+          }
+          const chars = Array.isArray(ctx.characters) ? ctx.characters : [];
+          const card = ctx.characterId != null ? chars[ctx.characterId] : null;
+          const name = card && card.name && String(card.name).trim() || ctx.name2 && String(ctx.name2).trim();
+          if (name) return `card:${name}`;
+        }
+      } catch (_) {
+      }
     }
-    try {
-      if (window.top && !wins.includes(window.top)) wins.push(window.top);
-    } catch (_) {
-    }
-    return wins;
-  }
-  function getSceneAssets() {
     const bridge = getRawBridgeConfig();
-    const assets = bridge.sceneAssets || {};
+    const cards = Object.keys(bridge.sceneAssets?.cards || {});
+    const userCards = cards.filter((c) => c !== "card:SillyTavern System");
+    if (userCards.length > 0) return userCards[0];
+    return cards[0] || "";
+  }
+  function getScopedSceneAssets(scopeMode = "all", customScopeKey = null) {
+    const bridge = getRawBridgeConfig();
+    const root = bridge.sceneAssets || {};
+    const scopeKey = customScopeKey || getActiveCardScope();
+    const card = scopeKey && root.cards && root.cards[scopeKey] ? root.cards[scopeKey] : null;
+    if (scopeMode === "card") {
+      if (!card) return emptyAssetCollection(scopeKey);
+      return {
+        characters: card.characters || {},
+        characterOutfits: card.characterOutfits || {},
+        characterDefaultOutfits: card.characterDefaultOutfits || {},
+        characterSpriteNotes: card.characterSpriteNotes || {},
+        characterSpriteScales: card.characterSpriteScales || root.characterSpriteScales || {},
+        userCharacter: card.userCharacter || root.userCharacter || "",
+        scenes: card.scenes || {},
+        wardrobe: card.wardrobe || {},
+        eventCgs: card.eventCgs || {},
+        statusAvatars: card.statusAvatars || {},
+        characterDna: card.characterDna || {},
+        generated: card.generated || {},
+        scopeKey
+      };
+    }
+    if (scopeMode === "global") {
+      return {
+        characters: root.characters || {},
+        characterOutfits: root.characterOutfits || {},
+        characterDefaultOutfits: root.characterDefaultOutfits || {},
+        characterSpriteNotes: root.characterSpriteNotes || {},
+        characterSpriteScales: root.characterSpriteScales || {},
+        userCharacter: root.userCharacter || "",
+        scenes: root.scenes || {},
+        wardrobe: root.wardrobe || {},
+        eventCgs: root.eventCgs || {},
+        statusAvatars: root.statusAvatars || {},
+        characterDna: root.characterDna || {},
+        generated: root.generated || {},
+        scopeKey: ""
+      };
+    }
+    const cardOutfits = card?.characterOutfits || {};
+    const rootOutfits = root.characterOutfits || {};
+    const mergedOutfits = { ...rootOutfits };
+    for (const [charName, outfits] of Object.entries(cardOutfits)) {
+      mergedOutfits[charName] = { ...mergedOutfits[charName] || {}, ...outfits };
+    }
     return {
-      characters: assets.characters || {},
-      scenes: assets.scenes || {},
-      wardrobe: assets.wardrobe || {},
-      eventCgs: assets.eventCgs || {},
-      characterDna: assets.characterDna || {},
-      characterOutfits: assets.characterOutfits || {},
-      generated: assets.generated || {}
+      characters: { ...root.characters || {}, ...card?.characters || {} },
+      characterOutfits: mergedOutfits,
+      characterDefaultOutfits: { ...root.characterDefaultOutfits || {}, ...card?.characterDefaultOutfits || {} },
+      characterSpriteNotes: { ...root.characterSpriteNotes || {}, ...card?.characterSpriteNotes || {} },
+      characterSpriteScales: { ...root.characterSpriteScales || {}, ...card?.characterSpriteScales || {} },
+      userCharacter: card?.userCharacter || root.userCharacter || "",
+      scenes: { ...root.scenes || {}, ...card?.scenes || {} },
+      wardrobe: { ...root.wardrobe || {}, ...card?.wardrobe || {} },
+      eventCgs: { ...root.eventCgs || {}, ...card?.eventCgs || {} },
+      statusAvatars: { ...root.statusAvatars || {}, ...card?.statusAvatars || {} },
+      characterDna: { ...root.characterDna || {}, ...card?.characterDna || {} },
+      generated: {
+        scenes: { ...root.generated?.scenes || {}, ...card?.generated?.scenes || {} },
+        characters: { ...root.generated?.characters || {}, ...card?.generated?.characters || {} },
+        items: { ...root.generated?.items || {}, ...card?.generated?.items || {} }
+      },
+      scopeKey
     };
   }
-  function updateSceneAssets(updater) {
+  function emptyAssetCollection(scopeKey = "") {
+    return {
+      characters: {},
+      characterOutfits: {},
+      characterDefaultOutfits: {},
+      characterSpriteNotes: {},
+      characterSpriteScales: {},
+      userCharacter: "",
+      scenes: {},
+      wardrobe: {},
+      eventCgs: {},
+      statusAvatars: {},
+      characterDna: {},
+      generated: {},
+      scopeKey
+    };
+  }
+  function updateScopedSceneAssets(updater, scopeMode = "all", customScopeKey = null) {
     const bridge = getRawBridgeConfig();
     if (!bridge.sceneAssets || typeof bridge.sceneAssets !== "object") {
       bridge.sceneAssets = {};
     }
-    updater(bridge.sceneAssets);
+    const root = bridge.sceneAssets;
+    const scopeKey = customScopeKey || getActiveCardScope();
+    if (scopeMode === "card" && scopeKey) {
+      if (!root.cards || typeof root.cards !== "object") root.cards = {};
+      if (!root.cards[scopeKey] || typeof root.cards[scopeKey] !== "object") {
+        root.cards[scopeKey] = emptyAssetCollection(scopeKey);
+      }
+      updater(root.cards[scopeKey]);
+    } else if (scopeMode === "global") {
+      updater(root);
+    } else {
+      if (scopeKey) {
+        if (!root.cards || typeof root.cards !== "object") root.cards = {};
+        if (!root.cards[scopeKey] || typeof root.cards[scopeKey] !== "object") {
+          root.cards[scopeKey] = emptyAssetCollection(scopeKey);
+        }
+        updater(root.cards[scopeKey]);
+      } else {
+        updater(root);
+      }
+    }
     return saveRawBridgeConfig(bridge);
   }
   function openDb(name, version2 = void 0, onUpgrade = null) {
@@ -24426,7 +24959,7 @@ ${codeFrame}` : message);
   var resolvedImageCache = /* @__PURE__ */ new Map();
   async function resolveImageUrl(url) {
     if (!url || typeof url !== "string") return "";
-    const cleanUrl = url.trim();
+    let cleanUrl = url.trim();
     if (!cleanUrl) return "";
     if (cleanUrl.startsWith("data:") || cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://") || cleanUrl.startsWith("blob:")) {
       return cleanUrl;
@@ -24438,98 +24971,225 @@ ${codeFrame}` : message);
       }
       try {
         const db = await openDb(DB_GENERATED_ASSETS);
-        if (!db.objectStoreNames.contains("images")) {
+        if (db.objectStoreNames.contains("images")) {
+          const tx = db.transaction("images", "readonly");
+          const store = tx.objectStore("images");
+          const record = await new Promise((res) => {
+            const r = store.get(imageId);
+            r.onsuccess = () => res(r.result);
+            r.onerror = () => res(null);
+          });
           db.close();
-          return "";
-        }
-        const tx = db.transaction("images", "readonly");
-        const store = tx.objectStore("images");
-        const record = await new Promise((res) => {
-          const r = store.get(imageId);
-          r.onsuccess = () => res(r.result);
-          r.onerror = () => res(null);
-        });
-        db.close();
-        if (record && (record.dataUrl || record.originalDataUrl)) {
-          const finalUrl = record.dataUrl || record.originalDataUrl;
-          resolvedImageCache.set(imageId, finalUrl);
-          return finalUrl;
+          if (record && (record.dataUrl || record.originalDataUrl)) {
+            let finalUrl = record.dataUrl || record.originalDataUrl;
+            if (!finalUrl.startsWith("data:") && !finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && !finalUrl.startsWith("blob:") && !finalUrl.startsWith("/")) {
+              finalUrl = "/" + finalUrl;
+            }
+            resolvedImageCache.set(imageId, finalUrl);
+            return finalUrl;
+          }
+        } else {
+          db.close();
         }
       } catch (_) {
       }
+      const fallbackUrl = `/user/images/igs-media/${imageId}.png`;
+      resolvedImageCache.set(imageId, fallbackUrl);
+      return fallbackUrl;
+    }
+    if (!cleanUrl.startsWith("/") && (cleanUrl.startsWith("user/") || cleanUrl.startsWith("scripts/") || cleanUrl.startsWith("public/"))) {
+      return "/" + cleanUrl;
     }
     return cleanUrl;
   }
-  async function listCharacters() {
-    const assets = getSceneAssets();
+  async function listCharacters(scopeMode = "all", customScopeKey = null) {
+    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
     const charsObj = assets.characters || {};
+    const outfitsObj = assets.characterOutfits || {};
+    const defaultOutfits = assets.characterDefaultOutfits || {};
+    const spriteNotes = assets.characterSpriteNotes || {};
+    const spriteScales = assets.characterSpriteScales || {};
+    const statusAvatars = assets.statusAvatars || {};
+    const userCharName = String(assets.userCharacter || "").trim();
+    const allNames = new Set([
+      ...Object.keys(charsObj),
+      ...Object.keys(outfitsObj),
+      ...Object.keys(spriteNotes),
+      ...Object.keys(statusAvatars)
+    ].filter(Boolean));
     const result = [];
-    for (const [name, data] of Object.entries(charsObj)) {
-      if (!name) continue;
-      const charData = data && typeof data === "object" ? data : { base: String(data || "") };
-      const baseRawUrl = charData.base || "";
-      const baseResolved = await resolveImageUrl(baseRawUrl);
-      const moodsObj = charData.moods && typeof charData.moods === "object" ? charData.moods : {};
-      const moodsList = [];
-      for (const [moodName, moodUrl] of Object.entries(moodsObj)) {
-        moodsList.push({
-          name: moodName,
-          rawUrl: moodUrl,
-          resolvedUrl: await resolveImageUrl(moodUrl)
+    for (const name of allNames) {
+      const isUser = userCharName === name;
+      const height = Number(spriteScales[name]) || 100;
+      const rawAvatar = statusAvatars[name] || "";
+      const resolvedAvatar = await resolveImageUrl(rawAvatar);
+      const note = spriteNotes[name] || "";
+      const charOutfits = outfitsObj[name] || {};
+      const defaultOutfitName = defaultOutfits[name]?.outfitName || Object.keys(charOutfits)[0] || "\u9ED8\u8BA4\u8863\u88C5";
+      const outfitsList = [];
+      for (const [outfitName, outfitData] of Object.entries(charOutfits)) {
+        const isDefault = outfitName === defaultOutfitName;
+        const moodMap = outfitData && typeof outfitData === "object" && outfitData.moods ? outfitData.moods : {};
+        const moodList = [];
+        for (const [moodName, moodUrl] of Object.entries(moodMap)) {
+          if (!moodUrl) continue;
+          moodList.push({
+            name: moodName,
+            rawUrl: moodUrl,
+            resolvedUrl: await resolveImageUrl(moodUrl)
+          });
+        }
+        outfitsList.push({
+          name: outfitName,
+          isDefault,
+          prompt: outfitData?.prompt || "",
+          moods: moodList,
+          count: moodList.length
         });
       }
+      const directChar = charsObj[name];
+      const directMoodsObj = directChar && typeof directChar === "object" && directChar.moods ? directChar.moods : directChar && typeof directChar === "object" ? directChar : {};
+      const directMoodsList = [];
+      for (const [mName, mUrl] of Object.entries(directMoodsObj)) {
+        if (typeof mUrl === "string" && mUrl.trim()) {
+          directMoodsList.push({
+            name: mName,
+            rawUrl: mUrl,
+            resolvedUrl: await resolveImageUrl(mUrl)
+          });
+        }
+      }
+      if (directMoodsList.length && !outfitsList.length) {
+        outfitsList.push({
+          name: defaultOutfitName,
+          isDefault: true,
+          prompt: "",
+          moods: directMoodsList,
+          count: directMoodsList.length
+        });
+      }
+      let baseResolvedUrl = resolvedAvatar;
+      let baseRawUrl = rawAvatar;
+      if (!baseResolvedUrl && outfitsList.length) {
+        const defOutfit = outfitsList.find((o) => o.isDefault) || outfitsList[0];
+        const firstMood = defOutfit.moods.find((m) => m.name === "\u5E73\u548C") || defOutfit.moods[0];
+        if (firstMood) {
+          baseResolvedUrl = firstMood.resolvedUrl;
+          baseRawUrl = firstMood.rawUrl;
+        }
+      }
+      const totalDiffCount = outfitsList.reduce((acc, cur) => acc + cur.moods.length, 0);
       result.push({
         name,
+        isUser,
+        height,
+        avatarUrl: resolvedAvatar,
         baseRawUrl,
-        baseResolvedUrl: baseResolved,
-        moodCount: moodsList.length,
-        moods: moodsList,
-        expanded: false
+        baseResolvedUrl,
+        note,
+        outfits: outfitsList,
+        moodCount: totalDiffCount,
+        activeOutfitIndex: 0
       });
     }
-    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+    return result.sort((a, b) => {
+      if (a.isUser && !b.isUser) return -1;
+      if (!a.isUser && b.isUser) return 1;
+      return a.name.localeCompare(b.name, "zh-Hans-CN");
+    });
   }
-  function saveCharacter(name, baseRawUrl) {
-    return updateSceneAssets((assets) => {
+  function saveCharacter(name, baseRawUrl = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
       if (!assets.characters) assets.characters = {};
-      if (!assets.characters[name]) {
-        assets.characters[name] = { base: baseRawUrl, moods: {} };
-      } else if (typeof assets.characters[name] === "object") {
-        assets.characters[name].base = baseRawUrl;
-      } else {
-        assets.characters[name] = { base: baseRawUrl, moods: {} };
+      if (!assets.characters[name]) assets.characters[name] = {};
+      if (!assets.characterOutfits) assets.characterOutfits = {};
+      const defOutfitName = `${name}\xB7\u521D\u59CB\u8863\u88C5`;
+      if (!assets.characterOutfits[name]) {
+        assets.characterOutfits[name] = {
+          [defOutfitName]: {
+            words: [],
+            moods: baseRawUrl ? { "\u5E73\u548C": baseRawUrl } : {},
+            legacyOriginal: 1,
+            wardrobe: defOutfitName
+          }
+        };
       }
-    });
+      if (!assets.characterDefaultOutfits) assets.characterDefaultOutfits = {};
+      assets.characterDefaultOutfits[name] = { version: 1, outfitName: defOutfitName, migrated: true };
+    }, scopeMode);
   }
-  function deleteCharacter(name) {
-    return updateSceneAssets((assets) => {
-      if (assets.characters) {
-        delete assets.characters[name];
+  function setUserCharacter(name, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      assets.userCharacter = name;
+    }, scopeMode);
+  }
+  function setCharacterHeight(name, height, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.characterSpriteScales) assets.characterSpriteScales = {};
+      assets.characterSpriteScales[name] = Number(height) || 100;
+    }, scopeMode);
+  }
+  function saveCharacterOutfit(charName, outfitName, prompt = "", isDefault = false, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.characterOutfits) assets.characterOutfits = {};
+      if (!assets.characterOutfits[charName]) assets.characterOutfits[charName] = {};
+      const oldOutfit = assets.characterOutfits[charName][outfitName] || {};
+      assets.characterOutfits[charName][outfitName] = {
+        ...oldOutfit,
+        words: [],
+        prompt,
+        moods: oldOutfit.moods || {},
+        wardrobe: outfitName
+      };
+      if (isDefault) {
+        if (!assets.characterDefaultOutfits) assets.characterDefaultOutfits = {};
+        assets.characterDefaultOutfits[charName] = { version: 1, outfitName, migrated: true };
       }
-    });
+    }, scopeMode);
   }
-  function saveCharacterMood(characterName, moodName, moodRawUrl) {
-    return updateSceneAssets((assets) => {
-      if (!assets.characters) assets.characters = {};
-      let charObj = assets.characters[characterName];
-      if (!charObj || typeof charObj !== "object") {
-        charObj = { base: "", moods: {} };
-        assets.characters[characterName] = charObj;
+  function deleteCharacterOutfit(charName, outfitName, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (assets.characterOutfits?.[charName]) {
+        delete assets.characterOutfits[charName][outfitName];
       }
-      if (!charObj.moods) charObj.moods = {};
-      charObj.moods[moodName] = moodRawUrl;
-    });
+    }, scopeMode);
   }
-  function deleteCharacterMood(characterName, moodName) {
-    return updateSceneAssets((assets) => {
-      const charObj = assets.characters?.[characterName];
-      if (charObj && charObj.moods) {
-        delete charObj.moods[moodName];
+  function saveCharacterMood(characterName, moodName, moodRawUrl, outfitName = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.characterOutfits) assets.characterOutfits = {};
+      if (!assets.characterOutfits[characterName]) assets.characterOutfits[characterName] = {};
+      let targetOutfit = outfitName;
+      if (!targetOutfit) {
+        const def2 = assets.characterDefaultOutfits?.[characterName]?.outfitName;
+        targetOutfit = def2 || Object.keys(assets.characterOutfits[characterName])[0] || `${characterName}\xB7\u521D\u59CB\u8863\u88C5`;
       }
-    });
+      if (!assets.characterOutfits[characterName][targetOutfit]) {
+        assets.characterOutfits[characterName][targetOutfit] = { words: [], moods: {}, wardrobe: targetOutfit };
+      }
+      if (!assets.characterOutfits[characterName][targetOutfit].moods) {
+        assets.characterOutfits[characterName][targetOutfit].moods = {};
+      }
+      assets.characterOutfits[characterName][targetOutfit].moods[moodName] = moodRawUrl;
+    }, scopeMode);
   }
-  async function listScenes() {
-    const assets = getSceneAssets();
+  function deleteCharacterMood(characterName, moodName, outfitName = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (assets.characterOutfits?.[characterName]) {
+        if (outfitName && assets.characterOutfits[characterName][outfitName]?.moods) {
+          delete assets.characterOutfits[characterName][outfitName].moods[moodName];
+        } else {
+          for (const o of Object.values(assets.characterOutfits[characterName])) {
+            if (o.moods && o.moods[moodName]) delete o.moods[moodName];
+          }
+        }
+      }
+      if (assets.characters?.[characterName]?.[moodName]) {
+        delete assets.characters[characterName][moodName];
+      }
+    }, scopeMode);
+  }
+  async function listScenes(scopeMode = "all", customScopeKey = null) {
+    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
     const scenesObj = assets.scenes || {};
     const result = [];
     for (const [name, data] of Object.entries(scenesObj)) {
@@ -24540,11 +25200,13 @@ ${codeFrame}` : message);
       const timesObj = sceneData.times && typeof sceneData.times === "object" ? sceneData.times : {};
       const timesList = [];
       for (const [timeName, timeVal] of Object.entries(timesObj)) {
-        const timeRawUrl = typeof timeVal === "string" ? timeVal : timeVal?.url || "";
+        const tUrl = typeof timeVal === "string" ? timeVal : timeVal?.url || "";
+        if (!tUrl) continue;
         timesList.push({
           name: timeName,
-          rawUrl: timeRawUrl,
-          resolvedUrl: await resolveImageUrl(timeRawUrl)
+          rawUrl: tUrl,
+          resolvedUrl: await resolveImageUrl(tUrl),
+          desc: typeof timeVal === "object" ? timeVal.desc || "" : ""
         });
       }
       result.push({
@@ -24553,74 +25215,70 @@ ${codeFrame}` : message);
         baseRawUrl,
         baseResolvedUrl: baseResolved,
         timeCount: timesList.length,
-        times: timesList,
-        expanded: false
+        times: timesList
       });
     }
     return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
   }
-  function saveScene(name, baseRawUrl, desc = "") {
-    return updateSceneAssets((assets) => {
+  function saveScene(name, baseRawUrl, desc = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
       if (!assets.scenes) assets.scenes = {};
-      let scObj = assets.scenes[name];
-      if (!scObj || typeof scObj !== "object") {
-        scObj = { url: baseRawUrl, times: {}, desc };
-        assets.scenes[name] = scObj;
+      if (!assets.scenes[name]) {
+        assets.scenes[name] = { url: baseRawUrl, desc, times: {} };
+      } else if (typeof assets.scenes[name] === "object") {
+        assets.scenes[name].url = baseRawUrl;
+        if (desc) assets.scenes[name].desc = desc;
       } else {
-        scObj.url = baseRawUrl;
-        if (desc !== void 0) scObj.desc = desc;
+        assets.scenes[name] = { url: baseRawUrl, desc, times: {} };
       }
-    });
+    }, scopeMode);
   }
-  function deleteScene(name) {
-    return updateSceneAssets((assets) => {
-      if (assets.scenes) {
-        delete assets.scenes[name];
-      }
-    });
+  function deleteScene(name, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (assets.scenes) delete assets.scenes[name];
+    }, scopeMode);
   }
-  function saveSceneTime(sceneName, timeName, timeRawUrl) {
-    return updateSceneAssets((assets) => {
+  function saveSceneTime(sceneName, timeName, timeRawUrl, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
       if (!assets.scenes) assets.scenes = {};
-      let scObj = assets.scenes[sceneName];
-      if (!scObj || typeof scObj !== "object") {
-        scObj = { url: "", times: {}, desc: "" };
-        assets.scenes[sceneName] = scObj;
+      let sceneObj = assets.scenes[sceneName];
+      if (!sceneObj || typeof sceneObj !== "object") {
+        sceneObj = { url: "", desc: "", times: {} };
+        assets.scenes[sceneName] = sceneObj;
       }
-      if (!scObj.times) scObj.times = {};
-      scObj.times[timeName] = timeRawUrl;
-    });
+      if (!sceneObj.times) sceneObj.times = {};
+      sceneObj.times[timeName] = timeRawUrl;
+    }, scopeMode);
   }
-  function deleteSceneTime(sceneName, timeName) {
-    return updateSceneAssets((assets) => {
-      const scObj = assets.scenes?.[sceneName];
-      if (scObj && scObj.times) {
-        delete scObj.times[timeName];
+  function deleteSceneTime(sceneName, timeName, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      const sceneObj = assets.scenes?.[sceneName];
+      if (sceneObj && sceneObj.times) {
+        delete sceneObj.times[timeName];
       }
-    });
+    }, scopeMode);
   }
-  async function listWardrobe() {
-    const assets = getSceneAssets();
+  async function listWardrobe(scopeMode = "all", customScopeKey = null) {
+    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
     const wardrobeObj = assets.wardrobe || {};
     const result = [];
     for (const [name, data] of Object.entries(wardrobeObj)) {
       if (!name) continue;
-      const item = data && typeof data === "object" ? data : {};
-      const rawUrl = item.image || item.url || "";
-      const resolved = await resolveImageUrl(rawUrl);
+      const item = data && typeof data === "object" ? data : { prompt: String(data || "") };
+      const rawUrl = item.image || item.rawUrl || item.url || "";
       result.push({
         name,
         character: item.character || "",
         prompt: item.prompt || "",
-        scenes: Array.isArray(item.scenes) ? item.scenes : [],
         rawUrl,
-        resolvedUrl: resolved
+        resolvedUrl: await resolveImageUrl(rawUrl),
+        scenes: Array.isArray(item.scenes) ? item.scenes : []
       });
     }
     return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
   }
-  function saveWardrobeItem(name, itemData) {
-    return updateSceneAssets((assets) => {
+  function saveWardrobeItem(name, itemData, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
       if (!assets.wardrobe) assets.wardrobe = {};
       assets.wardrobe[name] = {
         name,
@@ -24629,14 +25287,12 @@ ${codeFrame}` : message);
         image: itemData.rawUrl || itemData.image || "",
         scenes: Array.isArray(itemData.scenes) ? itemData.scenes : []
       };
-    });
+    }, scopeMode);
   }
-  function deleteWardrobeItem(name) {
-    return updateSceneAssets((assets) => {
-      if (assets.wardrobe) {
-        delete assets.wardrobe[name];
-      }
-    });
+  function deleteWardrobeItem(name, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (assets.wardrobe) delete assets.wardrobe[name];
+    }, scopeMode);
   }
   async function listAllCgs(filter = "all") {
     const list = [];
@@ -24669,22 +25325,31 @@ ${codeFrame}` : message);
         for (const s of allSlots) {
           if (!s || !s.key) continue;
           const mark = marksMap.get(s.key) || {};
-          const isHidden = mark.hidden === true;
-          const isFavorite = mark.favorite === true;
+          const isHidden = mark.hidden === true || s.hidden === true;
+          const isFavorite = mark.favorite === true || s.favorite === true;
           if (filter === "favorites" && !isFavorite) continue;
           if (filter === "hidden" && !isHidden) continue;
           if (filter === "all" && isHidden) continue;
-          const rawDataUrl = s.dataUrl || s.originalDataUrl || "";
+          const rawDataUrl = s.dataUrl || s.imageUrl || s.originalDataUrl || "";
           const parts = String(s.floorKey || "").split("|");
           const floorNo = parts.length >= 2 ? parts[parts.length - 2] : "";
+          const isPending = s.status === "pending" || !rawDataUrl;
+          let fullPrompt = s.prompt || s.caption || "";
+          if (!fullPrompt && (s.scene || s.chars)) {
+            const charTags = Array.isArray(s.chars) ? s.chars.map((c) => c.tags).filter(Boolean).join(", ") : "";
+            fullPrompt = [s.scene, charTags].filter(Boolean).join("\n");
+          }
           list.push({
             key: s.key,
             floorKey: s.floorKey || "",
             slot: s.slot || 1,
             label: floorNo ? `\u7B2C ${floorNo} \u697C` : s.key,
-            prompt: s.prompt || s.caption || "",
+            prompt: fullPrompt,
+            description: s.description || s.analysis || "",
+            status: s.status || (rawDataUrl ? "done" : "pending"),
+            isPending,
             rawUrl: rawDataUrl,
-            resolvedUrl: await resolveImageUrl(rawDataUrl),
+            resolvedUrl: isPending ? "" : await resolveImageUrl(rawDataUrl),
             isFavorite,
             isHidden,
             isEventCg: false
@@ -24694,26 +25359,27 @@ ${codeFrame}` : message);
       dbCg.close();
     } catch (_) {
     }
-    const assets = getSceneAssets();
+    const assets = getScopedSceneAssets("all");
     const eventCgs = assets.eventCgs || {};
     for (const [name, item] of Object.entries(eventCgs)) {
       if (!name) continue;
       const rawUrl = typeof item === "string" ? item : item?.url || "";
-      const isHidden = false;
-      const isFavorite = true;
       if (filter === "hidden") continue;
       list.push({
         key: `event_cg_${name}`,
         label: name,
-        prompt: item?.desc || name,
+        prompt: typeof item === "object" ? item.prompt || "" : "",
+        description: "\u9884\u7F6E\u4E8B\u4EF6CG",
+        status: "done",
+        isPending: false,
         rawUrl,
         resolvedUrl: await resolveImageUrl(rawUrl),
-        isFavorite,
-        isHidden,
+        isFavorite: true,
+        isHidden: false,
         isEventCg: true
       });
     }
-    return list.reverse();
+    return list;
   }
   async function toggleCgFavorite(cgKey, currentVal) {
     const nextVal = !currentVal;
@@ -24764,9 +25430,9 @@ ${codeFrame}` : message);
   async function deleteCg(cgKey, isEventCg = false) {
     if (isEventCg) {
       const name = cgKey.replace("event_cg_", "");
-      return updateSceneAssets((assets) => {
+      return updateScopedSceneAssets((assets) => {
         if (assets.eventCgs) delete assets.eventCgs[name];
-      });
+      }, "all");
     }
     try {
       const dbCg = await openDb(DB_ILLUSTRATIONS);
@@ -24779,8 +25445,8 @@ ${codeFrame}` : message);
       return false;
     }
   }
-  async function listItems() {
-    const assets = getSceneAssets();
+  async function listItems(scopeMode = "all", customScopeKey = null) {
+    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
     const generatedItems = assets.generated?.items || {};
     const result = [];
     for (const [name, data] of Object.entries(generatedItems)) {
@@ -24796,19 +25462,19 @@ ${codeFrame}` : message);
     }
     return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
   }
-  function saveItem(name, rawUrl, desc = "") {
-    return updateSceneAssets((assets) => {
+  function saveItem(name, rawUrl, desc = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
       if (!assets.generated) assets.generated = {};
       if (!assets.generated.items) assets.generated.items = {};
       assets.generated.items[name] = { url: rawUrl, desc };
-    });
+    }, scopeMode);
   }
-  function deleteItem(name) {
-    return updateSceneAssets((assets) => {
+  function deleteItem(name, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
       if (assets.generated?.items) {
         delete assets.generated.items[name];
       }
-    });
+    }, scopeMode);
   }
   async function listStagingAssets() {
     const list = [];
@@ -24926,12 +25592,20 @@ ${codeFrame}` : message);
       const searchQuery = ref("");
       const cgFilter = ref("all");
       const isLoading = ref(false);
+      const scopeMode = ref("all");
+      const activeCardScope = ref("");
+      const scopeCounts = reactive({
+        all: 0,
+        card: 0,
+        global: 0
+      });
       const characters = ref([]);
       const scenes = ref([]);
       const wardrobe = ref([]);
       const cgs = ref([]);
       const items = ref([]);
       const staging = ref([]);
+      const selectedOutfits = reactive({});
       const lightbox = reactive({
         visible: false,
         title: "",
@@ -24945,9 +25619,10 @@ ${codeFrame}` : message);
       const editDialog = reactive({
         visible: false,
         type: "",
-        // 'char' | 'mood' | 'scene' | 'sceneTime' | 'wardrobe' | 'item'
+        // 'char' | 'outfit' | 'mood' | 'scene' | 'sceneTime' | 'wardrobe' | 'item'
         title: "",
         parentName: "",
+        secondaryName: "",
         form: {
           name: "",
           desc: "",
@@ -24957,11 +25632,32 @@ ${codeFrame}` : message);
           rawUrl: ""
         }
       });
+      const genDialog = reactive({
+        visible: false,
+        type: "",
+        // 'mood' | 'cg' | 'scene' | 'item'
+        title: "",
+        charName: "",
+        outfitName: "",
+        moodName: "",
+        prompt: "",
+        negative: "",
+        cgItem: null,
+        isGenerating: false
+      });
       const confirmDialog = reactive({
         visible: false,
         title: "",
         message: "",
         onConfirm: null
+      });
+      const activeUploadTarget = reactive({
+        type: "",
+        charName: "",
+        outfitName: "",
+        moodName: "",
+        sceneName: "",
+        timeName: ""
       });
       const themeStyleVars = computed2(() => {
         return generateThemeCssVariables(patchState.theme);
@@ -24969,25 +25665,50 @@ ${codeFrame}` : message);
       const loadData = async () => {
         isLoading.value = true;
         try {
-          const [charsList, scenesList, wardrobeList, cgsList, itemsList, stagingList] = await Promise.all([
-            listCharacters(),
-            listScenes(),
-            listWardrobe(),
+          activeCardScope.value = getActiveCardScope();
+          const [charsAll, charsCard, charsGlobal] = await Promise.all([
+            listCharacters("all"),
+            listCharacters("card"),
+            listCharacters("global")
+          ]);
+          scopeCounts.all = charsAll.length;
+          scopeCounts.card = charsCard.length;
+          scopeCounts.global = charsGlobal.length;
+          const curMode = scopeMode.value;
+          const [curChars, curScenes, curWardrobe, curCgs, curItems, curStaging] = await Promise.all([
+            curMode === "all" ? charsAll : curMode === "card" ? charsCard : charsGlobal,
+            listScenes(curMode),
+            listWardrobe(curMode),
             listAllCgs(cgFilter.value),
-            listItems(),
+            listItems(curMode),
             listStagingAssets()
           ]);
-          characters.value = charsList;
-          scenes.value = scenesList;
-          wardrobe.value = wardrobeList;
-          cgs.value = cgsList;
-          items.value = itemsList;
-          staging.value = stagingList;
+          characters.value = curChars;
+          scenes.value = curScenes;
+          wardrobe.value = curWardrobe;
+          cgs.value = curCgs;
+          items.value = curItems;
+          staging.value = curStaging;
+          for (const c of curChars) {
+            if (!selectedOutfits[c.name]) {
+              selectedOutfits[c.name] = c.defaultOutfit || c.outfits && c.outfits[0]?.name || "";
+            }
+          }
         } catch (err) {
           console.warn("[IGS-Patch] \u52A0\u8F7D\u7D20\u6750\u5F02\u5E38:", err);
         } finally {
           isLoading.value = false;
         }
+      };
+      const setScope = (mode) => {
+        scopeMode.value = mode;
+        loadData();
+      };
+      const getCurrentOutfit = (charObj) => {
+        if (!charObj || !charObj.outfits || !charObj.outfits.length) return null;
+        const targetName = selectedOutfits[charObj.name] || charObj.defaultOutfit;
+        const found = charObj.outfits.find((o) => o.name === targetName);
+        return found || charObj.outfits[0];
       };
       const filteredCharacters = computed2(() => {
         const q = searchQuery.value.trim().toLowerCase();
@@ -25020,6 +25741,7 @@ ${codeFrame}` : message);
         return staging.value.filter((s) => s.name.toLowerCase().includes(q) || s.type.toLowerCase().includes(q));
       });
       const openLightbox = (title, src, prompt = "", meta = {}) => {
+        if (!src) return;
         lightbox.title = title;
         lightbox.src = src;
         lightbox.prompt = prompt;
@@ -25040,16 +25762,106 @@ ${codeFrame}` : message);
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        notifyToast("\u5DF2\u5F00\u59CB\u4E0B\u8F7D\u56FE\u7247", "info");
+        notifyToast("\u5DF2\u5F00\u59CB\u4E0B\u8F7D", "info");
       };
       const handleCopyPrompt = (prompt) => {
         if (!prompt) return;
         navigator.clipboard.writeText(prompt);
         notifyToast("\u63D0\u793A\u8BCD\u5DF2\u590D\u5236", "info");
       };
-      const openAddDialog = (type, parent = null) => {
+      const handleSetHeight = (charObj, val) => {
+        const num = parseInt(val, 10);
+        if (isNaN(num) || num <= 0) return;
+        charObj.height = num;
+        setCharacterHeight(charObj.name, num, scopeMode.value);
+        notifyToast(`\u57FA\u51C6\u9AD8\u5EA6\u5DF2\u8C03\u6574\u4E3A ${num}%`, "info");
+      };
+      const handleToggleUser = (charObj) => {
+        const nextState = !charObj.isUser;
+        charObj.isUser = nextState;
+        setUserCharacter(charObj.name, nextState, scopeMode.value);
+        notifyToast(nextState ? `\u5DF2\u8BBE\u4E3A\u4E3B\u89D2\u8EAB\u4EFD` : `\u5DF2\u53D6\u6D88\u4E3B\u89D2\u8EAB\u4EFD`, "info");
+      };
+      const triggerDiffUpload = (charObj, outfitObj, moodObj) => {
+        activeUploadTarget.type = "mood";
+        activeUploadTarget.charName = charObj.name;
+        activeUploadTarget.outfitName = outfitObj.name;
+        activeUploadTarget.moodName = moodObj.name;
+        const input = document.getElementById("igs-patch-file-hidden-input");
+        if (input) input.click();
+      };
+      const onHiddenFileChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          if (activeUploadTarget.type === "mood") {
+            saveCharacterMood(
+              activeUploadTarget.charName,
+              activeUploadTarget.moodName,
+              dataUrl,
+              activeUploadTarget.outfitName,
+              scopeMode.value
+            );
+            notifyToast("\u5DEE\u5206\u56FE\u7247\u5DF2\u66FF\u6362", "info");
+            await loadData();
+          }
+        } catch (_) {
+          notifyToast("\u8BFB\u53D6\u56FE\u7247\u5931\u8D25", "error");
+        } finally {
+          e.target.value = "";
+        }
+      };
+      const openGenPromptDialog = (type, charObj, outfitObj, targetObj) => {
+        genDialog.type = type;
+        genDialog.charName = charObj?.name || "";
+        genDialog.outfitName = outfitObj?.name || "";
+        genDialog.isGenerating = false;
+        if (type === "mood") {
+          genDialog.moodName = targetObj?.name || "";
+          genDialog.title = `${charObj.name} \xB7 ${targetObj.name}`;
+          genDialog.prompt = targetObj.prompt || `${charObj.name}, ${outfitObj?.name || ""}, ${targetObj.name}`;
+          genDialog.negative = "";
+        } else if (type === "cg") {
+          genDialog.cgItem = targetObj;
+          genDialog.title = targetObj.label || "\u5267\u60C5 CG";
+          genDialog.prompt = targetObj.prompt || "";
+          genDialog.negative = "";
+        }
+        genDialog.visible = true;
+      };
+      const handleExecuteGenerate = async () => {
+        if (!genDialog.prompt.trim()) {
+          notifyToast("\u63D0\u793A\u8BCD\u4E0D\u80FD\u4E3A\u7A7A", "warning");
+          return;
+        }
+        genDialog.isGenerating = true;
+        try {
+          const baiBai = window.STBaiBaiImage || window.parent?.STBaiBaiImage;
+          if (baiBai && typeof baiBai.generate === "function") {
+            notifyToast("\u5DF2\u5411\u751F\u56FE\u7BA1\u7EBF\u63D0\u4EA4\u4EFB\u52A1", "info");
+            await baiBai.generate({
+              prompt: genDialog.prompt.trim(),
+              negative: genDialog.negative.trim(),
+              type: genDialog.type
+            });
+            genDialog.visible = false;
+            await loadData();
+            return;
+          }
+          navigator.clipboard.writeText(genDialog.prompt.trim());
+          notifyToast("\u751F\u56FE\u63D0\u793A\u8BCD\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F", "info");
+          genDialog.visible = false;
+        } catch (err) {
+          notifyToast("\u63D0\u4EA4\u751F\u56FE\u5F02\u5E38", "error");
+        } finally {
+          genDialog.isGenerating = false;
+        }
+      };
+      const openAddDialog = (type, parent = null, secondary = null) => {
         editDialog.type = type;
         editDialog.parentName = parent?.name || "";
+        editDialog.secondaryName = secondary?.name || "";
         editDialog.form = {
           name: "",
           desc: "",
@@ -25060,6 +25872,7 @@ ${codeFrame}` : message);
         };
         const titleMap = {
           char: "\u65B0\u589E\u89D2\u8272\u7ACB\u7ED8",
+          outfit: `\u65B0\u589E\u670D\u88C5 - ${parent?.name}`,
           mood: `\u65B0\u589E\u8868\u60C5\u5DEE\u5206 - ${parent?.name}`,
           scene: "\u65B0\u589E\u573A\u666F\u80CC\u666F",
           sceneTime: `\u65B0\u589E\u65F6\u6BB5\u5DEE\u5206 - ${parent?.name}`,
@@ -25077,22 +25890,21 @@ ${codeFrame}` : message);
         }
         try {
           if (editDialog.type === "char") {
-            saveCharacter(f.name.trim(), f.rawUrl.trim());
+            saveCharacterMood(f.name.trim(), "\u9ED8\u8BA4", f.rawUrl.trim(), "\u521D\u59CB\u8863\u88C5", scopeMode.value);
+          } else if (editDialog.type === "outfit") {
+            saveCharacterOutfit(editDialog.parentName, f.name.trim(), scopeMode.value);
+            selectedOutfits[editDialog.parentName] = f.name.trim();
           } else if (editDialog.type === "mood") {
-            saveCharacterMood(editDialog.parentName, f.name.trim(), f.rawUrl.trim());
+            const outfit = editDialog.secondaryName || selectedOutfits[editDialog.parentName] || "\u521D\u59CB\u8863\u88C5";
+            saveCharacterMood(editDialog.parentName, f.name.trim(), f.rawUrl.trim(), outfit, scopeMode.value);
           } else if (editDialog.type === "scene") {
-            saveScene(f.name.trim(), f.rawUrl.trim(), f.desc.trim());
+            saveScene(f.name.trim(), f.rawUrl.trim(), f.desc.trim(), scopeMode.value);
           } else if (editDialog.type === "sceneTime") {
-            saveSceneTime(editDialog.parentName, f.name.trim(), f.rawUrl.trim());
+            saveSceneTime(editDialog.parentName, f.name.trim(), f.rawUrl.trim(), scopeMode.value);
           } else if (editDialog.type === "wardrobe") {
-            saveWardrobeItem(f.name.trim(), {
-              character: f.character.trim(),
-              prompt: f.prompt.trim(),
-              rawUrl: f.rawUrl.trim(),
-              scenes: f.scenesText.split(/[,，\n]/).map((s) => s.trim()).filter(Boolean)
-            });
+            saveWardrobeItem(f.name.trim(), f.rawUrl.trim(), f.prompt.trim(), f.character.trim(), scopeMode.value);
           } else if (editDialog.type === "item") {
-            saveItem(f.name.trim(), f.rawUrl.trim(), f.desc.trim());
+            saveItem(f.name.trim(), f.rawUrl.trim(), f.desc.trim(), scopeMode.value);
           }
           notifyToast("\u4FDD\u5B58\u6210\u529F", "info");
           editDialog.visible = false;
@@ -25101,7 +25913,7 @@ ${codeFrame}` : message);
           notifyToast("\u4FDD\u5B58\u5F02\u5E38", "error");
         }
       };
-      const handleFileUpload = async (e) => {
+      const handleFormFileUpload = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
         try {
@@ -25147,28 +25959,33 @@ ${codeFrame}` : message);
         confirmDialog.visible = true;
       };
       const handleDeleteCharacter = (charObj) => {
-        triggerDelete("\u5220\u9664\u89D2\u8272", `\u786E\u5B9A\u5220\u9664\u89D2\u8272\u300C${charObj.name}\u300D\u53CA\u5168\u90E8\u8868\u60C5\u5DEE\u5206\u5417\uFF1F`, () => {
-          deleteCharacter(charObj.name);
+        triggerDelete("\u5220\u9664\u89D2\u8272", `\u786E\u5B9A\u5220\u9664\u89D2\u8272\u300C${charObj.name}\u300D\u53CA\u5176\u5168\u90E8\u8863\u88C5\u5DEE\u5206\u5417\uFF1F`, () => {
+          deleteCharacterOutfit(charObj.name, "", scopeMode.value);
         });
       };
-      const handleDeleteMood = (charName, moodName) => {
+      const handleDeleteOutfit = (charObj, outfitObj) => {
+        triggerDelete("\u5220\u9664\u670D\u88C5", `\u786E\u5B9A\u5220\u9664\u300C${charObj.name}\u300D\u7684\u300C${outfitObj.name}\u300D\u5417\uFF1F`, () => {
+          deleteCharacterOutfit(charObj.name, outfitObj.name, scopeMode.value);
+        });
+      };
+      const handleDeleteMood = (charName, moodName, outfitName) => {
         triggerDelete("\u5220\u9664\u5DEE\u5206", `\u786E\u5B9A\u5220\u9664\u8868\u60C5\u5DEE\u5206\u300C${moodName}\u300D\u5417\uFF1F`, () => {
-          deleteCharacterMood(charName, moodName);
+          deleteCharacterMood(charName, moodName, outfitName, scopeMode.value);
         });
       };
       const handleDeleteScene = (sceneObj) => {
         triggerDelete("\u5220\u9664\u573A\u666F", `\u786E\u5B9A\u5220\u9664\u573A\u666F\u300C${sceneObj.name}\u300D\u53CA\u5168\u90E8\u65F6\u6BB5\u5DEE\u5206\u5417\uFF1F`, () => {
-          deleteScene(sceneObj.name);
+          deleteScene(sceneObj.name, scopeMode.value);
         });
       };
       const handleDeleteSceneTime = (sceneName, timeName) => {
         triggerDelete("\u5220\u9664\u65F6\u6BB5", `\u786E\u5B9A\u5220\u9664\u65F6\u6BB5\u5DEE\u5206\u300C${timeName}\u300D\u5417\uFF1F`, () => {
-          deleteSceneTime(sceneName, timeName);
+          deleteSceneTime(sceneName, timeName, scopeMode.value);
         });
       };
       const handleDeleteWardrobe = (item) => {
         triggerDelete("\u5220\u9664\u670D\u88C5", `\u786E\u5B9A\u5220\u9664\u670D\u88C5\u300C${item.name}\u300D\u5417\uFF1F`, () => {
-          deleteWardrobeItem(item.name);
+          deleteWardrobeItem(item.name, scopeMode.value);
         });
       };
       const handleDeleteCg = (cg) => {
@@ -25181,7 +25998,7 @@ ${codeFrame}` : message);
       };
       const handleDeleteItem = (item) => {
         triggerDelete("\u5220\u9664\u9053\u5177", `\u786E\u5B9A\u5220\u9664\u9053\u5177\u300C${item.name}\u300D\u5417\uFF1F`, () => {
-          deleteItem(item.name);
+          deleteItem(item.name, scopeMode.value);
         });
       };
       const handleAcceptStaging = async (stItem, targetType) => {
@@ -25211,6 +26028,8 @@ ${codeFrame}` : message);
           if (e.key === "Escape") {
             if (lightbox.visible) {
               closeLightbox();
+            } else if (genDialog.visible) {
+              genDialog.visible = false;
             } else if (editDialog.visible) {
               editDialog.visible = false;
             } else if (confirmDialog.visible) {
@@ -25229,6 +26048,10 @@ ${codeFrame}` : message);
         searchQuery,
         cgFilter,
         isLoading,
+        scopeMode,
+        scopeCounts,
+        activeCardScope,
+        selectedOutfits,
         themeOptions: THEME_OPTIONS,
         themeStyleVars,
         characters,
@@ -25248,14 +26071,23 @@ ${codeFrame}` : message);
         closeLightbox,
         handleDownloadImage,
         handleCopyPrompt,
+        handleSetHeight,
+        handleToggleUser,
+        getCurrentOutfit,
+        triggerDiffUpload,
+        onHiddenFileChange,
         editDialog,
         openAddDialog,
         handleSaveEdit,
-        handleFileUpload,
+        handleFormFileUpload,
+        genDialog,
+        openGenPromptDialog,
+        handleExecuteGenerate,
         confirmDialog,
         handleCgFavorite,
         handleCgHidden,
         handleDeleteCharacter,
+        handleDeleteOutfit,
         handleDeleteMood,
         handleDeleteScene,
         handleDeleteSceneTime,
@@ -25264,6 +26096,7 @@ ${codeFrame}` : message);
         handleDeleteItem,
         handleAcceptStaging,
         handleDiscardStaging,
+        setScope,
         setCgFilter,
         loadData,
         setTheme,
@@ -25396,51 +26229,122 @@ ${codeFrame}` : message);
             </button>
           </nav>
 
-          <!-- \u53F3\u4FA7\u5361\u7247\u7011\u5E03\u6D41 -->
+          <!-- \u53F3\u4FA7\u5361\u7247\u7011\u5E03\u6D41\u4E0E\u5C42\u7EA7\u7BA1\u7406 -->
           <main class="igs-resources-content">
-            <!-- 1. \u7ACB\u7ED8\u677F\u5757 -->
+            <!-- \u4F5C\u7528\u57DF\u7B5B\u9009\u680F\uFF1A\u5168\u90E8 / \u672C\u5361 / \u5168\u5C40 -->
+            <div v-if="activeTab !== 'cgs' && activeTab !== 'review'" class="igs-resources-scope-bar">
+              <div class="igs-scope-pills">
+                <button class="igs-scope-pill" :class="{ 'is-active': scopeMode === 'all' }" @click="setScope('all')">
+                  <span>\u5168\u90E8</span>
+                  <span class="igs-scope-count">{{ scopeCounts.all }}</span>
+                </button>
+                <button class="igs-scope-pill" :class="{ 'is-active': scopeMode === 'card' }" @click="setScope('card')">
+                  <span>\u672C\u5361</span>
+                  <span class="igs-scope-count">{{ scopeCounts.card }}</span>
+                </button>
+                <button class="igs-scope-pill" :class="{ 'is-active': scopeMode === 'global' }" @click="setScope('global')">
+                  <span>\u5168\u5C40</span>
+                  <span class="igs-scope-count">{{ scopeCounts.global }}</span>
+                </button>
+              </div>
+
+              <div style="font-size: 0.78rem; color: var(--igs-settings-ink-3);">
+                <span v-if="activeCardScope">\u5F53\u524D\u89D2\u8272\u5361\uFF1A{{ activeCardScope.replace(/^card:/, '') }}</span>
+              </div>
+            </div>
+
+            <!-- 1. \u7ACB\u7ED8\u677F\u5757 (\u89D2\u8272\u5361\u4E0E\u670D\u88C5\u5DEE\u5206\u5C42\u7EA7\u89C6\u56FE) -->
             <section v-if="activeTab === 'characters'">
-              <div v-if="filteredCharacters.length" class="igs-resources-grid">
-                <div v-for="c in filteredCharacters" :key="c.name" class="igs-resource-card">
-                  <!-- \u4E3B\u7ACB\u7ED8\u7F29\u7565\u56FE -->
-                  <div class="igs-resource-thumb-box" @click="openLightbox(c.name, c.baseResolvedUrl || c.baseRawUrl)">
-                    <img v-if="c.baseResolvedUrl || c.baseRawUrl" :src="c.baseResolvedUrl || c.baseRawUrl" class="igs-resource-img" />
-                    <div v-else class="igs-resource-empty-thumb">
-                      <i class="fa-solid fa-image-slash fa-2x"></i>
-                      <span>\u6682\u65E0\u7ACB\u7ED8</span>
+              <div v-if="filteredCharacters.length">
+                <div v-for="c in filteredCharacters" :key="c.name" class="igs-char-item-card">
+                  <!-- \u89D2\u8272\u5934\u90E8 -->
+                  <div class="igs-char-header-row">
+                    <div class="igs-char-title-group">
+                      <div class="igs-char-avatar-circle" @click="openLightbox(c.name, c.baseResolvedUrl || c.baseRawUrl)">
+                        <img v-if="c.baseResolvedUrl || c.baseRawUrl" :src="c.baseResolvedUrl || c.baseRawUrl" />
+                        <i v-else class="fa-solid fa-user"></i>
+                      </div>
+                      <span class="igs-char-name-text">{{ c.name }}</span>
+                      <span 
+                        class="igs-char-user-badge" 
+                        :style="{ opacity: c.isUser ? 1 : 0.4 }"
+                        title="\u70B9\u51FB\u5207\u6362\u4E3B\u89D2\u8EAB\u4EFD"
+                        @click="handleToggleUser(c)"
+                      >User</span>
                     </div>
 
-                    <!-- \u60AC\u6D6E\u64CD\u4F5C\u56FE\u6807 -->
-                    <div class="igs-resource-card-overlay-actions" @click.stop>
-                      <button class="igs-icon-tag-btn" title="\u65B0\u589E\u5DEE\u5206" @click="openAddDialog('mood', c)">
-                        <i class="fa-solid fa-plus"></i>
-                      </button>
-                      <button class="igs-icon-tag-btn" title="\u5220\u9664\u89D2\u8272" @click="handleDeleteCharacter(c)">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <button class="igs-icon-tag-btn" title="\u5220\u9664\u6B64\u89D2\u8272" @click="handleDeleteCharacter(c)">
                         <i class="fa-solid fa-trash-can"></i>
                       </button>
                     </div>
                   </div>
 
-                  <!-- \u89D2\u8272\u4FE1\u606F -->
-                  <div class="igs-resource-info">
-                    <div class="igs-resource-name-row">
-                      <span class="igs-resource-name">{{ c.name }}</span>
-                      <span class="igs-resource-desc">{{ c.moodCount }} \u5DEE\u5206</span>
-                    </div>
+                  <!-- \u7ACB\u7ED8\u9AD8\u5EA6 % \u8C03\u8282 -->
+                  <div class="igs-char-height-row">
+                    <span>\u7ACB\u7ED8\u9AD8\u5EA6 %</span>
+                    <input 
+                      type="number" 
+                      :value="c.height || 100" 
+                      @change="e => handleSetHeight(c, e.target.value)" 
+                      class="igs-char-height-input" 
+                    />
+                    <span style="opacity: 0.6; font-size: 0.78rem;">\u9ED8\u8BA4 \u57FA\u51C6\u9AD8\u5EA6 100%</span>
+                  </div>
 
-                    <!-- \u8868\u60C5\u5DEE\u5206\u9884\u89C8\u836F\u4E38 -->
-                    <div v-if="c.moods && c.moods.length" class="igs-resource-diff-row">
-                      <span 
-                        v-for="m in c.moods" 
-                        :key="m.name" 
-                        class="igs-resource-diff-tag"
-                        :title="m.name"
-                        @click="openLightbox(c.name + ' \xB7 ' + m.name, m.resolvedUrl || m.rawUrl)"
-                      >
-                        <span>{{ m.name }}</span>
-                        <i class="fa-solid fa-xmark" style="font-size: 10px;" title="\u5220\u9664\u6B64\u5DEE\u5206" @click.stop="handleDeleteMood(c.name, m.name)"></i>
-                      </span>
+                  <!-- \u670D\u88C5\u5217\u8868\u680F -->
+                  <div class="igs-outfits-bar">
+                    <button 
+                      v-for="outfit in c.outfits" 
+                      :key="outfit.name" 
+                      class="igs-outfit-tab-btn" 
+                      :class="{ 'is-active': (selectedOutfits[c.name] || c.defaultOutfit || c.outfits[0]?.name) === outfit.name }"
+                      @click="selectedOutfits[c.name] = outfit.name"
+                    >
+                      <span>{{ outfit.name }}</span>
+                      <span v-if="outfit.isDefault" class="igs-outfit-default-tag">\u9ED8\u8BA4</span>
+                      <span style="opacity: 0.65; font-size: 0.72rem;">{{ outfit.moodCount }}</span>
+                    </button>
+
+                    <button class="igs-outfit-action-btn" title="\u65B0\u589E\u670D\u88C5" @click="openAddDialog('outfit', c)">
+                      <i class="fa-solid fa-plus"></i>
+                      <span>\u670D\u88C5</span>
+                    </button>
+                    <button class="igs-outfit-action-btn" title="\u65B0\u589E\u5DEE\u5206" @click="openAddDialog('mood', c, getCurrentOutfit(c))">
+                      <i class="fa-solid fa-plus"></i>
+                      <span>\u5DEE\u5206</span>
+                    </button>
+                  </div>
+
+                  <!-- \u5DEE\u5206\u5217\u8868\u4E0E\u52A8\u4F5C\u680F -->
+                  <div v-if="getCurrentOutfit(c) && getCurrentOutfit(c).moods && getCurrentOutfit(c).moods.length" class="igs-char-diffs-container">
+                    <div v-for="m in getCurrentOutfit(c).moods" :key="m.name" class="igs-diff-item-row">
+                      <div class="igs-diff-left">
+                        <div class="igs-diff-thumb" @click="openLightbox(c.name + ' \xB7 ' + m.name, m.resolvedUrl || m.rawUrl)">
+                          <img v-if="m.resolvedUrl || m.rawUrl" :src="m.resolvedUrl || m.rawUrl" />
+                          <i v-else class="fa-solid fa-image" style="opacity: 0.35;"></i>
+                        </div>
+                        <span class="igs-diff-name">{{ m.name }}</span>
+                      </div>
+
+                      <div class="igs-diff-actions">
+                        <button class="igs-diff-act-btn" title="\u751F\u56FE" @click="openGenPromptDialog('mood', c, getCurrentOutfit(c), m)">
+                          <i class="fa-solid fa-rotate"></i>
+                        </button>
+                        <button class="igs-diff-act-btn" title="\u4E0B\u8F7D" @click="handleDownloadImage(m.resolvedUrl || m.rawUrl, c.name + '_' + m.name)">
+                          <i class="fa-solid fa-download"></i>
+                        </button>
+                        <button class="igs-diff-act-btn" title="\u4E0A\u4F20\u66FF\u6362" @click="triggerDiffUpload(c, getCurrentOutfit(c), m)">
+                          <i class="fa-solid fa-upload"></i>
+                        </button>
+                        <button class="igs-diff-act-btn" title="\u5220\u9664\u5DEE\u5206" @click="handleDeleteMood(c.name, m.name, getCurrentOutfit(c).name)">
+                          <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                      </div>
                     </div>
+                  </div>
+                  <div v-else style="padding: 12px; text-align: center; color: var(--igs-settings-ink-3); font-size: 0.8rem;">
+                    \u5F53\u524D\u670D\u88C5\u6682\u65E0\u8868\u60C5\u5DEE\u5206\uFF0C\u70B9\u51FB\u4E0A\u65B9\u300C+\u5DEE\u5206\u300D\u5373\u53EF\u6DFB\u52A0
                   </div>
                 </div>
               </div>
@@ -25458,7 +26362,7 @@ ${codeFrame}` : message);
                   <div class="igs-resource-thumb-box is-landscape" @click="openLightbox(s.name, s.baseResolvedUrl || s.baseRawUrl, s.desc)">
                     <img v-if="s.baseResolvedUrl || s.baseRawUrl" :src="s.baseResolvedUrl || s.baseRawUrl" class="igs-resource-img" />
                     <div v-else class="igs-resource-empty-thumb">
-                      <i class="fa-solid fa-image-slash fa-2x"></i>
+                      <i class="fa-solid fa-image fa-2x"></i>
                       <span>\u6682\u65E0\u80CC\u666F</span>
                     </div>
 
@@ -25534,7 +26438,7 @@ ${codeFrame}` : message);
               </div>
             </section>
 
-            <!-- 4. CG \u753B\u5ECA\u677F\u5757 -->
+            <!-- 4. CG \u753B\u5ECA\u677F\u5757 (\u5DF2\u51FA\u56FE\u4E0E\u5F85\u751F\u6210\u5361\u7247) -->
             <section v-if="activeTab === 'cgs'">
               <!-- CG \u7B5B\u9009\u836F\u4E38 -->
               <div class="igs-resources-subbar">
@@ -25550,15 +26454,22 @@ ${codeFrame}` : message);
 
               <div v-if="filteredCgs.length" class="igs-resources-grid">
                 <div v-for="cg in filteredCgs" :key="cg.key" class="igs-resource-card">
-                  <div class="igs-resource-thumb-box is-landscape" @click="openLightbox(cg.label, cg.resolvedUrl || cg.rawUrl, cg.prompt, cg)">
-                    <img v-if="cg.resolvedUrl || cg.rawUrl" :src="cg.resolvedUrl || cg.rawUrl" class="igs-resource-img" />
-                    <div v-else class="igs-resource-empty-thumb">
-                      <i class="fa-solid fa-film fa-2x"></i>
-                      <span>\u8BFB\u53D6\u4E2D</span>
+                  <div class="igs-resource-thumb-box is-landscape" @click="!cg.isPending && openLightbox(cg.label, cg.resolvedUrl || cg.rawUrl, cg.prompt, cg)">
+                    <!-- \u5DF2\u751F\u6210\u51FA\u56FE -->
+                    <img v-if="!cg.isPending && (cg.resolvedUrl || cg.rawUrl)" :src="cg.resolvedUrl || cg.rawUrl" class="igs-resource-img" />
+                    
+                    <!-- \u5F85\u751F\u6210\u51FA\u56FE\u5361\u7247 (\u5F7B\u5E95\u89E3\u51B3\u8BFB\u53D6\u4E2D\u9ED1\u6846) -->
+                    <div v-else class="igs-cg-pending-container">
+                      <span class="igs-cg-badge-pending">\u5F85\u751F\u6210</span>
+                      <i class="fa-solid fa-wand-magic-sparkles fa-2x" style="color: var(--igs-settings-accent); margin-bottom: 4px;"></i>
+                      <button class="igs-cg-btn-generate" @click.stop="openGenPromptDialog('cg', null, null, cg)">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>\u751F\u56FE</span>
+                      </button>
                     </div>
 
                     <!-- \u60AC\u6D6E\u56FE\u6807\uFF1A\u6536\u85CF / \u9690\u85CF / \u5220\u9664 -->
-                    <div class="igs-resource-card-overlay-actions" @click.stop>
+                    <div v-if="!cg.isPending" class="igs-resource-card-overlay-actions" @click.stop>
                       <button 
                         class="igs-icon-tag-btn" 
                         :class="{ 'is-active': cg.isFavorite }" 
@@ -25574,6 +26485,9 @@ ${codeFrame}` : message);
                         @click="handleCgHidden(cg)"
                       >
                         <i class="fa-solid" :class="cg.isHidden ? 'fa-eye-slash' : 'fa-eye'"></i>
+                      </button>
+                      <button class="igs-icon-tag-btn" title="\u4E0B\u8F7D" @click="handleDownloadImage(cg.resolvedUrl || cg.rawUrl, cg.label)">
+                        <i class="fa-solid fa-download"></i>
                       </button>
                       <button class="igs-icon-tag-btn" title="\u5220\u9664" @click="handleDeleteCg(cg)">
                         <i class="fa-solid fa-trash-can"></i>
@@ -25635,50 +26549,63 @@ ${codeFrame}` : message);
                   <div class="igs-resource-thumb-box" @click="openLightbox(st.name, st.resolvedUrl || st.rawUrl)">
                     <img v-if="st.resolvedUrl || st.rawUrl" :src="st.resolvedUrl || st.rawUrl" class="igs-resource-img" />
                     <div v-else class="igs-resource-empty-thumb">
-                      <i class="fa-solid fa-inbox fa-2x"></i>
-                      <span>\u6682\u65E0\u56FE\u50CF</span>
+                      <i class="fa-solid fa-clock-rotate-left fa-2x"></i>
+                      <span>\u5F85\u786E\u8BA4\u7D20\u6750</span>
+                    </div>
+
+                    <div class="igs-resource-card-overlay-actions" @click.stop>
+                      <button class="igs-icon-tag-btn" title="\u820D\u5F03" @click="handleDiscardStaging(st)">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
                     </div>
                   </div>
 
                   <div class="igs-resource-info">
                     <div class="igs-resource-name-row">
                       <span class="igs-resource-name">{{ st.name }}</span>
-                      <span class="igs-resources-chip" style="font-size: 11px; padding: 1px 6px;">{{ st.type }}</span>
+                      <span class="igs-resources-chip" style="padding: 2px 8px; font-size: 11px;">{{ st.type }}</span>
                     </div>
 
-                    <!-- \u64CD\u4F5C\uFF1A\u5165\u5E93\u5230\u7ACB\u7ED8 / \u5165\u5E93\u5230\u80CC\u666F / \u820D\u5F03 -->
-                    <div style="display: flex; gap: 4px; margin-top: 8px;">
-                      <button class="igs-resources-chip is-active" style="flex: 1; padding: 4px 6px; font-size: 11px;" @click="handleAcceptStaging(st, st.type)">
-                        \u5165\u5E93
+                    <div style="display: flex; gap: 6px; margin-top: 6px;">
+                      <button class="igs-btn-primary-compact" style="flex: 1; justify-content: center;" @click="handleAcceptStaging(st, 'characters')">
+                        \u5165\u5E93\u7ACB\u7ED8
                       </button>
-                      <button class="igs-resources-chip" style="padding: 4px 8px; font-size: 11px;" title="\u820D\u5F03" @click="handleDiscardStaging(st)">
-                        <i class="fa-solid fa-trash-can"></i>
+                      <button class="igs-btn-primary-compact" style="flex: 1; justify-content: center;" @click="handleAcceptStaging(st, 'scenes')">
+                        \u5165\u5E93\u80CC\u666F
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
               <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
-                <i class="fa-solid fa-circle-check fa-3x" style="margin-bottom: 12px; color: var(--igs-settings-accent);"></i>
-                <p>\u5F53\u524D\u6CA1\u6709\u5F85\u786E\u8BA4\u5165\u5E93\u7684\u6682\u5B58\u7D20\u6750</p>
+                <i class="fa-solid fa-inbox fa-3x" style="margin-bottom: 12px;"></i>
+                <p>\u6682\u65E0\u5F85\u786E\u8BA4\u7D20\u6750</p>
               </div>
             </section>
           </main>
         </div>
 
-        <!-- =================== \u5168\u5C4F Lightbox \u5927\u56FE\u67E5\u770B\u5668 =================== -->
+        <!-- \u9690\u85CF\u7684\u901A\u7528\u56FE\u7247\u9009\u62E9\u5668 -->
+        <input 
+          id="igs-patch-file-hidden-input" 
+          type="file" 
+          accept="image/*" 
+          style="display: none;" 
+          @change="onHiddenFileChange" 
+        />
+
+        <!-- \u5168\u5C4F Lightbox \u5927\u56FE\u9884\u89C8 -->
         <div v-if="lightbox.visible" class="igs-lightbox-overlay" @click.self="closeLightbox">
-          <div class="igs-lightbox-topbar">
+          <header class="igs-lightbox-topbar">
             <span class="igs-lightbox-title">{{ lightbox.title }}</span>
             <div class="igs-lightbox-top-actions">
               <button 
-                v-if="lightbox.key" 
+                v-if="lightbox.key && !lightbox.isEventCg" 
                 class="igs-btn-icon-round" 
                 :title="lightbox.isFavorite ? '\u53D6\u6D88\u6536\u85CF' : '\u6536\u85CF'"
-                :style="{ color: lightbox.isFavorite ? '#ffd166' : 'inherit' }"
                 @click="handleCgFavorite(lightbox)"
               >
-                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star" :style="{ color: lightbox.isFavorite ? '#ffd166' : '#fff' }"></i>
               </button>
               <button 
                 v-if="lightbox.prompt" 
@@ -25695,31 +26622,59 @@ ${codeFrame}` : message);
               >
                 <i class="fa-solid fa-download"></i>
               </button>
-              <button 
-                v-if="lightbox.key" 
-                class="igs-btn-icon-round" 
-                title="\u5220\u9664\u6B64\u56FE" 
-                @click="handleDeleteCg(lightbox)"
-              >
-                <i class="fa-solid fa-trash-can"></i>
-              </button>
-              <button class="igs-btn-icon-round" title="\u5173\u95ED\u5927\u56FE" @click="closeLightbox">
+              <button class="igs-btn-icon-round" title="\u5173\u95ED" @click="closeLightbox">
                 <i class="fa-solid fa-xmark"></i>
               </button>
             </div>
-          </div>
+          </header>
 
-          <div class="igs-lightbox-main" @click="closeLightbox">
-            <img :src="lightbox.src" class="igs-lightbox-img" @click.stop />
-          </div>
+          <main class="igs-lightbox-main" @click.self="closeLightbox">
+            <img :src="lightbox.src" class="igs-lightbox-img" />
+          </main>
 
-          <div v-if="lightbox.prompt" class="igs-lightbox-bottombar">
-            <div style="font-weight: bold; margin-bottom: 4px;">\u751F\u56FE\u63D0\u793A\u8BCD\uFF1A</div>
-            <div style="font-family: monospace; word-break: break-all;">{{ lightbox.prompt }}</div>
+          <footer v-if="lightbox.prompt" class="igs-lightbox-bottombar">
+            <span>{{ lightbox.prompt }}</span>
+          </footer>
+        </div>
+
+        <!-- \u751F\u56FE\u4E0E\u63D0\u793A\u8BCD\u786E\u8BA4\u5BF9\u8BDD\u6846 -->
+        <div v-if="genDialog.visible" class="igs-dialog-overlay" @click.self="genDialog.visible = false">
+          <div class="igs-dialog-box">
+            <h3 class="igs-dialog-title">\u751F\u56FE\u4E0E\u63D0\u793A\u8BCD \xB7 {{ genDialog.title }}</h3>
+            
+            <div class="igs-form-row">
+              <label class="igs-form-label">\u751F\u56FE\u63D0\u793A\u8BCD</label>
+              <textarea 
+                v-model="genDialog.prompt" 
+                class="igs-form-textarea" 
+                placeholder="\u8F93\u5165\u6216\u8C03\u6574\u8BE5\u7D20\u6750\u7684\u751F\u6210\u63D0\u793A\u8BCD..."
+              ></textarea>
+            </div>
+
+            <div class="igs-form-row">
+              <label class="igs-form-label">\u8D1F\u9762\u63D0\u793A\u8BCD</label>
+              <input 
+                v-model="genDialog.negative" 
+                class="igs-form-input" 
+                placeholder="\u53EF\u9009 \u8D1F\u9762\u63D0\u793A\u8BCD" 
+              />
+            </div>
+
+            <div class="igs-dialog-actions">
+              <button class="igs-resources-chip" @click="genDialog.visible = false">\u53D6\u6D88</button>
+              <button 
+                class="igs-btn-primary-compact" 
+                :disabled="genDialog.isGenerating"
+                @click="handleExecuteGenerate"
+              >
+                <i class="fa-solid fa-wand-magic-sparkles" :class="{ 'fa-spin': genDialog.isGenerating }"></i>
+                <span>\u786E\u8BA4\u751F\u56FE</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- =================== \u65B0\u589E/\u7F16\u8F91\u5BF9\u8BDD\u6846 =================== -->
+        <!-- \u7EDF\u4E00\u65B0\u589E/\u7F16\u8F91\u5BF9\u8BDD\u6846 -->
         <div v-if="editDialog.visible" class="igs-dialog-overlay" @click.self="editDialog.visible = false">
           <div class="igs-dialog-box">
             <h3 class="igs-dialog-title">{{ editDialog.title }}</h3>
@@ -25730,30 +26685,29 @@ ${codeFrame}` : message);
             </div>
 
             <div v-if="editDialog.type === 'scene' || editDialog.type === 'item'" class="igs-form-row">
-              <label class="igs-form-label">\u8BF4\u660E\u63CF\u8FF0</label>
+              <label class="igs-form-label">\u63CF\u8FF0</label>
               <input v-model="editDialog.form.desc" class="igs-form-input" placeholder="\u7B80\u77ED\u63CF\u8FF0..." />
             </div>
 
             <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
-              <label class="igs-form-label">\u6240\u5C5E\u89D2\u8272</label>
-              <input v-model="editDialog.form.character" class="igs-form-input" placeholder="\u6307\u5B9A\u6240\u5C5E\u89D2\u8272..." />
+              <label class="igs-form-label">\u5F52\u5C5E\u89D2\u8272</label>
+              <input v-model="editDialog.form.character" class="igs-form-input" placeholder="\u89D2\u8272\u540D\u79F0..." />
             </div>
 
             <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
               <label class="igs-form-label">\u670D\u88C5\u63D0\u793A\u8BCD</label>
-              <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="\u82F1\u6587\u63D0\u793A\u8BCD TAG..."></textarea>
+              <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="\u8F93\u5165\u751F\u6210\u8BE5\u670D\u88C5\u7684\u4E13\u7528 TAG \u63D0\u793A\u8BCD..."></textarea>
             </div>
 
-            <!-- \u56FE\u7247\u8F93\u5165\uFF1A\u652F\u6301 URL \u6216\u672C\u5730\u6587\u4EF6\u4E0A\u4F20 -->
-            <div class="igs-form-row">
-              <label class="igs-form-label">\u56FE\u7247\u6765\u6E90</label>
-              <input v-model="editDialog.form.rawUrl" class="igs-form-input" placeholder="\u53EF\u76F4\u63A5\u586B\u5165\u56FE\u7247\u5730\u5740\u6216\u7C98\u8D34 DataUrl..." />
-              
-              <label class="igs-file-dropzone" style="margin-top: 6px;">
+            <!-- \u56FE\u7247\u4E0A\u4F20/\u5916\u94FE -->
+            <div v-if="editDialog.type !== 'outfit'" class="igs-form-row">
+              <label class="igs-form-label">\u56FE\u7247\u7D20\u6750</label>
+              <div class="igs-file-dropzone" @click="$refs.editFileInput.click()">
                 <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
-                <span>\u70B9\u51FB\u6216\u62D6\u62FD\u4E0A\u4F20\u672C\u5730\u56FE\u7247</span>
-                <input type="file" accept="image/*" style="display: none;" @change="handleFileUpload" />
-              </label>
+                <span>\u70B9\u51FB\u4E0A\u4F20\u672C\u5730\u56FE\u7247\u6587\u4EF6</span>
+                <input ref="editFileInput" type="file" accept="image/*" style="display:none;" @change="handleFormFileUpload" />
+              </div>
+              <input v-model="editDialog.form.rawUrl" class="igs-form-input" style="margin-top: 6px;" placeholder="\u6216\u76F4\u63A5\u8F93\u5165\u56FE\u7247 URL / igs-gen \u6807\u8BC6\u7B26..." />
             </div>
 
             <div class="igs-dialog-actions">
@@ -25763,16 +26717,14 @@ ${codeFrame}` : message);
           </div>
         </div>
 
-        <!-- =================== \u786E\u8BA4\u5BF9\u8BDD\u6846 =================== -->
+        <!-- \u7EDF\u4E00\u786E\u8BA4\u64CD\u4F5C\u5F39\u7A97 -->
         <div v-if="confirmDialog.visible" class="igs-dialog-overlay" @click.self="confirmDialog.visible = false">
-          <div class="igs-dialog-box" style="width: 380px;">
-            <h3 class="igs-dialog-title" style="color: var(--igs-settings-danger, #e76f51);">{{ confirmDialog.title }}</h3>
-            <p style="font-size: 0.9rem; color: var(--igs-settings-ink-2); line-height: 1.5; margin: 0;">{{ confirmDialog.message }}</p>
+          <div class="igs-dialog-box" style="width: 360px;">
+            <h3 class="igs-dialog-title">{{ confirmDialog.title }}</h3>
+            <p style="font-size: 0.88rem; color: var(--igs-settings-ink-2); margin: 6px 0;">{{ confirmDialog.message }}</p>
             <div class="igs-dialog-actions">
               <button class="igs-resources-chip" @click="confirmDialog.visible = false">\u53D6\u6D88</button>
-              <button class="igs-btn-primary-compact" style="background: var(--igs-settings-danger, #e76f51); color: #fff;" @click="confirmDialog.onConfirm">
-                \u786E\u8BA4
-              </button>
+              <button class="igs-btn-primary-compact" style="background: #e74c3c; color: #fff;" @click="confirmDialog.onConfirm">\u786E\u8BA4\u5220\u9664</button>
             </div>
           </div>
         </div>

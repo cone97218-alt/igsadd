@@ -392,6 +392,427 @@ export const RESOURCES_MODAL_CSS = `
   font-weight: 600;
 }
 
+/* 主题色切换药丸与圆点 (桌面端基础样式) */
+.igs-patch-theme-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.15));
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+}
+
+.igs-patch-theme-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  padding: 0;
+  margin: 0;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  outline: none;
+  box-sizing: border-box;
+  background-clip: padding-box;
+}
+
+.igs-patch-theme-swatch:hover {
+  transform: scale(1.18);
+}
+
+.igs-patch-theme-swatch.is-active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 1.5px var(--igs-settings-accent, #689f38);
+  transform: scale(1.1);
+}
+
+/* 作用域筛选栏：全部 / 本卡 / 全局 */
+.igs-resources-scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0 12px 0;
+  border-bottom: 1px solid var(--igs-settings-line, rgba(255,255,255,0.06));
+  flex-wrap: wrap;
+}
+
+.igs-scope-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.15));
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+}
+
+.igs-scope-pill {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.65));
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.igs-scope-pill:hover {
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-scope-pill.is-active {
+  background: var(--igs-settings-panel, #24292e);
+  color: var(--igs-settings-ink, #ffffff);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+.igs-scope-count {
+  font-size: 0.72rem;
+  opacity: 0.75;
+  font-weight: normal;
+}
+
+.igs-scope-tool-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  background: var(--igs-settings-field, rgba(0,0,0,0.15));
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.igs-scope-tool-btn:hover {
+  background: var(--igs-settings-hover, rgba(255,255,255,0.08));
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+/* 角色与衣装差分层级视图 */
+.igs-char-item-card {
+  background: var(--igs-settings-surface, #2a3036);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.igs-char-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.igs-char-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.igs-char-avatar-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--igs-settings-field, rgba(0,0,0,0.2));
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.12));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  flex-shrink: 0;
+}
+
+.igs-char-avatar-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.igs-char-name-text {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-char-user-badge {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(142, 68, 173, 0.18);
+  border: 1px solid rgba(142, 68, 173, 0.4);
+  color: #c39bd3;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.igs-char-user-badge:hover {
+  background: rgba(142, 68, 173, 0.3);
+}
+
+.igs-char-scope-switch {
+  display: inline-flex;
+  align-items: center;
+  background: var(--igs-settings-field, rgba(0,0,0,0.18));
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.igs-char-scope-opt {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.5));
+  cursor: pointer;
+}
+
+.igs-char-scope-opt.is-active {
+  background: var(--igs-settings-panel, #24292e);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+/* 立绘高度调节 */
+.igs-char-height-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  padding-bottom: 4px;
+}
+
+.igs-char-height-input {
+  width: 64px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.2));
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.12));
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--igs-settings-ink, #ffffff);
+  font-size: 0.82rem;
+  text-align: center;
+  outline: none;
+}
+
+.igs-char-height-input:focus {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+}
+
+/* 服装标签栏 */
+.igs-outfits-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.igs-outfit-tab-btn {
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.18));
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.75));
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.igs-outfit-tab-btn:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-outfit-tab-btn.is-active {
+  background: var(--igs-settings-panel, #24292e);
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-outfit-default-tag {
+  font-size: 0.7rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(104, 159, 56, 0.2);
+  color: var(--igs-settings-accent, #7fd6ca);
+  font-weight: normal;
+}
+
+.igs-outfit-action-btn {
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px dashed var(--igs-settings-line, rgba(255,255,255,0.15));
+  color: var(--igs-settings-ink-3, rgba(255,255,255,0.6));
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.igs-outfit-action-btn:hover {
+  border-color: var(--igs-settings-accent, #7fd6ca);
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+/* 差分列表与动作栏 */
+.igs-char-diffs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--igs-settings-field, rgba(0,0,0,0.12));
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.igs-diff-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  background: var(--igs-settings-surface, #2a3036);
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.06));
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.igs-diff-item-row:hover {
+  border-color: var(--igs-settings-line-strong, rgba(255,255,255,0.18));
+}
+
+.igs-diff-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.igs-diff-thumb {
+  width: 38px;
+  height: 48px;
+  border-radius: 6px;
+  background: #1a1e22;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.igs-diff-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.igs-diff-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--igs-settings-ink, #ffffff);
+}
+
+.igs-diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.igs-diff-act-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.08));
+  background: var(--igs-settings-field, rgba(0,0,0,0.15));
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.75));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.igs-diff-act-btn:hover {
+  background: var(--igs-settings-hover, rgba(255,255,255,0.1));
+  color: var(--igs-settings-ink, #ffffff);
+  border-color: var(--igs-settings-accent, #7fd6ca);
+}
+
+/* CG 待生成与卡片增强 */
+.igs-cg-pending-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: radial-gradient(circle at center, rgba(127, 214, 202, 0.08) 0%, rgba(0, 0, 0, 0.4) 100%);
+  color: var(--igs-settings-ink-2, rgba(255,255,255,0.7));
+  padding: 12px;
+  text-align: center;
+}
+
+.igs-cg-badge-pending {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(230, 126, 34, 0.85);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.igs-cg-btn-generate {
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: var(--igs-settings-accent, #7fd6ca);
+  color: #111417;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.15s ease;
+}
+
+.igs-cg-btn-generate:hover {
+  transform: scale(1.05);
+}
+
 /* 按钮规范 */
 .igs-btn-icon-round {
   width: 32px;
