@@ -7,8 +7,8 @@
  * 2. 细粒度楼层与分支绑定：根据当前消息的 swipe_id 精确注入对应的转译剧本。
  */
 
-import { listStoredKeys, getStoredJson } from '../tauri/adapter.js';
-import { scriptMemoryStore, attachScriptToMessage, normalizeGalScript } from '../director/pipeline.js';
+import { listStoredKeys, getStoredJson, getActiveChatId } from '../tauri/adapter.js';
+import { scriptMemoryStore, attachScriptToMessage, normalizeGalScript, getScriptStoreKey, getScriptMemKey } from '../director/pipeline.js';
 
 function getCandidateWindows() {
     const wins = [window];
@@ -43,7 +43,7 @@ export async function preloadScriptToMemory(messageId, swipeId = 0) {
     if (messageId == null) return null;
     const mid = Number(messageId);
     const sid = Number(swipeId) || 0;
-    const memKey = `${mid}_${sid}`;
+    const memKey = getScriptMemKey(mid, sid);
 
     if (scriptMemoryStore.has(memKey)) {
         const cached = scriptMemoryStore.get(memKey);
@@ -55,8 +55,12 @@ export async function preloadScriptToMemory(messageId, swipeId = 0) {
         return normalized;
     }
 
-    const key = `script_${mid}_s${sid}`;
-    const script = await getStoredJson(key);
+    const key = getScriptStoreKey(mid, sid);
+    let script = await getStoredJson(key);
+    if (!script) {
+        // 兼容回退旧格式
+        script = await getStoredJson(`script_${mid}_s${sid}`);
+    }
     if (script) {
         const normalized = normalizeGalScript(script);
         scriptMemoryStore.set(memKey, normalized);
@@ -73,9 +77,22 @@ export async function syncAllStoredScriptsToChat() {
     try {
         const keys = await listStoredKeys();
         if (!Array.isArray(keys)) return;
+        const currentChatId = getActiveChatId();
 
         for (const k of keys) {
-            // 匹配格式: script_{mid}_s{swipeId}
+            // 匹配作用域格式: script_{chatId}_{mid}_s{swipeId}
+            const scopedMatch = k.match(/^script_(.+)_(\d+)_s(\d+)$/);
+            if (scopedMatch) {
+                const cId = scopedMatch[1];
+                if (cId === currentChatId) {
+                    const mid = parseInt(scopedMatch[2], 10);
+                    const sid = parseInt(scopedMatch[3], 10);
+                    await preloadScriptToMemory(mid, sid);
+                }
+                continue;
+            }
+
+            // 兼容旧格式: script_{mid}_s{swipeId}
             const match = k.match(/^script_(\d+)_s(\d+)$/);
             if (match) {
                 const mid = parseInt(match[1], 10);

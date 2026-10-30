@@ -447,8 +447,10 @@ const SettingsRootComponent = {
             confirmDialog.onConfirm = async () => {
                 confirmDialog.visible = false;
                 const { setStoredJson } = await import('../tauri/adapter.js');
+                const { getScriptStoreKey, getScriptMemKey, scriptMemoryStore } = await import('../director/pipeline.js');
+                await setStoredJson(getScriptStoreKey(mid, sid), null);
                 await setStoredJson(`script_${mid}_s${sid}`, null);
-                const { scriptMemoryStore } = await import('../director/pipeline.js');
+                scriptMemoryStore.delete(getScriptMemKey(mid, sid));
                 scriptMemoryStore.delete(`${mid}_${sid}`);
                 notifyToast(`已清空第 ${mid} 楼分支 ${sid + 1} 剧本`, 'info');
                 await refreshCurrentFloor();
@@ -457,8 +459,8 @@ const SettingsRootComponent = {
         };
 
         const handleFullReset = () => {
-            confirmDialog.title = '一键重置数据';
-            confirmDialog.content = '此操作将彻底抹除当前会话的全部演出剧本缓存、IndexedDB生图与本地状态，使系统恢复出厂纯净状态。确认执行吗？';
+            confirmDialog.title = '重置一切';
+            confirmDialog.content = '【最高警报】此操作将彻底抹除所有角色立绘、全聊天演出剧本、生图图库、数据库及所有本地缓存，恢复至纯净初始状态。确认重置一切吗？';
             confirmDialog.onConfirm = async () => {
                 confirmDialog.visible = false;
                 await fullResetGalSystem();
@@ -1255,12 +1257,12 @@ const SettingsRootComponent = {
 
                 <div class="danger-zone-item">
                   <div>
-                    <h4 class="item-title" style="color: var(--igs-settings-danger);">一键重置数据</h4>
-                    <p class="item-desc">清理当前会话的全部演出剧本、生图素材库与本地存储，恢复到初次加载状态。</p>
+                    <h4 class="item-title" style="color: var(--igs-settings-danger);">重置一切</h4>
+                    <p class="item-desc">彻底清除全部角色立绘、全聊天演出剧本、生图图库、数据库及所有本地缓存。重置后恢复至纯净初始状态。</p>
                   </div>
                   <button class="igs-btn igs-btn-danger" @click="handleFullReset">
                     <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span>一键重置</span>
+                    <span>重置一切</span>
                   </button>
                 </div>
               </div>

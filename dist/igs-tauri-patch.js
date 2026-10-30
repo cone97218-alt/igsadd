@@ -19,6 +19,7 @@
   __export(adapter_exports, {
     deleteStoredJson: () => deleteStoredJson,
     findLastMessage: () => findLastMessage,
+    getActiveChatId: () => getActiveChatId,
     getExtensionMetadata: () => getExtensionMetadata,
     getStoredJson: () => getStoredJson,
     getTauriHandle: () => getTauriHandle,
@@ -111,6 +112,34 @@
     const handle = await getTauriHandle();
     if (!handle?.metadata?.setExtension) return;
     return handle.metadata.setExtension({ namespace: NAMESPACE, value });
+  }
+  function getActiveChatId() {
+    const wins = [window];
+    try {
+      if (window.parent && !wins.includes(window.parent)) wins.push(window.parent);
+    } catch (_) {
+    }
+    try {
+      if (window.top && !wins.includes(window.top)) wins.push(window.top);
+    } catch (_) {
+    }
+    for (const w of wins) {
+      try {
+        const ctx = w.SillyTavern?.getContext?.();
+        if (ctx) {
+          if (ctx.chatId) return String(ctx.chatId);
+          if (ctx.groupId != null && String(ctx.groupId) !== "") return `group_${ctx.groupId}`;
+          if (ctx.characterId != null) {
+            const chars = Array.isArray(ctx.characters) ? ctx.characters : [];
+            const card = chars[ctx.characterId];
+            if (card?.name) return `char_${card.name}`;
+            return `char_${ctx.characterId}`;
+          }
+        }
+      } catch (_) {
+      }
+    }
+    return "default";
   }
   function fallbackFindLastMessage(options = {}) {
     const chat = window.SillyTavern?.getContext?.()?.chat;
@@ -798,9 +827,12 @@
   __export(pipeline_exports, {
     attachScriptToMessage: () => attachScriptToMessage,
     checkFloorScriptExists: () => checkFloorScriptExists,
+    clearScriptMemoryStore: () => clearScriptMemoryStore,
     convertMessageToGal: () => convertMessageToGal,
     getActiveSwipeId: () => getActiveSwipeId,
     getCurrentVisibleFloorInfo: () => getCurrentVisibleFloorInfo,
+    getScriptMemKey: () => getScriptMemKey,
+    getScriptStoreKey: () => getScriptStoreKey,
     handleMessageDeleted: () => handleMessageDeleted,
     handleMessageSwiped: () => handleMessageSwiped,
     normalizeGalScript: () => normalizeGalScript,
@@ -808,6 +840,9 @@
     refreshIgsStage: () => refreshIgsStage,
     scriptMemoryStore: () => scriptMemoryStore
   });
+  function clearScriptMemoryStore() {
+    scriptMemoryStore.clear();
+  }
   function getCandidateWindows3() {
     const list = [window];
     try {
@@ -905,7 +940,7 @@
     if (messageId == null) return false;
     const mid = Number(messageId);
     const sid = swipeId != null ? Number(swipeId) : getActiveSwipeId(mid);
-    const memKey = `${mid}_${sid}`;
+    const memKey = getScriptMemKey(mid, sid);
     if (scriptMemoryStore.has(memKey)) return true;
     for (const w of getCandidateWindows3()) {
       try {
@@ -920,7 +955,11 @@
       }
     }
     try {
-      const cached = await getStoredJson(`script_${mid}_s${sid}`);
+      const storeKey = getScriptStoreKey(mid, sid);
+      let cached = await getStoredJson(storeKey);
+      if (!cached) {
+        cached = await getStoredJson(`script_${mid}_s${sid}`);
+      }
       if (cached && typeof cached === "string" && cached.trim()) {
         scriptMemoryStore.set(memKey, cached);
         attachScriptToMessage(mid, cached, sid);
@@ -934,7 +973,7 @@
     if (messageId == null || !script) return;
     const mid = Number(messageId);
     const sid = Number(swipeId) || 0;
-    const memKey = `${mid}_${sid}`;
+    const memKey = getScriptMemKey(mid, sid);
     scriptMemoryStore.set(memKey, script);
     for (const w of getCandidateWindows3()) {
       try {
@@ -1008,8 +1047,8 @@
     }
     const mid = Number(messageId);
     const sid = contextMeta.swipeId != null ? Number(contextMeta.swipeId) : getActiveSwipeId(mid);
-    const storeKey = `script_${mid}_s${sid}`;
-    const memKey = `${mid}_${sid}`;
+    const storeKey = getScriptStoreKey(mid, sid);
+    const memKey = getScriptMemKey(mid, sid);
     if (!force) {
       if (scriptMemoryStore.has(memKey)) {
         const cached = scriptMemoryStore.get(memKey);
@@ -1017,7 +1056,10 @@
         refreshIgsStage(mid);
         return cached;
       }
-      const stored = await getStoredJson(storeKey);
+      let stored = await getStoredJson(storeKey);
+      if (!stored) {
+        stored = await getStoredJson(`script_${mid}_s${sid}`);
+      }
       if (stored && typeof stored === "string" && stored.trim()) {
         attachScriptToMessage(mid, stored, sid);
         refreshIgsStage(mid);
@@ -1104,8 +1146,9 @@
   async function handleMessageDeleted(messageId) {
     const mid = Number(messageId);
     if (isNaN(mid)) return;
+    const chatId = getActiveChatId();
     for (const key of scriptMemoryStore.keys()) {
-      if (key.startsWith(`${mid}_`)) {
+      if (key.startsWith(`${chatId}_${mid}_`) || key.startsWith(`${mid}_`)) {
         scriptMemoryStore.delete(key);
       }
     }
@@ -1113,7 +1156,7 @@
       const keys = await listStoredKeys();
       if (Array.isArray(keys)) {
         for (const k of keys) {
-          if (k.startsWith(`script_${mid}_`)) {
+          if (k.startsWith(`script_${chatId}_${mid}_`) || k.startsWith(`script_${mid}_`)) {
             await deleteStoredJson(k);
           }
         }
@@ -1146,7 +1189,7 @@
     const rawText = hit.message.mes || hit.message.text || "";
     return convertMessageToGal(mid, rawText, { swipeId: sid });
   }
-  var scriptMemoryStore;
+  var scriptMemoryStore, getScriptStoreKey, getScriptMemKey;
   var init_pipeline = __esm({
     "src/director/pipeline.js"() {
       init_adapter();
@@ -1155,6 +1198,8 @@
       init_toast();
       init_state();
       scriptMemoryStore = /* @__PURE__ */ new Map();
+      getScriptStoreKey = (mid, sid) => `script_${getActiveChatId()}_${mid}_s${sid}`;
+      getScriptMemKey = (mid, sid) => `${getActiveChatId()}_${mid}_${sid}`;
     }
   });
 
@@ -1459,7 +1504,7 @@
     if (messageId == null) return null;
     const mid = Number(messageId);
     const sid = Number(swipeId) || 0;
-    const memKey = `${mid}_${sid}`;
+    const memKey = getScriptMemKey(mid, sid);
     if (scriptMemoryStore.has(memKey)) {
       const cached = scriptMemoryStore.get(memKey);
       const normalized = normalizeGalScript(cached);
@@ -1469,8 +1514,11 @@
       attachScriptToMessage(mid, normalized, sid);
       return normalized;
     }
-    const key = `script_${mid}_s${sid}`;
-    const script = await getStoredJson(key);
+    const key = getScriptStoreKey(mid, sid);
+    let script = await getStoredJson(key);
+    if (!script) {
+      script = await getStoredJson(`script_${mid}_s${sid}`);
+    }
     if (script) {
       const normalized = normalizeGalScript(script);
       scriptMemoryStore.set(memKey, normalized);
@@ -1483,7 +1531,18 @@
     try {
       const keys = await listStoredKeys();
       if (!Array.isArray(keys)) return;
+      const currentChatId = getActiveChatId();
       for (const k of keys) {
+        const scopedMatch = k.match(/^script_(.+)_(\d+)_s(\d+)$/);
+        if (scopedMatch) {
+          const cId = scopedMatch[1];
+          if (cId === currentChatId) {
+            const mid = parseInt(scopedMatch[2], 10);
+            const sid = parseInt(scopedMatch[3], 10);
+            await preloadScriptToMemory(mid, sid);
+          }
+          continue;
+        }
         const match = k.match(/^script_(\d+)_s(\d+)$/);
         if (match) {
           const mid = parseInt(match[1], 10);
@@ -20216,18 +20275,46 @@ ${codeFrame}` : message);
 
   // src/tauri/reset.js
   init_adapter();
+  init_pipeline();
+  var TARGET_IDB_DATABASES = [
+    "vn",
+    "igs-illustrations",
+    "igs-cg-gallery",
+    "igs-generated-assets",
+    "igs-chat-records",
+    "igs-director-runtime",
+    "igs-cg-index",
+    "igs-photo-album",
+    "igs-wait-games"
+  ];
+  function deleteSingleDb(name) {
+    return new Promise((resolve2) => {
+      try {
+        const req = window.indexedDB.deleteDatabase(name);
+        req.onsuccess = () => resolve2({ name, ok: true });
+        req.onerror = () => resolve2({ name, ok: false });
+        req.onblocked = () => {
+          console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u88AB\u963B\u585E\uFF0C\u8BF7\u5173\u95ED\u5176\u4ED6\u9875\u9762`);
+          resolve2({ name, ok: false, blocked: true });
+        };
+      } catch (_) {
+        resolve2({ name, ok: false });
+      }
+    });
+  }
   async function resetAllGalData(options = {}) {
     const isSilent = options.silent === true;
     if (!isSilent) {
       const confirmed = window.confirm(
-        "\u3010\u8B66\u544A\u3011\u786E\u5B9A\u8981\u5F7B\u5E95\u91CD\u7F6E\u6240\u6709 Gal \u7CFB\u7EDF\u6570\u636E\u5417\uFF1F\n\n\u8FD9\u5C06\u6E05\u7A7A\uFF1A\n1. IndexedDB \u4E2D\u6240\u6709\u751F\u6210\u7684\u7ACB\u7ED8\u3001\u80CC\u666F\u3001CG\u4E0E\u4E34\u65F6\u56FE\u7247\u7D20\u6750\n2. \u672C\u5730\u5B58\u50A8\u7684\u6F14\u51FA\u5267\u672C\u3001\u72B6\u6001\u8BB0\u5F55\u4E0E\u7F13\u5B58\n3. TauriTavern \u4E2D\u8BE5\u804A\u5929\u7684\u6240\u6709\u526F\u6A21\u578B\u8F6C\u8BD1\u5267\u672C\u4E0E\u6269\u5C55\u6570\u636E\n\n\u91CD\u7F6E\u540E\u5EFA\u8BAE\u5237\u65B0\u9875\u9762\u3002\u6B64\u64CD\u4F5C\u65E0\u6CD5\u64A4\u9500\uFF01"
+        "\u3010\u6700\u9AD8\u8B66\u62A5\u3011\u786E\u5B9A\u8981\u91CD\u7F6E\u4E00\u5207\u5417\uFF1F\n\n\u8FD9\u5C06\u6C38\u4E45\u62B9\u9664\uFF1A\n1. \u6240\u6709\u89D2\u8272\u7684\u7ACB\u7ED8\u3001\u5DEE\u5206\u3001\u8863\u67DC\u3001\u573A\u666F\u80CC\u666F\u3001CG\u56FE\u5E93\u4E0E\u9053\u5177\n2. \u6240\u6709\u804A\u5929\u4F1A\u8BDD\u7684\u5386\u53F2\u6F14\u51FA\u5267\u672C\u4E0E\u751F\u6210\u7D20\u6750\u7F13\u5B58\n3. \u5168\u90E8 9 \u9879 Galgame IndexedDB \u6570\u636E\u5E93\u4E0E\u672C\u5730\u5B58\u50A8\u914D\u7F6E\n4. SillyTavern \u6D88\u606F\u6302\u8F7D\u7684\u6F14\u51FA\u5267\u672C\u6570\u636E\n\n\u91CD\u7F6E\u540E\u9875\u9762\u5C06\u5B8C\u5168\u6062\u590D\u81F3\u521D\u6B21\u672A\u914D\u7F6E\u72B6\u6001\u3002\u6B64\u64CD\u4F5C\u4E0D\u53EF\u9006\uFF01"
       );
       if (!confirmed) return { ok: false, reason: "user-cancelled" };
     }
     const report = {
-      indexedDbCleared: false,
+      databasesDeleted: 0,
       localStorageKeysRemoved: 0,
       tauriStoreKeysDeleted: 0,
+      chatMessagesCleaned: 0,
       igsShutDown: false
     };
     try {
@@ -20240,21 +20327,21 @@ ${codeFrame}` : message);
       console.warn("[IGS-Patch] \u5173\u95ED IGS \u5B9E\u4F8B\u5F02\u5E38:", err);
     }
     try {
-      await new Promise((resolve2) => {
-        const req = window.indexedDB.deleteDatabase("vn");
-        req.onsuccess = () => {
-          report.indexedDbCleared = true;
-          resolve2();
-        };
-        req.onerror = () => {
-          console.warn("[IGS-Patch] IndexedDB vn \u5220\u9664\u5931\u8D25");
-          resolve2();
-        };
-        req.onblocked = () => {
-          console.warn("[IGS-Patch] IndexedDB vn \u5220\u9664\u88AB\u963B\u585E\uFF0C\u8BF7\u5173\u95ED\u5176\u4ED6\u6807\u7B7E\u9875");
-          resolve2();
-        };
-      });
+      const dbNamesToDelete = new Set(TARGET_IDB_DATABASES);
+      if (typeof window.indexedDB?.databases === "function") {
+        try {
+          const existingDbs = await window.indexedDB.databases();
+          for (const d of existingDbs) {
+            if (d?.name && /^(igs|vn)/i.test(d.name)) {
+              dbNamesToDelete.add(d.name);
+            }
+          }
+        } catch (_) {
+        }
+      }
+      const deletePromises = Array.from(dbNamesToDelete).map((dbName) => deleteSingleDb(dbName));
+      const results = await Promise.all(deletePromises);
+      report.databasesDeleted = results.filter((r) => r.ok).length;
     } catch (err) {
       console.warn("[IGS-Patch] \u5220\u9664 IndexedDB \u5F02\u5E38:", err);
     }
@@ -20262,7 +20349,7 @@ ${codeFrame}` : message);
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (/^(igs|vn:|__IGS)/i.test(key) || key.includes("igs_gal"))) {
+        if (key && (/^(igs|vn:|__IGS|tauri_fallback:igs_gal|st-baibai)/i.test(key) || key.includes("igs_gal"))) {
           keysToRemove.push(key);
         }
       }
@@ -20283,12 +20370,47 @@ ${codeFrame}` : message);
     } catch (err) {
       console.warn("[IGS-Patch] \u6E05\u7406 TauriTavern \u6570\u636E\u5F02\u5E38:", err);
     }
-    console.info("[IGS-Patch] Gal \u7CFB\u7EDF\u91CD\u7F6E\u5B8C\u6BD5:", report);
+    try {
+      const chat = window.SillyTavern?.getContext?.()?.chat;
+      if (Array.isArray(chat)) {
+        let cleaned = 0;
+        for (const msg of chat) {
+          if (msg?.extra) {
+            if (msg.extra.igs_patch_scripts) {
+              delete msg.extra.igs_patch_scripts;
+              cleaned++;
+            }
+            if (msg.extra.igs_script) {
+              delete msg.extra.igs_script;
+              cleaned++;
+            }
+            if (msg.extra.igs_gal) {
+              delete msg.extra.igs_gal;
+              cleaned++;
+            }
+          }
+        }
+        report.chatMessagesCleaned = cleaned;
+        if (cleaned > 0) {
+          try {
+            window.SillyTavern?.getContext?.()?.saveChat?.();
+          } catch (_) {
+          }
+        }
+      }
+    } catch (_) {
+    }
+    clearScriptMemoryStore();
+    try {
+      window.dispatchEvent(new CustomEvent("igs:legacy-settings-updated", { detail: {} }));
+    } catch (_) {
+    }
+    console.info("[IGS-Patch] Gal \u7CFB\u7EDF\u91CD\u7F6E\u4E00\u5207\u5B8C\u6BD5:", report);
     if (!isSilent) {
-      const message = `Gal \u7CFB\u7EDF\u5DF2\u5F7B\u5E95\u91CD\u7F6E\uFF01
-\u5DF2\u6E05\u7A7A\u751F\u56FE\u5E93\u3001${report.localStorageKeysRemoved} \u9879\u672C\u5730\u8BBE\u7F6E\u53CA ${report.tauriStoreKeysDeleted} \u6761\u5267\u672C\u7F13\u5B58\u3002`;
+      const message = `\u5DF2\u91CD\u7F6E\u4E00\u5207\uFF01
+\u5DF2\u62B9\u9664 ${report.databasesDeleted} \u4E2A\u6570\u636E\u5E93\u3001${report.localStorageKeysRemoved} \u9879\u672C\u5730\u5B58\u50A8\u53CA ${report.tauriStoreKeysDeleted} \u6761\u5267\u672C\u3002`;
       if (window.toastr && typeof window.toastr.success === "function") {
-        window.toastr.success(message, "IGS \u8865\u4E01");
+        window.toastr.success(message, "\u91CD\u7F6E\u4E00\u5207");
       } else {
         window.alert(message);
       }
@@ -22559,8 +22681,10 @@ ${codeFrame}` : message);
         confirmDialog.onConfirm = async () => {
           confirmDialog.visible = false;
           const { setStoredJson: setStoredJson2 } = await Promise.resolve().then(() => (init_adapter(), adapter_exports));
+          const { getScriptStoreKey: getScriptStoreKey2, getScriptMemKey: getScriptMemKey2, scriptMemoryStore: scriptMemoryStore2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+          await setStoredJson2(getScriptStoreKey2(mid, sid), null);
           await setStoredJson2(`script_${mid}_s${sid}`, null);
-          const { scriptMemoryStore: scriptMemoryStore2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+          scriptMemoryStore2.delete(getScriptMemKey2(mid, sid));
           scriptMemoryStore2.delete(`${mid}_${sid}`);
           notifyToast(`\u5DF2\u6E05\u7A7A\u7B2C ${mid} \u697C\u5206\u652F ${sid + 1} \u5267\u672C`, "info");
           await refreshCurrentFloor();
@@ -22568,8 +22692,8 @@ ${codeFrame}` : message);
         confirmDialog.visible = true;
       };
       const handleFullReset = () => {
-        confirmDialog.title = "\u4E00\u952E\u91CD\u7F6E\u6570\u636E";
-        confirmDialog.content = "\u6B64\u64CD\u4F5C\u5C06\u5F7B\u5E95\u62B9\u9664\u5F53\u524D\u4F1A\u8BDD\u7684\u5168\u90E8\u6F14\u51FA\u5267\u672C\u7F13\u5B58\u3001IndexedDB\u751F\u56FE\u4E0E\u672C\u5730\u72B6\u6001\uFF0C\u4F7F\u7CFB\u7EDF\u6062\u590D\u51FA\u5382\u7EAF\u51C0\u72B6\u6001\u3002\u786E\u8BA4\u6267\u884C\u5417\uFF1F";
+        confirmDialog.title = "\u91CD\u7F6E\u4E00\u5207";
+        confirmDialog.content = "\u3010\u6700\u9AD8\u8B66\u62A5\u3011\u6B64\u64CD\u4F5C\u5C06\u5F7B\u5E95\u62B9\u9664\u6240\u6709\u89D2\u8272\u7ACB\u7ED8\u3001\u5168\u804A\u5929\u6F14\u51FA\u5267\u672C\u3001\u751F\u56FE\u56FE\u5E93\u3001\u6570\u636E\u5E93\u53CA\u6240\u6709\u672C\u5730\u7F13\u5B58\uFF0C\u6062\u590D\u81F3\u7EAF\u51C0\u521D\u59CB\u72B6\u6001\u3002\u786E\u8BA4\u91CD\u7F6E\u4E00\u5207\u5417\uFF1F";
         confirmDialog.onConfirm = async () => {
           confirmDialog.visible = false;
           await fullResetGalSystem();
@@ -23361,12 +23485,12 @@ ${codeFrame}` : message);
 
                 <div class="danger-zone-item">
                   <div>
-                    <h4 class="item-title" style="color: var(--igs-settings-danger);">\u4E00\u952E\u91CD\u7F6E\u6570\u636E</h4>
-                    <p class="item-desc">\u6E05\u7406\u5F53\u524D\u4F1A\u8BDD\u7684\u5168\u90E8\u6F14\u51FA\u5267\u672C\u3001\u751F\u56FE\u7D20\u6750\u5E93\u4E0E\u672C\u5730\u5B58\u50A8\uFF0C\u6062\u590D\u5230\u521D\u6B21\u52A0\u8F7D\u72B6\u6001\u3002</p>
+                    <h4 class="item-title" style="color: var(--igs-settings-danger);">\u91CD\u7F6E\u4E00\u5207</h4>
+                    <p class="item-desc">\u5F7B\u5E95\u6E05\u9664\u5168\u90E8\u89D2\u8272\u7ACB\u7ED8\u3001\u5168\u804A\u5929\u6F14\u51FA\u5267\u672C\u3001\u751F\u56FE\u56FE\u5E93\u3001\u6570\u636E\u5E93\u53CA\u6240\u6709\u672C\u5730\u7F13\u5B58\u3002\u91CD\u7F6E\u540E\u6062\u590D\u81F3\u7EAF\u51C0\u521D\u59CB\u72B6\u6001\u3002</p>
                   </div>
                   <button class="igs-btn igs-btn-danger" @click="handleFullReset">
                     <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span>\u4E00\u952E\u91CD\u7F6E</span>
+                    <span>\u91CD\u7F6E\u4E00\u5207</span>
                   </button>
                 </div>
               </div>
@@ -23499,9 +23623,9 @@ ${codeFrame}` : message);
 }
 
 .igs-resources-sidebar.is-collapsed {
-  width: 52px;
-  padding: 12px 6px;
-  align-items: center;
+  width: 52px !important;
+  padding: 12px 6px !important;
+  align-items: center !important;
 }
 
 /* \u4FA7\u8FB9\u680F\u9876\u90E8\u5927\u6807\u9898\u4E0E\u6298\u53E0\u5F00\u5173 */
@@ -23586,10 +23710,9 @@ ${codeFrame}` : message);
   font-size: 9px;
 }
 
-.igs-resources-sidebar.is-collapsed .igs-patch-theme-group {
-  flex-direction: column;
+.igs-resources-sidebar.is-collapsed .igs-resources-theme-group {
   padding: 4px 2px;
-  gap: 4px;
+  gap: 6px;
 }
 
 /* \u4FA7\u8FB9\u680F\u5782\u76F4\u5BFC\u822A\u9879 */
@@ -23656,38 +23779,39 @@ ${codeFrame}` : message);
   align-items: center;
 }
 
-.igs-patch-theme-group {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: var(--igs-settings-field, rgba(0,0,0,0.15));
-  padding: 3px 6px;
-  border-radius: 999px;
-  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+/* \u4FA7\u8FB9\u680F\u5782\u76F4\u4E3B\u9898\u5207\u6362\u6761 (\u7AD6\u6761\u8BBE\u8BA1\uFF0C\u7EDD\u4E0D\u6C61\u67D3\u8BBE\u7F6E\u754C\u9762\u7684\u6A2A\u6761) */
+.igs-resources-theme-group {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  background: var(--igs-settings-field, rgba(0,0,0,0.15)) !important;
+  padding: 6px 4px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1)) !important;
 }
 
-.igs-patch-theme-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  padding: 0;
-  margin: 0;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease;
-  outline: none;
-  box-sizing: border-box;
+.igs-resources-theme-swatch {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 2px solid transparent !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+  outline: none !important;
+  box-sizing: border-box !important;
 }
 
-.igs-patch-theme-swatch:hover {
-  transform: scale(1.2);
+.igs-resources-theme-swatch:hover {
+  transform: scale(1.2) !important;
 }
 
-.igs-patch-theme-swatch.is-active {
-  border-color: #ffffff;
-  box-shadow: 0 0 0 1.5px var(--igs-settings-accent, #689f38);
-  transform: scale(1.1);
+.igs-resources-theme-swatch.is-active {
+  box-shadow: 0 0 0 2px var(--igs-settings-accent, #7fd6ca) !important;
+  transform: scale(1.15) !important;
 }
 
 /* =========================================
@@ -24304,7 +24428,9 @@ ${codeFrame}` : message);
 .igs-resources-overlay input,
 .igs-resources-overlay textarea,
 .igs-form-input,
-.igs-form-textarea {
+.igs-form-textarea,
+.igs-dialog-box input,
+.igs-dialog-box textarea {
   background-color: var(--igs-settings-field, rgba(0,0,0,0.06)) !important;
   color: var(--igs-settings-ink, #2b2b2b) !important;
   border: 1px solid var(--igs-settings-line, rgba(0,0,0,0.12)) !important;
@@ -24363,7 +24489,7 @@ ${codeFrame}` : message);
   display: flex !important;
   flex-direction: column !important;
   gap: 14px !important;
-  margin: auto !important;
+  margin: 0 !important;
 }
 
 .igs-dialog-title {
@@ -24515,11 +24641,19 @@ ${codeFrame}` : message);
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* \u79FB\u52A8\u7AEF\u4FA7\u8FB9\u680F\u7CBE\u7B80\u4E3A 52px \u5BBD\u7684\u7D27\u51D1\u56FE\u6807\u8F68 */
+  /* \u79FB\u52A8\u7AEF\u4FA7\u8FB9\u680F\u7CBE\u7B80\u4E3A 52px \u5BBD\u7684\u7D27\u51D1\u56FE\u6807\u8F68\uFF0C\u6298\u53E0\u65F6\u5F7B\u5E95\u4E3A 0 \u91CA\u653E\u5168\u90E8\u7A7A\u95F4 */
   .igs-resources-sidebar {
     width: 52px;
     padding: 10px 4px;
     align-items: center;
+    transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), padding 0.2s ease;
+  }
+
+  .igs-resources-sidebar.is-collapsed {
+    width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
   }
 
   .igs-sidebar-brand {
@@ -24557,8 +24691,7 @@ ${codeFrame}` : message);
     font-size: 9px;
   }
 
-  .igs-resources-sidebar .igs-patch-theme-group {
-    flex-direction: column;
+  .igs-resources-sidebar .igs-resources-theme-group {
     padding: 4px 2px;
     gap: 4px;
   }
@@ -24643,6 +24776,21 @@ ${codeFrame}` : message);
     return wins;
   }
   function getRawBridgeConfig() {
+    for (const w of getCandidateWindows7()) {
+      try {
+        if (w.IGS) {
+          if (typeof w.IGS.getConfig === "function") {
+            const cfg = w.IGS.getConfig();
+            if (cfg && cfg.sceneAssets) return cfg;
+          }
+          if (typeof w.IGS.getUnifiedSettings === "function") {
+            const unified = w.IGS.getUnifiedSettings();
+            if (unified?.bridge?.sceneAssets) return unified.bridge;
+          }
+        }
+      } catch (_) {
+      }
+    }
     try {
       const raw = getStorage().getItem(STORAGE_KEY_BRIDGE);
       return raw ? JSON.parse(raw) : {};
@@ -24653,12 +24801,42 @@ ${codeFrame}` : message);
   function saveRawBridgeConfig(bridge) {
     try {
       getStorage().setItem(STORAGE_KEY_BRIDGE, JSON.stringify(bridge));
+      for (const w of getCandidateWindows7()) {
+        try {
+          if (w.IGS && typeof w.IGS.getState === "function") {
+            const igsState = w.IGS.getState();
+            if (igsState) {
+              if (igsState.config) {
+                igsState.config.sceneAssets = bridge.sceneAssets;
+              }
+              if (igsState.legacyIgs?.bridge) {
+                igsState.legacyIgs.bridge.sceneAssets = bridge.sceneAssets;
+              }
+            }
+          }
+        } catch (_) {
+        }
+      }
       broadcastSettingsUpdated(bridge);
       return true;
     } catch (err) {
       console.warn("[IGS-Patch] \u4FDD\u5B58\u914D\u7F6E\u5931\u8D25:", err);
       return false;
     }
+  }
+  try {
+    const rawSetItem = window.localStorage.setItem.bind(window.localStorage);
+    window.localStorage.setItem = function(key, value) {
+      const res = rawSetItem(key, value);
+      if (key === STORAGE_KEY_BRIDGE) {
+        try {
+          window.dispatchEvent(new CustomEvent("igs:legacy-settings-updated"));
+        } catch (_) {
+        }
+      }
+      return res;
+    };
+  } catch (_) {
   }
   function broadcastSettingsUpdated(bridge) {
     for (const w of getCandidateWindows7()) {
@@ -25201,7 +25379,7 @@ ${codeFrame}` : message);
           if (filter === "pending" && (!isPending || isHidden)) continue;
           if (filter === "favorites" && (!isFavorite || isPending)) continue;
           if (filter === "hidden" && !isHidden) continue;
-          if (filter === "all" && isHidden) continue;
+          if (filter === "all" && (isPending || isHidden)) continue;
           let fullPrompt = s.prompt || s.caption || "";
           if (!fullPrompt && (s.scene || s.chars)) {
             const charTags = Array.isArray(s.chars) ? s.chars.map((c) => c.tags).filter(Boolean).join(", ") : "";
@@ -25339,9 +25517,9 @@ ${codeFrame}` : message);
   }
   async function listItems(scopeMode = "all", customScopeKey = null) {
     const assets = getScopedSceneAssets(scopeMode, customScopeKey);
-    const generatedItems = assets.generated?.items || {};
+    const combined = { ...assets.items || {}, ...assets.generated?.items || {} };
     const result = [];
-    for (const [name, data] of Object.entries(generatedItems)) {
+    for (const [name, data] of Object.entries(combined)) {
       if (!name) continue;
       const item = data && typeof data === "object" ? data : { url: String(data || "") };
       const rawUrl = item.url || item.image || "";
@@ -25356,13 +25534,19 @@ ${codeFrame}` : message);
   }
   function saveItem(name, rawUrl, desc = "", scopeMode = "all") {
     return updateScopedSceneAssets((assets) => {
+      if (!assets.items) assets.items = {};
       if (!assets.generated) assets.generated = {};
       if (!assets.generated.items) assets.generated.items = {};
-      assets.generated.items[name] = { url: rawUrl, desc };
+      const entry = { url: rawUrl, desc };
+      assets.items[name] = entry;
+      assets.generated.items[name] = entry;
     }, scopeMode);
   }
   function deleteItem(name, scopeMode = "all") {
     return updateScopedSceneAssets((assets) => {
+      if (assets.items) {
+        delete assets.items[name];
+      }
       if (assets.generated?.items) {
         delete assets.generated.items[name];
       }
@@ -26041,8 +26225,18 @@ ${codeFrame}` : message);
           }
         };
         window.addEventListener("keydown", onKeyDown);
+        const onSettingsUpdated = () => {
+          loadData();
+        };
+        window.addEventListener("igs:legacy-settings-updated", onSettingsUpdated);
+        const onStorageChange = (e) => {
+          if (e.key === "igs_bridge_config") onSettingsUpdated();
+        };
+        window.addEventListener("storage", onStorageChange);
         onUnmounted(() => {
           window.removeEventListener("keydown", onKeyDown);
+          window.removeEventListener("igs:legacy-settings-updated", onSettingsUpdated);
+          window.removeEventListener("storage", onStorageChange);
           unsub();
         });
       });
@@ -26196,13 +26390,13 @@ ${codeFrame}` : message);
             </button>
           </div>
 
-          <!-- \u4FA7\u8FB9\u680F\u5E95\u90E8\u64CD\u4F5C\u533A\uFF1A\u4E3B\u9898\u5207\u6362\u5706\u5708\u4E0E\u5237\u65B0 -->
+          <!-- \u4FA7\u8FB9\u680F\u5E95\u90E8\u64CD\u4F5C\u533A\uFF1A\u4E3B\u9898\u5207\u6362\u5706\u5708\u4E0E\u5237\u65B0 (\u72EC\u7ACB\u7AD6\u6761\u89C4\u8303) -->
           <div class="igs-sidebar-footer">
-            <div class="igs-patch-theme-group">
+            <div class="igs-resources-theme-group">
               <button 
                 v-for="item in themeOptions" 
                 :key="item.value" 
-                class="igs-patch-theme-swatch"
+                class="igs-resources-theme-swatch"
                 :class="{ 'is-active': currentTheme === item.value }"
                 :title="item.label"
                 :style="{ backgroundColor: item.swatch.accent, borderColor: item.swatch.base }"
@@ -26249,6 +26443,14 @@ ${codeFrame}` : message);
 
             <!-- \u9876\u680F\u53F3\u4FA7\u5FEB\u6377\u52A8\u4F5C -->
             <div class="igs-topbar-actions">
+              <button 
+                class="igs-btn-icon-round" 
+                :title="isSidebarCollapsed ? '\u5C55\u5F00\u4FA7\u680F' : '\u6298\u53E0\u4FA7\u680F'" 
+                @click="toggleSidebar"
+              >
+                <i class="fa-solid" :class="isSidebarCollapsed ? 'fa-bars' : 'fa-angles-left'"></i>
+              </button>
+
               <button 
                 v-if="activeTab !== 'cgs' && activeTab !== 'review'" 
                 class="igs-btn-primary-compact" 
@@ -26606,7 +26808,6 @@ ${codeFrame}` : message);
               <p>\u6682\u65E0\u5F85\u786E\u8BA4\u7D20\u6750</p>
             </div>
           </section>
-        </main>
         </div>
       </div>
 
@@ -26619,147 +26820,139 @@ ${codeFrame}` : message);
         @change="onHiddenFileChange" 
       />
 
-      <!-- \u5168\u5C4F Lightbox \u5927\u56FE\u9884\u89C8 (Teleport \u81F3\u9876\u5C42\uFF0C\u5F7B\u5E95\u9694\u79BB\u7236\u5BB9\u5668\u5F62\u53D8\u4E0E\u906E\u7F69\u91CD\u53E0) -->
-      <teleport to="body">
-        <div v-if="lightbox.visible" class="igs-lightbox-overlay" @click.self="closeLightbox">
-          <header class="igs-lightbox-topbar">
-            <span class="igs-lightbox-title">{{ lightbox.title }}</span>
-            <div class="igs-lightbox-top-actions">
-              <button 
-                v-if="lightbox.key && !lightbox.isEventCg" 
-                class="igs-btn-icon-round" 
-                :title="lightbox.isFavorite ? '\u53D6\u6D88\u6536\u85CF' : '\u6536\u85CF'"
-                @click="handleCgFavorite(lightbox)"
-              >
-                <i class="fa-solid fa-star" :style="{ color: lightbox.isFavorite ? '#ffd166' : '#fff' }"></i>
-              </button>
-              <button 
-                v-if="lightbox.prompt" 
-                class="igs-btn-icon-round" 
-                title="\u590D\u5236\u63D0\u793A\u8BCD" 
-                @click="handleCopyPrompt(lightbox.prompt)"
-              >
-                <i class="fa-solid fa-copy"></i>
-              </button>
-              <button 
-                class="igs-btn-icon-round" 
-                title="\u4E0B\u8F7D\u539F\u56FE" 
-                @click="handleDownloadImage(lightbox.src, lightbox.title)"
-              >
-                <i class="fa-solid fa-download"></i>
-              </button>
-              <button class="igs-btn-icon-round" title="\u5173\u95ED" @click="closeLightbox">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-          </header>
+      <!-- \u5168\u5C4F Lightbox \u5927\u56FE\u9884\u89C8 -->
+      <div v-if="lightbox.visible" class="igs-lightbox-overlay" :style="themeStyleVars" @click.self="closeLightbox">
+        <header class="igs-lightbox-topbar">
+          <span class="igs-lightbox-title">{{ lightbox.title }}</span>
+          <div class="igs-lightbox-top-actions">
+            <button 
+              v-if="lightbox.key && !lightbox.isEventCg" 
+              class="igs-btn-icon-round" 
+              :title="lightbox.isFavorite ? '\u53D6\u6D88\u6536\u85CF' : '\u6536\u85CF'"
+              @click="handleCgFavorite(lightbox)"
+            >
+              <i class="fa-solid fa-star" :style="{ color: lightbox.isFavorite ? '#ffd166' : '#fff' }"></i>
+            </button>
+            <button 
+              v-if="lightbox.prompt" 
+              class="igs-btn-icon-round" 
+              title="\u590D\u5236\u63D0\u793A\u8BCD" 
+              @click="handleCopyPrompt(lightbox.prompt)"
+            >
+              <i class="fa-solid fa-copy"></i>
+            </button>
+            <button 
+              class="igs-btn-icon-round" 
+              title="\u4E0B\u8F7D\u539F\u56FE" 
+              @click="handleDownloadImage(lightbox.src, lightbox.title)"
+            >
+              <i class="fa-solid fa-download"></i>
+            </button>
+            <button class="igs-btn-icon-round" title="\u5173\u95ED" @click="closeLightbox">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </header>
 
-          <main class="igs-lightbox-main" @click.self="closeLightbox">
-            <img :src="lightbox.src" class="igs-lightbox-img" @click.stop />
-          </main>
+        <main class="igs-lightbox-main" @click.self="closeLightbox">
+          <img :src="lightbox.src" class="igs-lightbox-img" @click.stop />
+        </main>
 
-          <footer v-if="lightbox.prompt" class="igs-lightbox-bottombar">
-            <span>{{ lightbox.prompt }}</span>
-          </footer>
-        </div>
-      </teleport>
+        <footer v-if="lightbox.prompt" class="igs-lightbox-bottombar">
+          <span>{{ lightbox.prompt }}</span>
+        </footer>
+      </div>
 
       <!-- \u751F\u56FE\u4E0E\u63D0\u793A\u8BCD\u786E\u8BA4\u5BF9\u8BDD\u6846 -->
-      <teleport to="body">
-        <div v-if="genDialog.visible" class="igs-dialog-overlay" @click.self="genDialog.visible = false">
-          <div class="igs-dialog-box">
-            <h3 class="igs-dialog-title">\u751F\u56FE\u4E0E\u63D0\u793A\u8BCD \xB7 {{ genDialog.title }}</h3>
-            
-            <div class="igs-form-row">
-              <label class="igs-form-label">\u751F\u56FE\u63D0\u793A\u8BCD</label>
-              <textarea 
-                v-model="genDialog.prompt" 
-                class="igs-form-textarea" 
-                placeholder="\u8F93\u5165\u6216\u8C03\u6574\u8BE5\u7D20\u6750\u7684\u751F\u6210\u63D0\u793A\u8BCD..."
-              ></textarea>
-            </div>
+      <div v-if="genDialog.visible" class="igs-dialog-overlay" :style="themeStyleVars" @click.self="genDialog.visible = false">
+        <div class="igs-dialog-box">
+          <h3 class="igs-dialog-title">\u751F\u56FE\u4E0E\u63D0\u793A\u8BCD \xB7 {{ genDialog.title }}</h3>
+          
+          <div class="igs-form-row">
+            <label class="igs-form-label">\u751F\u56FE\u63D0\u793A\u8BCD</label>
+            <textarea 
+              v-model="genDialog.prompt" 
+              class="igs-form-textarea" 
+              placeholder="\u8F93\u5165\u6216\u8C03\u6574\u8BE5\u7D20\u6750\u7684\u751F\u6210\u63D0\u793A\u8BCD..."
+            ></textarea>
+          </div>
 
-            <div class="igs-form-row">
-              <label class="igs-form-label">\u8D1F\u9762\u63D0\u793A\u8BCD</label>
-              <input 
-                v-model="genDialog.negative" 
-                class="igs-form-input" 
-                placeholder="\u53EF\u9009 \u8D1F\u9762\u63D0\u793A\u8BCD" 
-              />
-            </div>
+          <div class="igs-form-row">
+            <label class="igs-form-label">\u8D1F\u9762\u63D0\u793A\u8BCD</label>
+            <input 
+              v-model="genDialog.negative" 
+              class="igs-form-input" 
+              placeholder="\u53EF\u9009 \u8D1F\u9762\u63D0\u793A\u8BCD" 
+            />
+          </div>
 
-            <div class="igs-dialog-actions">
-              <button class="igs-resources-chip" @click="genDialog.visible = false">\u53D6\u6D88</button>
-              <button 
-                class="igs-btn-primary-compact" 
-                :disabled="genDialog.isGenerating"
-                @click="handleExecuteGenerate"
-              >
-                <i class="fa-solid fa-wand-magic-sparkles" :class="{ 'fa-spin': genDialog.isGenerating }"></i>
-                <span>\u786E\u8BA4\u751F\u56FE</span>
-              </button>
-            </div>
+          <div class="igs-dialog-actions">
+            <button class="igs-resources-chip" @click="genDialog.visible = false">\u53D6\u6D88</button>
+            <button 
+              class="igs-btn-primary-compact" 
+              :disabled="genDialog.isGenerating"
+              @click="handleExecuteGenerate"
+            >
+              <i class="fa-solid fa-wand-magic-sparkles" :class="{ 'fa-spin': genDialog.isGenerating }"></i>
+              <span>\u786E\u8BA4\u751F\u56FE</span>
+            </button>
           </div>
         </div>
-      </teleport>
+      </div>
 
       <!-- \u7EDF\u4E00\u65B0\u589E/\u7F16\u8F91\u5BF9\u8BDD\u6846 -->
-      <teleport to="body">
-        <div v-if="editDialog.visible" class="igs-dialog-overlay" @click.self="editDialog.visible = false">
-          <div class="igs-dialog-box">
-            <h3 class="igs-dialog-title">{{ editDialog.title }}</h3>
+      <div v-if="editDialog.visible" class="igs-dialog-overlay" :style="themeStyleVars" @click.self="editDialog.visible = false">
+        <div class="igs-dialog-box">
+          <h3 class="igs-dialog-title">{{ editDialog.title }}</h3>
 
-            <div class="igs-form-row">
-              <label class="igs-form-label">\u540D\u79F0</label>
-              <input v-model="editDialog.form.name" class="igs-form-input" placeholder="\u8F93\u5165\u540D\u79F0..." />
-            </div>
+          <div class="igs-form-row">
+            <label class="igs-form-label">\u540D\u79F0</label>
+            <input v-model="editDialog.form.name" class="igs-form-input" placeholder="\u8F93\u5165\u540D\u79F0..." />
+          </div>
 
-            <div v-if="editDialog.type === 'scene' || editDialog.type === 'item'" class="igs-form-row">
-              <label class="igs-form-label">\u63CF\u8FF0</label>
-              <input v-model="editDialog.form.desc" class="igs-form-input" placeholder="\u7B80\u77ED\u63CF\u8FF0..." />
-            </div>
+          <div v-if="editDialog.type === 'scene' || editDialog.type === 'item'" class="igs-form-row">
+            <label class="igs-form-label">\u63CF\u8FF0</label>
+            <input v-model="editDialog.form.desc" class="igs-form-input" placeholder="\u7B80\u77ED\u63CF\u8FF0..." />
+          </div>
 
-            <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
-              <label class="igs-form-label">\u5F52\u5C5E\u89D2\u8272</label>
-              <input v-model="editDialog.form.character" class="igs-form-input" placeholder="\u89D2\u8272\u540D\u79F0..." />
-            </div>
+          <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
+            <label class="igs-form-label">\u5F52\u5C5E\u89D2\u8272</label>
+            <input v-model="editDialog.form.character" class="igs-form-input" placeholder="\u89D2\u8272\u540D\u79F0..." />
+          </div>
 
-            <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
-              <label class="igs-form-label">\u670D\u88C5\u63D0\u793A\u8BCD</label>
-              <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="\u8F93\u5165\u751F\u6210\u8BE5\u670D\u88C5\u7684\u4E13\u7528 TAG \u63D0\u793A\u8BCD..."></textarea>
-            </div>
+          <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
+            <label class="igs-form-label">\u670D\u88C5\u63D0\u793A\u8BCD</label>
+            <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="\u8F93\u5165\u751F\u6210\u8BE5\u670D\u88C5\u7684\u4E13\u7528 TAG \u63D0\u793A\u8BCD..."></textarea>
+          </div>
 
-            <div v-if="editDialog.type !== 'outfit'" class="igs-form-row">
-              <label class="igs-form-label">\u56FE\u7247\u7D20\u6750</label>
-              <div class="igs-file-dropzone" @click="$refs.editFileInput.click()">
-                <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
-                <span>\u70B9\u51FB\u4E0A\u4F20\u672C\u5730\u56FE\u7247\u6587\u4EF6</span>
-                <input ref="editFileInput" type="file" accept="image/*" style="display:none;" @change="handleFormFileUpload" />
-              </div>
-              <input v-model="editDialog.form.rawUrl" class="igs-form-input" style="margin-top: 6px;" placeholder="\u6216\u76F4\u63A5\u8F93\u5165\u56FE\u7247 URL / igs-gen \u6807\u8BC6\u7B26..." />
+          <div v-if="editDialog.type !== 'outfit'" class="igs-form-row">
+            <label class="igs-form-label">\u56FE\u7247\u7D20\u6750</label>
+            <div class="igs-file-dropzone" @click="$refs.editFileInput.click()">
+              <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
+              <span>\u70B9\u51FB\u4E0A\u4F20\u672C\u5730\u56FE\u7247\u6587\u4EF6</span>
+              <input ref="editFileInput" type="file" accept="image/*" style="display:none;" @change="handleFormFileUpload" />
             </div>
+            <input v-model="editDialog.form.rawUrl" class="igs-form-input" style="margin-top: 6px;" placeholder="\u6216\u76F4\u63A5\u8F93\u5165\u56FE\u7247 URL / igs-gen \u6807\u8BC6\u7B26..." />
+          </div>
 
-            <div class="igs-dialog-actions">
-              <button class="igs-resources-chip" @click="editDialog.visible = false">\u53D6\u6D88</button>
-              <button class="igs-btn-primary-compact" @click="handleSaveEdit">\u4FDD\u5B58</button>
-            </div>
+          <div class="igs-dialog-actions">
+            <button class="igs-resources-chip" @click="editDialog.visible = false">\u53D6\u6D88</button>
+            <button class="igs-btn-primary-compact" @click="handleSaveEdit">\u4FDD\u5B58</button>
           </div>
         </div>
-      </teleport>
+      </div>
 
       <!-- \u7EDF\u4E00\u786E\u8BA4\u64CD\u4F5C\u5F39\u7A97 -->
-      <teleport to="body">
-        <div v-if="confirmDialog.visible" class="igs-dialog-overlay" @click.self="confirmDialog.visible = false">
-          <div class="igs-dialog-box" style="width: 360px;">
-            <h3 class="igs-dialog-title">{{ confirmDialog.title }}</h3>
-            <p style="font-size: 0.88rem; color: var(--igs-settings-ink-2); margin: 6px 0;">{{ confirmDialog.message }}</p>
-            <div class="igs-dialog-actions">
-              <button class="igs-resources-chip" @click="confirmDialog.visible = false">\u53D6\u6D88</button>
-              <button class="igs-btn-primary-compact" style="background: #e74c3c; color: #fff;" @click="confirmDialog.onConfirm">\u786E\u8BA4\u5220\u9664</button>
-            </div>
+      <div v-if="confirmDialog.visible" class="igs-dialog-overlay" :style="themeStyleVars" @click.self="confirmDialog.visible = false">
+        <div class="igs-dialog-box" style="width: 360px;">
+          <h3 class="igs-dialog-title">{{ confirmDialog.title }}</h3>
+          <p style="font-size: 0.88rem; color: var(--igs-settings-ink-2); margin: 6px 0;">{{ confirmDialog.message }}</p>
+          <div class="igs-dialog-actions">
+            <button class="igs-resources-chip" @click="confirmDialog.visible = false">\u53D6\u6D88</button>
+            <button class="igs-btn-primary-compact" style="background: #e74c3c; color: #fff;" @click="confirmDialog.onConfirm">\u786E\u8BA4\u5220\u9664</button>
           </div>
         </div>
-      </teleport>
+      </div>
     </div>
     `
   };

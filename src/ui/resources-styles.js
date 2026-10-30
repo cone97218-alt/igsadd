@@ -64,9 +64,9 @@ export const RESOURCES_MODAL_CSS = `
 }
 
 .igs-resources-sidebar.is-collapsed {
-  width: 52px;
-  padding: 12px 6px;
-  align-items: center;
+  width: 52px !important;
+  padding: 12px 6px !important;
+  align-items: center !important;
 }
 
 /* 侧边栏顶部大标题与折叠开关 */
@@ -151,10 +151,9 @@ export const RESOURCES_MODAL_CSS = `
   font-size: 9px;
 }
 
-.igs-resources-sidebar.is-collapsed .igs-patch-theme-group {
-  flex-direction: column;
+.igs-resources-sidebar.is-collapsed .igs-resources-theme-group {
   padding: 4px 2px;
-  gap: 4px;
+  gap: 6px;
 }
 
 /* 侧边栏垂直导航项 */
@@ -221,38 +220,39 @@ export const RESOURCES_MODAL_CSS = `
   align-items: center;
 }
 
-.igs-patch-theme-group {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: var(--igs-settings-field, rgba(0,0,0,0.15));
-  padding: 3px 6px;
-  border-radius: 999px;
-  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1));
+/* 侧边栏垂直主题切换条 (竖条设计，绝不污染设置界面的横条) */
+.igs-resources-theme-group {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  background: var(--igs-settings-field, rgba(0,0,0,0.15)) !important;
+  padding: 6px 4px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--igs-settings-line, rgba(255,255,255,0.1)) !important;
 }
 
-.igs-patch-theme-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  padding: 0;
-  margin: 0;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease;
-  outline: none;
-  box-sizing: border-box;
+.igs-resources-theme-swatch {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 2px solid transparent !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+  outline: none !important;
+  box-sizing: border-box !important;
 }
 
-.igs-patch-theme-swatch:hover {
-  transform: scale(1.2);
+.igs-resources-theme-swatch:hover {
+  transform: scale(1.2) !important;
 }
 
-.igs-patch-theme-swatch.is-active {
-  border-color: #ffffff;
-  box-shadow: 0 0 0 1.5px var(--igs-settings-accent, #689f38);
-  transform: scale(1.1);
+.igs-resources-theme-swatch.is-active {
+  box-shadow: 0 0 0 2px var(--igs-settings-accent, #7fd6ca) !important;
+  transform: scale(1.15) !important;
 }
 
 /* =========================================
@@ -869,7 +869,9 @@ export const RESOURCES_MODAL_CSS = `
 .igs-resources-overlay input,
 .igs-resources-overlay textarea,
 .igs-form-input,
-.igs-form-textarea {
+.igs-form-textarea,
+.igs-dialog-box input,
+.igs-dialog-box textarea {
   background-color: var(--igs-settings-field, rgba(0,0,0,0.06)) !important;
   color: var(--igs-settings-ink, #2b2b2b) !important;
   border: 1px solid var(--igs-settings-line, rgba(0,0,0,0.12)) !important;
@@ -928,7 +930,7 @@ export const RESOURCES_MODAL_CSS = `
   display: flex !important;
   flex-direction: column !important;
   gap: 14px !important;
-  margin: auto !important;
+  margin: 0 !important;
 }
 
 .igs-dialog-title {
@@ -1080,11 +1082,19 @@ export const RESOURCES_MODAL_CSS = `
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* 移动端侧边栏精简为 52px 宽的紧凑图标轨 */
+  /* 移动端侧边栏精简为 52px 宽的紧凑图标轨，折叠时彻底为 0 释放全部空间 */
   .igs-resources-sidebar {
     width: 52px;
     padding: 10px 4px;
     align-items: center;
+    transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), padding 0.2s ease;
+  }
+
+  .igs-resources-sidebar.is-collapsed {
+    width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
   }
 
   .igs-sidebar-brand {
@@ -1122,8 +1132,7 @@ export const RESOURCES_MODAL_CSS = `
     font-size: 9px;
   }
 
-  .igs-resources-sidebar .igs-patch-theme-group {
-    flex-direction: column;
+  .igs-resources-sidebar .igs-resources-theme-group {
     padding: 4px 2px;
     gap: 4px;
   }

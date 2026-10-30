@@ -140,6 +140,32 @@ export async function setExtensionMetadata(value) {
     return handle.metadata.setExtension({ namespace: NAMESPACE, value });
 }
 
+/**
+ * 获取当前激活的聊天/角色卡唯一标识 (实现跨角色卡完全隔离)
+ */
+export function getActiveChatId() {
+    const wins = [window];
+    try { if (window.parent && !wins.includes(window.parent)) wins.push(window.parent); } catch (_) { }
+    try { if (window.top && !wins.includes(window.top)) wins.push(window.top); } catch (_) { }
+
+    for (const w of wins) {
+        try {
+            const ctx = w.SillyTavern?.getContext?.();
+            if (ctx) {
+                if (ctx.chatId) return String(ctx.chatId);
+                if (ctx.groupId != null && String(ctx.groupId) !== '') return `group_${ctx.groupId}`;
+                if (ctx.characterId != null) {
+                    const chars = Array.isArray(ctx.characters) ? ctx.characters : [];
+                    const card = chars[ctx.characterId];
+                    if (card?.name) return `char_${card.name}`;
+                    return `char_${ctx.characterId}`;
+                }
+            }
+        } catch (_) { }
+    }
+    return 'default';
+}
+
 // ---------------- 降级回退实现 ----------------
 function fallbackFindLastMessage(options = {}) {
     const chat = window.SillyTavern?.getContext?.()?.chat;

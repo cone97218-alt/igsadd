@@ -745,8 +745,19 @@ const ResourcesModalRoot = {
                 }
             };
             window.addEventListener('keydown', onKeyDown);
+            const onSettingsUpdated = () => {
+                loadData();
+            };
+            window.addEventListener('igs:legacy-settings-updated', onSettingsUpdated);
+            const onStorageChange = (e) => {
+                if (e.key === 'igs_bridge_config') onSettingsUpdated();
+            };
+            window.addEventListener('storage', onStorageChange);
+
             onUnmounted(() => {
                 window.removeEventListener('keydown', onKeyDown);
+                window.removeEventListener('igs:legacy-settings-updated', onSettingsUpdated);
+                window.removeEventListener('storage', onStorageChange);
                 unsub();
             });
         });
@@ -902,13 +913,13 @@ const ResourcesModalRoot = {
             </button>
           </div>
 
-          <!-- 侧边栏底部操作区：主题切换圆圈与刷新 -->
+          <!-- 侧边栏底部操作区：主题切换圆圈与刷新 (独立竖条规范) -->
           <div class="igs-sidebar-footer">
-            <div class="igs-patch-theme-group">
+            <div class="igs-resources-theme-group">
               <button 
                 v-for="item in themeOptions" 
                 :key="item.value" 
-                class="igs-patch-theme-swatch"
+                class="igs-resources-theme-swatch"
                 :class="{ 'is-active': currentTheme === item.value }"
                 :title="item.label"
                 :style="{ backgroundColor: item.swatch.accent, borderColor: item.swatch.base }"
@@ -955,6 +966,14 @@ const ResourcesModalRoot = {
 
             <!-- 顶栏右侧快捷动作 -->
             <div class="igs-topbar-actions">
+              <button 
+                class="igs-btn-icon-round" 
+                :title="isSidebarCollapsed ? '展开侧栏' : '折叠侧栏'" 
+                @click="toggleSidebar"
+              >
+                <i class="fa-solid" :class="isSidebarCollapsed ? 'fa-bars' : 'fa-angles-left'"></i>
+              </button>
+
               <button 
                 v-if="activeTab !== 'cgs' && activeTab !== 'review'" 
                 class="igs-btn-primary-compact" 
@@ -1312,7 +1331,6 @@ const ResourcesModalRoot = {
               <p>暂无待确认素材</p>
             </div>
           </section>
-        </main>
         </div>
       </div>
 
@@ -1325,147 +1343,139 @@ const ResourcesModalRoot = {
         @change="onHiddenFileChange" 
       />
 
-      <!-- 全屏 Lightbox 大图预览 (Teleport 至顶层，彻底隔离父容器形变与遮罩重叠) -->
-      <teleport to="body">
-        <div v-if="lightbox.visible" class="igs-lightbox-overlay" @click.self="closeLightbox">
-          <header class="igs-lightbox-topbar">
-            <span class="igs-lightbox-title">{{ lightbox.title }}</span>
-            <div class="igs-lightbox-top-actions">
-              <button 
-                v-if="lightbox.key && !lightbox.isEventCg" 
-                class="igs-btn-icon-round" 
-                :title="lightbox.isFavorite ? '取消收藏' : '收藏'"
-                @click="handleCgFavorite(lightbox)"
-              >
-                <i class="fa-solid fa-star" :style="{ color: lightbox.isFavorite ? '#ffd166' : '#fff' }"></i>
-              </button>
-              <button 
-                v-if="lightbox.prompt" 
-                class="igs-btn-icon-round" 
-                title="复制提示词" 
-                @click="handleCopyPrompt(lightbox.prompt)"
-              >
-                <i class="fa-solid fa-copy"></i>
-              </button>
-              <button 
-                class="igs-btn-icon-round" 
-                title="下载原图" 
-                @click="handleDownloadImage(lightbox.src, lightbox.title)"
-              >
-                <i class="fa-solid fa-download"></i>
-              </button>
-              <button class="igs-btn-icon-round" title="关闭" @click="closeLightbox">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-          </header>
+      <!-- 全屏 Lightbox 大图预览 -->
+      <div v-if="lightbox.visible" class="igs-lightbox-overlay" :style="themeStyleVars" @click.self="closeLightbox">
+        <header class="igs-lightbox-topbar">
+          <span class="igs-lightbox-title">{{ lightbox.title }}</span>
+          <div class="igs-lightbox-top-actions">
+            <button 
+              v-if="lightbox.key && !lightbox.isEventCg" 
+              class="igs-btn-icon-round" 
+              :title="lightbox.isFavorite ? '取消收藏' : '收藏'"
+              @click="handleCgFavorite(lightbox)"
+            >
+              <i class="fa-solid fa-star" :style="{ color: lightbox.isFavorite ? '#ffd166' : '#fff' }"></i>
+            </button>
+            <button 
+              v-if="lightbox.prompt" 
+              class="igs-btn-icon-round" 
+              title="复制提示词" 
+              @click="handleCopyPrompt(lightbox.prompt)"
+            >
+              <i class="fa-solid fa-copy"></i>
+            </button>
+            <button 
+              class="igs-btn-icon-round" 
+              title="下载原图" 
+              @click="handleDownloadImage(lightbox.src, lightbox.title)"
+            >
+              <i class="fa-solid fa-download"></i>
+            </button>
+            <button class="igs-btn-icon-round" title="关闭" @click="closeLightbox">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </header>
 
-          <main class="igs-lightbox-main" @click.self="closeLightbox">
-            <img :src="lightbox.src" class="igs-lightbox-img" @click.stop />
-          </main>
+        <main class="igs-lightbox-main" @click.self="closeLightbox">
+          <img :src="lightbox.src" class="igs-lightbox-img" @click.stop />
+        </main>
 
-          <footer v-if="lightbox.prompt" class="igs-lightbox-bottombar">
-            <span>{{ lightbox.prompt }}</span>
-          </footer>
-        </div>
-      </teleport>
+        <footer v-if="lightbox.prompt" class="igs-lightbox-bottombar">
+          <span>{{ lightbox.prompt }}</span>
+        </footer>
+      </div>
 
       <!-- 生图与提示词确认对话框 -->
-      <teleport to="body">
-        <div v-if="genDialog.visible" class="igs-dialog-overlay" @click.self="genDialog.visible = false">
-          <div class="igs-dialog-box">
-            <h3 class="igs-dialog-title">生图与提示词 · {{ genDialog.title }}</h3>
-            
-            <div class="igs-form-row">
-              <label class="igs-form-label">生图提示词</label>
-              <textarea 
-                v-model="genDialog.prompt" 
-                class="igs-form-textarea" 
-                placeholder="输入或调整该素材的生成提示词..."
-              ></textarea>
-            </div>
+      <div v-if="genDialog.visible" class="igs-dialog-overlay" :style="themeStyleVars" @click.self="genDialog.visible = false">
+        <div class="igs-dialog-box">
+          <h3 class="igs-dialog-title">生图与提示词 · {{ genDialog.title }}</h3>
+          
+          <div class="igs-form-row">
+            <label class="igs-form-label">生图提示词</label>
+            <textarea 
+              v-model="genDialog.prompt" 
+              class="igs-form-textarea" 
+              placeholder="输入或调整该素材的生成提示词..."
+            ></textarea>
+          </div>
 
-            <div class="igs-form-row">
-              <label class="igs-form-label">负面提示词</label>
-              <input 
-                v-model="genDialog.negative" 
-                class="igs-form-input" 
-                placeholder="可选 负面提示词" 
-              />
-            </div>
+          <div class="igs-form-row">
+            <label class="igs-form-label">负面提示词</label>
+            <input 
+              v-model="genDialog.negative" 
+              class="igs-form-input" 
+              placeholder="可选 负面提示词" 
+            />
+          </div>
 
-            <div class="igs-dialog-actions">
-              <button class="igs-resources-chip" @click="genDialog.visible = false">取消</button>
-              <button 
-                class="igs-btn-primary-compact" 
-                :disabled="genDialog.isGenerating"
-                @click="handleExecuteGenerate"
-              >
-                <i class="fa-solid fa-wand-magic-sparkles" :class="{ 'fa-spin': genDialog.isGenerating }"></i>
-                <span>确认生图</span>
-              </button>
-            </div>
+          <div class="igs-dialog-actions">
+            <button class="igs-resources-chip" @click="genDialog.visible = false">取消</button>
+            <button 
+              class="igs-btn-primary-compact" 
+              :disabled="genDialog.isGenerating"
+              @click="handleExecuteGenerate"
+            >
+              <i class="fa-solid fa-wand-magic-sparkles" :class="{ 'fa-spin': genDialog.isGenerating }"></i>
+              <span>确认生图</span>
+            </button>
           </div>
         </div>
-      </teleport>
+      </div>
 
       <!-- 统一新增/编辑对话框 -->
-      <teleport to="body">
-        <div v-if="editDialog.visible" class="igs-dialog-overlay" @click.self="editDialog.visible = false">
-          <div class="igs-dialog-box">
-            <h3 class="igs-dialog-title">{{ editDialog.title }}</h3>
+      <div v-if="editDialog.visible" class="igs-dialog-overlay" :style="themeStyleVars" @click.self="editDialog.visible = false">
+        <div class="igs-dialog-box">
+          <h3 class="igs-dialog-title">{{ editDialog.title }}</h3>
 
-            <div class="igs-form-row">
-              <label class="igs-form-label">名称</label>
-              <input v-model="editDialog.form.name" class="igs-form-input" placeholder="输入名称..." />
-            </div>
+          <div class="igs-form-row">
+            <label class="igs-form-label">名称</label>
+            <input v-model="editDialog.form.name" class="igs-form-input" placeholder="输入名称..." />
+          </div>
 
-            <div v-if="editDialog.type === 'scene' || editDialog.type === 'item'" class="igs-form-row">
-              <label class="igs-form-label">描述</label>
-              <input v-model="editDialog.form.desc" class="igs-form-input" placeholder="简短描述..." />
-            </div>
+          <div v-if="editDialog.type === 'scene' || editDialog.type === 'item'" class="igs-form-row">
+            <label class="igs-form-label">描述</label>
+            <input v-model="editDialog.form.desc" class="igs-form-input" placeholder="简短描述..." />
+          </div>
 
-            <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
-              <label class="igs-form-label">归属角色</label>
-              <input v-model="editDialog.form.character" class="igs-form-input" placeholder="角色名称..." />
-            </div>
+          <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
+            <label class="igs-form-label">归属角色</label>
+            <input v-model="editDialog.form.character" class="igs-form-input" placeholder="角色名称..." />
+          </div>
 
-            <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
-              <label class="igs-form-label">服装提示词</label>
-              <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="输入生成该服装的专用 TAG 提示词..."></textarea>
-            </div>
+          <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
+            <label class="igs-form-label">服装提示词</label>
+            <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="输入生成该服装的专用 TAG 提示词..."></textarea>
+          </div>
 
-            <div v-if="editDialog.type !== 'outfit'" class="igs-form-row">
-              <label class="igs-form-label">图片素材</label>
-              <div class="igs-file-dropzone" @click="$refs.editFileInput.click()">
-                <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
-                <span>点击上传本地图片文件</span>
-                <input ref="editFileInput" type="file" accept="image/*" style="display:none;" @change="handleFormFileUpload" />
-              </div>
-              <input v-model="editDialog.form.rawUrl" class="igs-form-input" style="margin-top: 6px;" placeholder="或直接输入图片 URL / igs-gen 标识符..." />
+          <div v-if="editDialog.type !== 'outfit'" class="igs-form-row">
+            <label class="igs-form-label">图片素材</label>
+            <div class="igs-file-dropzone" @click="$refs.editFileInput.click()">
+              <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
+              <span>点击上传本地图片文件</span>
+              <input ref="editFileInput" type="file" accept="image/*" style="display:none;" @change="handleFormFileUpload" />
             </div>
+            <input v-model="editDialog.form.rawUrl" class="igs-form-input" style="margin-top: 6px;" placeholder="或直接输入图片 URL / igs-gen 标识符..." />
+          </div>
 
-            <div class="igs-dialog-actions">
-              <button class="igs-resources-chip" @click="editDialog.visible = false">取消</button>
-              <button class="igs-btn-primary-compact" @click="handleSaveEdit">保存</button>
-            </div>
+          <div class="igs-dialog-actions">
+            <button class="igs-resources-chip" @click="editDialog.visible = false">取消</button>
+            <button class="igs-btn-primary-compact" @click="handleSaveEdit">保存</button>
           </div>
         </div>
-      </teleport>
+      </div>
 
       <!-- 统一确认操作弹窗 -->
-      <teleport to="body">
-        <div v-if="confirmDialog.visible" class="igs-dialog-overlay" @click.self="confirmDialog.visible = false">
-          <div class="igs-dialog-box" style="width: 360px;">
-            <h3 class="igs-dialog-title">{{ confirmDialog.title }}</h3>
-            <p style="font-size: 0.88rem; color: var(--igs-settings-ink-2); margin: 6px 0;">{{ confirmDialog.message }}</p>
-            <div class="igs-dialog-actions">
-              <button class="igs-resources-chip" @click="confirmDialog.visible = false">取消</button>
-              <button class="igs-btn-primary-compact" style="background: #e74c3c; color: #fff;" @click="confirmDialog.onConfirm">确认删除</button>
-            </div>
+      <div v-if="confirmDialog.visible" class="igs-dialog-overlay" :style="themeStyleVars" @click.self="confirmDialog.visible = false">
+        <div class="igs-dialog-box" style="width: 360px;">
+          <h3 class="igs-dialog-title">{{ confirmDialog.title }}</h3>
+          <p style="font-size: 0.88rem; color: var(--igs-settings-ink-2); margin: 6px 0;">{{ confirmDialog.message }}</p>
+          <div class="igs-dialog-actions">
+            <button class="igs-resources-chip" @click="confirmDialog.visible = false">取消</button>
+            <button class="igs-btn-primary-compact" style="background: #e74c3c; color: #fff;" @click="confirmDialog.onConfirm">确认删除</button>
           </div>
         </div>
-      </teleport>
+      </div>
     </div>
     `
 };

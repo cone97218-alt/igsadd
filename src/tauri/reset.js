@@ -1,32 +1,64 @@
 /**
- * 全量清空与重置服务
- * 彻底清除包括 IndexedDB 生图/素材缓存、localStorage 状态与配置、以及 TauriTavern KV 剧本存储
+ * 全量清空与重置服务 - 重置一切 (Nuclear Reset)
+ * 彻底清除包括所有角色立绘、全聊天演出剧本、所有相关 IndexedDB 数据库、
+ * localStorage 状态与配置、以及 TauriTavern KV 剧本存储，回归纯净初始状态。
  */
 
 import { listStoredKeys, deleteStoredJson, setExtensionMetadata } from './adapter.js';
+import { clearScriptMemoryStore } from '../director/pipeline.js';
+
+const TARGET_IDB_DATABASES = [
+    'vn',
+    'igs-illustrations',
+    'igs-cg-gallery',
+    'igs-generated-assets',
+    'igs-chat-records',
+    'igs-director-runtime',
+    'igs-cg-index',
+    'igs-photo-album',
+    'igs-wait-games',
+];
+
+function deleteSingleDb(name) {
+    return new Promise((resolve) => {
+        try {
+            const req = window.indexedDB.deleteDatabase(name);
+            req.onsuccess = () => resolve({ name, ok: true });
+            req.onerror = () => resolve({ name, ok: false });
+            req.onblocked = () => {
+                console.warn(`[IGS-Patch] IndexedDB ${name} 删除被阻塞，请关闭其他页面`);
+                resolve({ name, ok: false, blocked: true });
+            };
+        } catch (_) {
+            resolve({ name, ok: false });
+        }
+    });
+}
 
 /**
- * 执行彻底重置
+ * 执行全量重置一切
  * @param {Object} options { silent: boolean }
  */
 export async function resetAllGalData(options = {}) {
     const isSilent = options.silent === true;
     if (!isSilent) {
         const confirmed = window.confirm(
-            '【警告】确定要彻底重置所有 Gal 系统数据吗？\n\n' +
-            '这将清空：\n' +
-            '1. IndexedDB 中所有生成的立绘、背景、CG与临时图片素材\n' +
-            '2. 本地存储的演出剧本、状态记录与缓存\n' +
-            '3. TauriTavern 中该聊天的所有副模型转译剧本与扩展数据\n\n' +
-            '重置后建议刷新页面。此操作无法撤销！'
+            '【最高警报】确定要重置一切吗？\n\n' +
+            '这将永久抹除：\n' +
+            '1. 所有角色的立绘、差分、衣柜、场景背景、CG图库与道具\n' +
+            '2. 所有聊天会话的历史演出剧本与生成素材缓存\n' +
+            '3. 全部 9 项 Galgame IndexedDB 数据库与本地存储配置\n' +
+            '4. SillyTavern 消息挂载的演出剧本数据\n\n' +
+            '重置后页面将完全恢复至初次未配置状态。此操作不可逆！'
         );
         if (!confirmed) return { ok: false, reason: 'user-cancelled' };
     }
 
     const report = {
-        indexedDbCleared: false,
+        databasesDeleted: 0,
         localStorageKeysRemoved: 0,
         tauriStoreKeysDeleted: 0,
+        chatMessagesCleaned: 0,
         igsShutDown: false,
     };
 
@@ -41,23 +73,23 @@ export async function resetAllGalData(options = {}) {
         console.warn('[IGS-Patch] 关闭 IGS 实例异常:', err);
     }
 
-    // 2. 清除 IndexedDB 中的 'vn' 数据库（IGS 的立绘、背景、生图与贴图全在此库）
+    // 2. 清除所有相关 IndexedDB 数据库
     try {
-        await new Promise((resolve) => {
-            const req = window.indexedDB.deleteDatabase('vn');
-            req.onsuccess = () => {
-                report.indexedDbCleared = true;
-                resolve();
-            };
-            req.onerror = () => {
-                console.warn('[IGS-Patch] IndexedDB vn 删除失败');
-                resolve();
-            };
-            req.onblocked = () => {
-                console.warn('[IGS-Patch] IndexedDB vn 删除被阻塞，请关闭其他标签页');
-                resolve();
-            };
-        });
+        const dbNamesToDelete = new Set(TARGET_IDB_DATABASES);
+        if (typeof window.indexedDB?.databases === 'function') {
+            try {
+                const existingDbs = await window.indexedDB.databases();
+                for (const d of existingDbs) {
+                    if (d?.name && (/^(igs|vn)/i.test(d.name))) {
+                        dbNamesToDelete.add(d.name);
+                    }
+                }
+            } catch (_) { }
+        }
+
+        const deletePromises = Array.from(dbNamesToDelete).map((dbName) => deleteSingleDb(dbName));
+        const results = await Promise.all(deletePromises);
+        report.databasesDeleted = results.filter(r => r.ok).length;
     } catch (err) {
         console.warn('[IGS-Patch] 删除 IndexedDB 异常:', err);
     }
@@ -67,7 +99,7 @@ export async function resetAllGalData(options = {}) {
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key && (/^(igs|vn:|__IGS)/i.test(key) || key.includes('igs_gal'))) {
+            if (key && (/^(igs|vn:|__IGS|tauri_fallback:igs_gal|st-baibai)/i.test(key) || key.includes('igs_gal'))) {
                 keysToRemove.push(key);
             }
         }
@@ -91,12 +123,39 @@ export async function resetAllGalData(options = {}) {
         console.warn('[IGS-Patch] 清理 TauriTavern 数据异常:', err);
     }
 
-    console.info('[IGS-Patch] Gal 系统重置完毕:', report);
+    // 5. 清理 SillyTavern 内存消息中的 extra 剧本数据
+    try {
+        const chat = window.SillyTavern?.getContext?.()?.chat;
+        if (Array.isArray(chat)) {
+            let cleaned = 0;
+            for (const msg of chat) {
+                if (msg?.extra) {
+                    if (msg.extra.igs_patch_scripts) { delete msg.extra.igs_patch_scripts; cleaned++; }
+                    if (msg.extra.igs_script) { delete msg.extra.igs_script; cleaned++; }
+                    if (msg.extra.igs_gal) { delete msg.extra.igs_gal; cleaned++; }
+                }
+            }
+            report.chatMessagesCleaned = cleaned;
+            if (cleaned > 0) {
+                try { window.SillyTavern?.getContext?.()?.saveChat?.(); } catch (_) { }
+            }
+        }
+    } catch (_) { }
+
+    // 6. 清理内存剧本缓存
+    clearScriptMemoryStore();
+
+    // 7. 广播全局重置事件
+    try {
+        window.dispatchEvent(new CustomEvent('igs:legacy-settings-updated', { detail: {} }));
+    } catch (_) { }
+
+    console.info('[IGS-Patch] Gal 系统重置一切完毕:', report);
 
     if (!isSilent) {
-        const message = `Gal 系统已彻底重置！\n已清空生图库、${report.localStorageKeysRemoved} 项本地设置及 ${report.tauriStoreKeysDeleted} 条剧本缓存。`;
+        const message = `已重置一切！\n已抹除 ${report.databasesDeleted} 个数据库、${report.localStorageKeysRemoved} 项本地存储及 ${report.tauriStoreKeysDeleted} 条剧本。`;
         if (window.toastr && typeof window.toastr.success === 'function') {
-            window.toastr.success(message, 'IGS 补丁');
+            window.toastr.success(message, '重置一切');
         } else {
             window.alert(message);
         }
@@ -106,4 +165,3 @@ export async function resetAllGalData(options = {}) {
 }
 
 export const fullResetGalSystem = resetAllGalData;
-

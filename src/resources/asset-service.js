@@ -33,9 +33,26 @@ function getCandidateWindows() {
 }
 
 /**
- * 获取底层原始的桥接配置
+ * 获取底层原始的桥接配置 (优先从原生 IGS 内存实例直接读取，保证完全实时同步)
  */
 export function getRawBridgeConfig() {
+    // 1. 尝试从 window.IGS 获取最新运行时配置
+    for (const w of getCandidateWindows()) {
+        try {
+            if (w.IGS) {
+                if (typeof w.IGS.getConfig === 'function') {
+                    const cfg = w.IGS.getConfig();
+                    if (cfg && cfg.sceneAssets) return cfg;
+                }
+                if (typeof w.IGS.getUnifiedSettings === 'function') {
+                    const unified = w.IGS.getUnifiedSettings();
+                    if (unified?.bridge?.sceneAssets) return unified.bridge;
+                }
+            }
+        } catch (_) { }
+    }
+
+    // 2. 回退到 localStorage
     try {
         const raw = getStorage().getItem(STORAGE_KEY_BRIDGE);
         return raw ? JSON.parse(raw) : {};
@@ -45,11 +62,31 @@ export function getRawBridgeConfig() {
 }
 
 /**
- * 持久化保存桥接配置并向 IGS 宿主广播
+ * 持久化保存桥接配置并向原生 IGS 宿主深度双向同步
  */
 export function saveRawBridgeConfig(bridge) {
     try {
+        // 1. 写入 localStorage
         getStorage().setItem(STORAGE_KEY_BRIDGE, JSON.stringify(bridge));
+
+        // 2. 深度同步原生 IGS 运行时内存对象
+        for (const w of getCandidateWindows()) {
+            try {
+                if (w.IGS && typeof w.IGS.getState === 'function') {
+                    const igsState = w.IGS.getState();
+                    if (igsState) {
+                        if (igsState.config) {
+                            igsState.config.sceneAssets = bridge.sceneAssets;
+                        }
+                        if (igsState.legacyIgs?.bridge) {
+                            igsState.legacyIgs.bridge.sceneAssets = bridge.sceneAssets;
+                        }
+                    }
+                }
+            } catch (_) { }
+        }
+
+        // 3. 广播更新事件
         broadcastSettingsUpdated(bridge);
         return true;
     } catch (err) {
@@ -57,6 +94,20 @@ export function saveRawBridgeConfig(bridge) {
         return false;
     }
 }
+
+// 自动挂载原生 localStorage 写入劫持，当原生 IGS 保存设置时自动触发双向重载
+try {
+    const rawSetItem = window.localStorage.setItem.bind(window.localStorage);
+    window.localStorage.setItem = function(key, value) {
+        const res = rawSetItem(key, value);
+        if (key === STORAGE_KEY_BRIDGE) {
+            try {
+                window.dispatchEvent(new CustomEvent('igs:legacy-settings-updated'));
+            } catch (_) { }
+        }
+        return res;
+    };
+} catch (_) { }
 
 function broadcastSettingsUpdated(bridge) {
     for (const w of getCandidateWindows()) {
@@ -760,7 +811,7 @@ export async function listAllCgs(filter = 'ready') {
                 if (filter === 'pending' && (!isPending || isHidden)) continue;
                 if (filter === 'favorites' && (!isFavorite || isPending)) continue;
                 if (filter === 'hidden' && !isHidden) continue;
-                if (filter === 'all' && isHidden) continue;
+                if (filter === 'all' && (isPending || isHidden)) continue;
 
                 // 提取完整生图描述与提示词
                 let fullPrompt = s.prompt || s.caption || '';
@@ -914,10 +965,10 @@ export async function deleteCg(cgKey, isEventCg = false) {
 
 export async function listItems(scopeMode = 'all', customScopeKey = null) {
     const assets = getScopedSceneAssets(scopeMode, customScopeKey);
-    const generatedItems = assets.generated?.items || {};
+    const combined = { ...(assets.items || {}), ...(assets.generated?.items || {}) };
     const result = [];
 
-    for (const [name, data] of Object.entries(generatedItems)) {
+    for (const [name, data] of Object.entries(combined)) {
         if (!name) continue;
         const item = (data && typeof data === 'object') ? data : { url: String(data || '') };
         const rawUrl = item.url || item.image || '';
@@ -935,14 +986,20 @@ export async function listItems(scopeMode = 'all', customScopeKey = null) {
 
 export function saveItem(name, rawUrl, desc = '', scopeMode = 'all') {
     return updateScopedSceneAssets((assets) => {
+        if (!assets.items) assets.items = {};
         if (!assets.generated) assets.generated = {};
         if (!assets.generated.items) assets.generated.items = {};
-        assets.generated.items[name] = { url: rawUrl, desc };
+        const entry = { url: rawUrl, desc };
+        assets.items[name] = entry;
+        assets.generated.items[name] = entry;
     }, scopeMode);
 }
 
 export function deleteItem(name, scopeMode = 'all') {
     return updateScopedSceneAssets((assets) => {
+        if (assets.items) {
+            delete assets.items[name];
+        }
         if (assets.generated?.items) {
             delete assets.generated.items[name];
         }

@@ -8,7 +8,7 @@
  * 3. 视口目标感知：获取当前界面所在或聚焦的楼层，而非盲目定位最新楼层。
  */
 
-import { getStoredJson, setStoredJson, deleteStoredJson, listStoredKeys, findLastMessage } from '../tauri/adapter.js';
+import { getStoredJson, setStoredJson, deleteStoredJson, listStoredKeys, findLastMessage, getActiveChatId } from '../tauri/adapter.js';
 import { buildDirectorRequestPayload } from './grammar-prompt.js';
 import { requestSecondaryLlm } from './secondary-llm.js';
 import { notifyToast } from '../ui/toast.js';
@@ -16,6 +16,19 @@ import { updateProductionStatus } from '../state/state.js';
 
 // 全局内存剧本库（key: `${mid}_${swipeId}`）
 export const scriptMemoryStore = new Map();
+
+/**
+ * 清空内存剧本缓存
+ */
+export function clearScriptMemoryStore() {
+    scriptMemoryStore.clear();
+}
+
+/**
+ * 构造作用域安全的剧本持久化 Key 与内存 Key
+ */
+export const getScriptStoreKey = (mid, sid) => `script_${getActiveChatId()}_${mid}_s${sid}`;
+export const getScriptMemKey = (mid, sid) => `${getActiveChatId()}_${mid}_${sid}`;
 
 function getCandidateWindows() {
     const list = [window];
@@ -138,7 +151,7 @@ export async function checkFloorScriptExists(messageId, swipeId = null) {
     if (messageId == null) return false;
     const mid = Number(messageId);
     const sid = swipeId != null ? Number(swipeId) : getActiveSwipeId(mid);
-    const memKey = `${mid}_${sid}`;
+    const memKey = getScriptMemKey(mid, sid);
 
     if (scriptMemoryStore.has(memKey)) return true;
 
@@ -155,9 +168,14 @@ export async function checkFloorScriptExists(messageId, swipeId = null) {
         } catch (_) { }
     }
 
-    // 检查 Tauri Store
+    // 检查 Tauri Store (先查作用域安全键，再查旧格式)
     try {
-        const cached = await getStoredJson(`script_${mid}_s${sid}`);
+        const storeKey = getScriptStoreKey(mid, sid);
+        let cached = await getStoredJson(storeKey);
+        if (!cached) {
+            // 兼容迁移旧格式
+            cached = await getStoredJson(`script_${mid}_s${sid}`);
+        }
         if (cached && typeof cached === 'string' && cached.trim()) {
             scriptMemoryStore.set(memKey, cached);
             attachScriptToMessage(mid, cached, sid);
@@ -175,7 +193,7 @@ export function attachScriptToMessage(messageId, script, swipeId = 0) {
     if (messageId == null || !script) return;
     const mid = Number(messageId);
     const sid = Number(swipeId) || 0;
-    const memKey = `${mid}_${sid}`;
+    const memKey = getScriptMemKey(mid, sid);
     scriptMemoryStore.set(memKey, script);
 
     for (const w of getCandidateWindows()) {
@@ -283,8 +301,8 @@ export async function convertMessageToGal(messageId, rawText, contextMeta = {}, 
 
     const mid = Number(messageId);
     const sid = contextMeta.swipeId != null ? Number(contextMeta.swipeId) : getActiveSwipeId(mid);
-    const storeKey = `script_${mid}_s${sid}`;
-    const memKey = `${mid}_${sid}`;
+    const storeKey = getScriptStoreKey(mid, sid);
+    const memKey = getScriptMemKey(mid, sid);
 
     // 检查缓存
     if (!force) {
@@ -294,7 +312,11 @@ export async function convertMessageToGal(messageId, rawText, contextMeta = {}, 
             refreshIgsStage(mid);
             return cached;
         }
-        const stored = await getStoredJson(storeKey);
+        let stored = await getStoredJson(storeKey);
+        if (!stored) {
+            // 兼容迁移旧格式
+            stored = await getStoredJson(`script_${mid}_s${sid}`);
+        }
         if (stored && typeof stored === 'string' && stored.trim()) {
             attachScriptToMessage(mid, stored, sid);
             refreshIgsStage(mid);
@@ -408,8 +430,9 @@ export async function handleMessageDeleted(messageId) {
     if (isNaN(mid)) return;
 
     // 清空内存缓存
+    const chatId = getActiveChatId();
     for (const key of scriptMemoryStore.keys()) {
-        if (key.startsWith(`${mid}_`)) {
+        if (key.startsWith(`${chatId}_${mid}_`) || key.startsWith(`${mid}_`)) {
             scriptMemoryStore.delete(key);
         }
     }
@@ -419,7 +442,7 @@ export async function handleMessageDeleted(messageId) {
         const keys = await listStoredKeys();
         if (Array.isArray(keys)) {
             for (const k of keys) {
-                if (k.startsWith(`script_${mid}_`)) {
+                if (k.startsWith(`script_${chatId}_${mid}_`) || k.startsWith(`script_${mid}_`)) {
                     await deleteStoredJson(k);
                 }
             }
