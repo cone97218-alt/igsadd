@@ -125,6 +125,8 @@ export const SETTINGS_MODAL_CSS = `
 .igs-patch-theme-swatch .swatch-base {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .igs-patch-theme-swatch .swatch-accent {
@@ -135,6 +137,15 @@ export const SETTINGS_MODAL_CSS = `
   height: 10px;
   border-radius: 4px 0 0 0;
 }
+
+.igs-patch-theme-swatch.theme-cream .swatch-base { background-color: #f7f0e6 !important; }
+.igs-patch-theme-swatch.theme-cream .swatch-accent { background-color: #85a76a !important; }
+.igs-patch-theme-swatch.theme-light .swatch-base { background-color: #fbfaf6 !important; }
+.igs-patch-theme-swatch.theme-light .swatch-accent { background-color: #11110f !important; }
+.igs-patch-theme-swatch.theme-landmine .swatch-base { background-color: #2b2b2b !important; }
+.igs-patch-theme-swatch.theme-landmine .swatch-accent { background-color: #ffc4d4 !important; }
+.igs-patch-theme-swatch.theme-dark .swatch-base { background-color: #24292e !important; }
+.igs-patch-theme-swatch.theme-dark .swatch-accent { background-color: #7fd6ca !important; }
 
 /* 关闭按钮 */
 .igs-patch-btn-close {

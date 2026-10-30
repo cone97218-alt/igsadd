@@ -22,7 +22,12 @@ export const RESOURCES_MODAL_CSS = `
 }
 
 @keyframes igsPatchFadeIn {
-  from { opacity: 0; transform: scale(0.98); }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes igsPatchWindowZoom {
+  from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: scale(1); }
 }
 
@@ -44,6 +49,7 @@ export const RESOURCES_MODAL_CSS = `
   flex-direction: row;
   overflow: hidden;
   position: relative;
+  animation: igsPatchWindowZoom 0.2s ease-out;
 }
 
 /* =========================================
@@ -244,6 +250,26 @@ export const RESOURCES_MODAL_CSS = `
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
   outline: none !important;
   box-sizing: border-box !important;
+}
+
+.igs-resources-theme-swatch.theme-cream {
+  background-color: #85a76a !important;
+  border-color: #f7f0e6 !important;
+}
+
+.igs-resources-theme-swatch.theme-light {
+  background-color: #11110f !important;
+  border-color: #fbfaf6 !important;
+}
+
+.igs-resources-theme-swatch.theme-landmine {
+  background-color: #ffc4d4 !important;
+  border-color: #2b2b2b !important;
+}
+
+.igs-resources-theme-swatch.theme-dark {
+  background-color: #7fd6ca !important;
+  border-color: #24292e !important;
 }
 
 .igs-resources-theme-swatch:hover {
@@ -868,13 +894,16 @@ export const RESOURCES_MODAL_CSS = `
    ========================================= */
 .igs-resources-overlay input,
 .igs-resources-overlay textarea,
+.igs-dialog-overlay input,
+.igs-dialog-overlay textarea,
 .igs-form-input,
 .igs-form-textarea,
 .igs-dialog-box input,
-.igs-dialog-box textarea {
-  background-color: var(--igs-settings-field, rgba(0,0,0,0.06)) !important;
-  color: var(--igs-settings-ink, #2b2b2b) !important;
-  border: 1px solid var(--igs-settings-line, rgba(0,0,0,0.12)) !important;
+.igs-dialog-box textarea,
+textarea.igs-form-textarea {
+  background-color: var(--igs-settings-field, #ebe2d5) !important;
+  color: var(--igs-settings-ink, #514638) !important;
+  border: 1px solid var(--igs-settings-line-strong, rgba(0,0,0,0.15)) !important;
   border-radius: 8px !important;
   padding: 8px 12px !important;
   font-size: 0.88rem !important;
@@ -884,7 +913,9 @@ export const RESOURCES_MODAL_CSS = `
 }
 
 .igs-resources-overlay input::placeholder,
-.igs-resources-overlay textarea::placeholder {
+.igs-resources-overlay textarea::placeholder,
+.igs-dialog-overlay input::placeholder,
+.igs-dialog-overlay textarea::placeholder {
   color: var(--igs-settings-ink-3, rgba(0,0,0,0.4)) !important;
 }
 
@@ -895,6 +926,8 @@ export const RESOURCES_MODAL_CSS = `
 
 .igs-resources-overlay input:focus,
 .igs-resources-overlay textarea:focus,
+.igs-dialog-overlay input:focus,
+.igs-dialog-overlay textarea:focus,
 .igs-form-input:focus,
 .igs-form-textarea:focus {
   border-color: var(--igs-settings-accent, #7fd6ca) !important;
@@ -913,14 +946,15 @@ export const RESOURCES_MODAL_CSS = `
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 16px !important;
+  padding: 24px 16px !important;
+  overflow-y: auto !important;
   animation: igsPatchFadeIn 0.15s ease-out;
 }
 
 .igs-dialog-box {
   width: 440px !important;
   max-width: 92vw !important;
-  max-height: 85vh !important;
+  max-height: min(85vh, 600px) !important;
   overflow-y: auto !important;
   background: var(--igs-settings-panel, #24292e) !important;
   border: 1px solid var(--igs-settings-line-strong, rgba(255,255,255,0.2)) !important;
@@ -930,7 +964,8 @@ export const RESOURCES_MODAL_CSS = `
   display: flex !important;
   flex-direction: column !important;
   gap: 14px !important;
-  margin: 0 !important;
+  margin: auto !important;
+  flex-shrink: 0 !important;
 }
 
 .igs-dialog-title {

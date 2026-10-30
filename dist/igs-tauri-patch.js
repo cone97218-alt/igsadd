@@ -20544,6 +20544,8 @@ ${codeFrame}` : message);
 .igs-patch-theme-swatch .swatch-base {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .igs-patch-theme-swatch .swatch-accent {
@@ -20554,6 +20556,15 @@ ${codeFrame}` : message);
   height: 10px;
   border-radius: 4px 0 0 0;
 }
+
+.igs-patch-theme-swatch.theme-cream .swatch-base { background-color: #f7f0e6 !important; }
+.igs-patch-theme-swatch.theme-cream .swatch-accent { background-color: #85a76a !important; }
+.igs-patch-theme-swatch.theme-light .swatch-base { background-color: #fbfaf6 !important; }
+.igs-patch-theme-swatch.theme-light .swatch-accent { background-color: #11110f !important; }
+.igs-patch-theme-swatch.theme-landmine .swatch-base { background-color: #2b2b2b !important; }
+.igs-patch-theme-swatch.theme-landmine .swatch-accent { background-color: #ffc4d4 !important; }
+.igs-patch-theme-swatch.theme-dark .swatch-base { background-color: #24292e !important; }
+.igs-patch-theme-swatch.theme-dark .swatch-accent { background-color: #7fd6ca !important; }
 
 /* \u5173\u95ED\u6309\u94AE */
 .igs-patch-btn-close {
@@ -22793,7 +22804,7 @@ ${codeFrame}` : message);
                 v-for="th in themeOptions" 
                 :key="th.value" 
                 class="igs-patch-theme-swatch"
-                :class="{ 'is-active': state.theme === th.value }"
+                :class="['theme-' + th.value, { 'is-active': state.theme === th.value }]"
                 @click="handleSetTheme(th.value)"
                 :title="th.label"
               >
@@ -23581,7 +23592,12 @@ ${codeFrame}` : message);
 }
 
 @keyframes igsPatchFadeIn {
-  from { opacity: 0; transform: scale(0.98); }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes igsPatchWindowZoom {
+  from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: scale(1); }
 }
 
@@ -23603,6 +23619,7 @@ ${codeFrame}` : message);
   flex-direction: row;
   overflow: hidden;
   position: relative;
+  animation: igsPatchWindowZoom 0.2s ease-out;
 }
 
 /* =========================================
@@ -23803,6 +23820,26 @@ ${codeFrame}` : message);
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
   outline: none !important;
   box-sizing: border-box !important;
+}
+
+.igs-resources-theme-swatch.theme-cream {
+  background-color: #85a76a !important;
+  border-color: #f7f0e6 !important;
+}
+
+.igs-resources-theme-swatch.theme-light {
+  background-color: #11110f !important;
+  border-color: #fbfaf6 !important;
+}
+
+.igs-resources-theme-swatch.theme-landmine {
+  background-color: #ffc4d4 !important;
+  border-color: #2b2b2b !important;
+}
+
+.igs-resources-theme-swatch.theme-dark {
+  background-color: #7fd6ca !important;
+  border-color: #24292e !important;
 }
 
 .igs-resources-theme-swatch:hover {
@@ -24427,13 +24464,16 @@ ${codeFrame}` : message);
    ========================================= */
 .igs-resources-overlay input,
 .igs-resources-overlay textarea,
+.igs-dialog-overlay input,
+.igs-dialog-overlay textarea,
 .igs-form-input,
 .igs-form-textarea,
 .igs-dialog-box input,
-.igs-dialog-box textarea {
-  background-color: var(--igs-settings-field, rgba(0,0,0,0.06)) !important;
-  color: var(--igs-settings-ink, #2b2b2b) !important;
-  border: 1px solid var(--igs-settings-line, rgba(0,0,0,0.12)) !important;
+.igs-dialog-box textarea,
+textarea.igs-form-textarea {
+  background-color: var(--igs-settings-field, #ebe2d5) !important;
+  color: var(--igs-settings-ink, #514638) !important;
+  border: 1px solid var(--igs-settings-line-strong, rgba(0,0,0,0.15)) !important;
   border-radius: 8px !important;
   padding: 8px 12px !important;
   font-size: 0.88rem !important;
@@ -24443,7 +24483,9 @@ ${codeFrame}` : message);
 }
 
 .igs-resources-overlay input::placeholder,
-.igs-resources-overlay textarea::placeholder {
+.igs-resources-overlay textarea::placeholder,
+.igs-dialog-overlay input::placeholder,
+.igs-dialog-overlay textarea::placeholder {
   color: var(--igs-settings-ink-3, rgba(0,0,0,0.4)) !important;
 }
 
@@ -24454,6 +24496,8 @@ ${codeFrame}` : message);
 
 .igs-resources-overlay input:focus,
 .igs-resources-overlay textarea:focus,
+.igs-dialog-overlay input:focus,
+.igs-dialog-overlay textarea:focus,
 .igs-form-input:focus,
 .igs-form-textarea:focus {
   border-color: var(--igs-settings-accent, #7fd6ca) !important;
@@ -24472,14 +24516,15 @@ ${codeFrame}` : message);
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 16px !important;
+  padding: 24px 16px !important;
+  overflow-y: auto !important;
   animation: igsPatchFadeIn 0.15s ease-out;
 }
 
 .igs-dialog-box {
   width: 440px !important;
   max-width: 92vw !important;
-  max-height: 85vh !important;
+  max-height: min(85vh, 600px) !important;
   overflow-y: auto !important;
   background: var(--igs-settings-panel, #24292e) !important;
   border: 1px solid var(--igs-settings-line-strong, rgba(255,255,255,0.2)) !important;
@@ -24489,7 +24534,8 @@ ${codeFrame}` : message);
   display: flex !important;
   flex-direction: column !important;
   gap: 14px !important;
-  margin: 0 !important;
+  margin: auto !important;
+  flex-shrink: 0 !important;
 }
 
 .igs-dialog-title {
@@ -24887,6 +24933,7 @@ ${codeFrame}` : message);
         userCharacter: card.userCharacter || root.userCharacter || "",
         scenes: card.scenes || {},
         wardrobe: card.wardrobe || {},
+        items: card.items || {},
         eventCgs: card.eventCgs || {},
         statusAvatars: card.statusAvatars || {},
         characterDna: card.characterDna || {},
@@ -24904,6 +24951,7 @@ ${codeFrame}` : message);
         userCharacter: root.userCharacter || "",
         scenes: root.scenes || {},
         wardrobe: root.wardrobe || {},
+        items: root.items || {},
         eventCgs: root.eventCgs || {},
         statusAvatars: root.statusAvatars || {},
         characterDna: root.characterDna || {},
@@ -24926,6 +24974,7 @@ ${codeFrame}` : message);
       userCharacter: card?.userCharacter || root.userCharacter || "",
       scenes: { ...root.scenes || {}, ...card?.scenes || {} },
       wardrobe: { ...root.wardrobe || {}, ...card?.wardrobe || {} },
+      items: { ...root.items || {}, ...card?.items || {} },
       eventCgs: { ...root.eventCgs || {}, ...card?.eventCgs || {} },
       statusAvatars: { ...root.statusAvatars || {}, ...card?.statusAvatars || {} },
       characterDna: { ...root.characterDna || {}, ...card?.characterDna || {} },
@@ -24947,6 +24996,7 @@ ${codeFrame}` : message);
       userCharacter: "",
       scenes: {},
       wardrobe: {},
+      items: {},
       eventCgs: {},
       statusAvatars: {},
       characterDna: {},
@@ -25753,17 +25803,9 @@ ${codeFrame}` : message);
         isLoading.value = true;
         try {
           activeCardScope.value = getActiveCardScope();
-          const [charsAll, charsCard, charsGlobal] = await Promise.all([
-            listCharacters("all"),
-            listCharacters("card"),
-            listCharacters("global")
-          ]);
-          scopeCounts.all = charsAll.length;
-          scopeCounts.card = charsCard.length;
-          scopeCounts.global = charsGlobal.length;
           const curMode = scopeMode.value;
           const [curChars, curScenes, curWardrobe, curCgs, curItems, curStaging] = await Promise.all([
-            curMode === "all" ? charsAll : curMode === "card" ? charsCard : charsGlobal,
+            listCharacters(curMode),
             listScenes(curMode),
             listWardrobe(curMode),
             listAllCgs(cgFilter.value),
@@ -25788,12 +25830,59 @@ ${codeFrame}` : message);
               selectedOutfits[c.name] = c.defaultOutfit || c.outfits && c.outfits[0]?.name || "";
             }
           }
+          await updateScopeCounts();
         } catch (err) {
           console.warn("[IGS-Patch] \u52A0\u8F7D\u7D20\u6750\u5F02\u5E38:", err);
         } finally {
           isLoading.value = false;
         }
       };
+      const updateScopeCounts = async () => {
+        const tab = activeTab.value;
+        try {
+          if (tab === "characters") {
+            const [all, card, glob] = await Promise.all([
+              listCharacters("all"),
+              listCharacters("card"),
+              listCharacters("global")
+            ]);
+            scopeCounts.all = all.length;
+            scopeCounts.card = card.length;
+            scopeCounts.global = glob.length;
+          } else if (tab === "scenes") {
+            const [all, card, glob] = await Promise.all([
+              listScenes("all"),
+              listScenes("card"),
+              listScenes("global")
+            ]);
+            scopeCounts.all = all.length;
+            scopeCounts.card = card.length;
+            scopeCounts.global = glob.length;
+          } else if (tab === "wardrobe") {
+            const [all, card, glob] = await Promise.all([
+              listWardrobe("all"),
+              listWardrobe("card"),
+              listWardrobe("global")
+            ]);
+            scopeCounts.all = all.length;
+            scopeCounts.card = card.length;
+            scopeCounts.global = glob.length;
+          } else if (tab === "items") {
+            const [all, card, glob] = await Promise.all([
+              listItems("all"),
+              listItems("card"),
+              listItems("global")
+            ]);
+            scopeCounts.all = all.length;
+            scopeCounts.card = card.length;
+            scopeCounts.global = glob.length;
+          }
+        } catch (_) {
+        }
+      };
+      watch2(activeTab, () => {
+        updateScopeCounts();
+      });
       const setScope = (mode) => {
         scopeMode.value = mode;
         loadData();
@@ -26397,7 +26486,7 @@ ${codeFrame}` : message);
                 v-for="item in themeOptions" 
                 :key="item.value" 
                 class="igs-resources-theme-swatch"
-                :class="{ 'is-active': currentTheme === item.value }"
+                :class="['theme-' + item.value, { 'is-active': currentTheme === item.value }]"
                 :title="item.label"
                 :style="{ backgroundColor: item.swatch.accent, borderColor: item.swatch.base }"
                 @click="handleSetTheme(item.value)"
@@ -26873,6 +26962,7 @@ ${codeFrame}` : message);
             <textarea 
               v-model="genDialog.prompt" 
               class="igs-form-textarea" 
+              :style="{ backgroundColor: 'var(--igs-settings-field, #ebe2d5)', color: 'var(--igs-settings-ink, #514638)' }"
               placeholder="\u8F93\u5165\u6216\u8C03\u6574\u8BE5\u7D20\u6750\u7684\u751F\u6210\u63D0\u793A\u8BCD..."
             ></textarea>
           </div>
@@ -26922,7 +27012,12 @@ ${codeFrame}` : message);
 
           <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
             <label class="igs-form-label">\u670D\u88C5\u63D0\u793A\u8BCD</label>
-            <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="\u8F93\u5165\u751F\u6210\u8BE5\u670D\u88C5\u7684\u4E13\u7528 TAG \u63D0\u793A\u8BCD..."></textarea>
+            <textarea 
+              v-model="editDialog.form.prompt" 
+              class="igs-form-textarea" 
+              :style="{ backgroundColor: 'var(--igs-settings-field, #ebe2d5)', color: 'var(--igs-settings-ink, #514638)' }"
+              placeholder="\u8F93\u5165\u751F\u6210\u8BE5\u670D\u88C5\u7684\u4E13\u7528 TAG \u63D0\u793A\u8BCD..."
+            ></textarea>
           </div>
 
           <div v-if="editDialog.type !== 'outfit'" class="igs-form-row">

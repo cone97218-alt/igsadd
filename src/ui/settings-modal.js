@@ -565,7 +565,7 @@ const SettingsRootComponent = {
                 v-for="th in themeOptions" 
                 :key="th.value" 
                 class="igs-patch-theme-swatch"
-                :class="{ 'is-active': state.theme === th.value }"
+                :class="['theme-' + th.value, { 'is-active': state.theme === th.value }]"
                 @click="handleSetTheme(th.value)"
                 :title="th.label"
               >

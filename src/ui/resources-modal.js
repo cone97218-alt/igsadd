@@ -214,21 +214,10 @@ const ResourcesModalRoot = {
             try {
                 activeCardScope.value = getActiveCardScope();
 
-                // 并行统计全部、本卡、全局的数量
-                const [charsAll, charsCard, charsGlobal] = await Promise.all([
-                    listCharacters('all'),
-                    listCharacters('card'),
-                    listCharacters('global'),
-                ]);
-
-                scopeCounts.all = charsAll.length;
-                scopeCounts.card = charsCard.length;
-                scopeCounts.global = charsGlobal.length;
-
                 // 按照当前作用域加载数据
                 const curMode = scopeMode.value;
                 const [curChars, curScenes, curWardrobe, curCgs, curItems, curStaging] = await Promise.all([
-                    curMode === 'all' ? charsAll : (curMode === 'card' ? charsCard : charsGlobal),
+                    listCharacters(curMode),
                     listScenes(curMode),
                     listWardrobe(curMode),
                     listAllCgs(cgFilter.value),
@@ -258,12 +247,61 @@ const ResourcesModalRoot = {
                         selectedOutfits[c.name] = c.defaultOutfit || (c.outfits && c.outfits[0]?.name) || '';
                     }
                 }
+
+                await updateScopeCounts();
             } catch (err) {
                 console.warn('[IGS-Patch] 加载素材异常:', err);
             } finally {
                 isLoading.value = false;
             }
         };
+
+        const updateScopeCounts = async () => {
+            const tab = activeTab.value;
+            try {
+                if (tab === 'characters') {
+                    const [all, card, glob] = await Promise.all([
+                        listCharacters('all'),
+                        listCharacters('card'),
+                        listCharacters('global'),
+                    ]);
+                    scopeCounts.all = all.length;
+                    scopeCounts.card = card.length;
+                    scopeCounts.global = glob.length;
+                } else if (tab === 'scenes') {
+                    const [all, card, glob] = await Promise.all([
+                        listScenes('all'),
+                        listScenes('card'),
+                        listScenes('global'),
+                    ]);
+                    scopeCounts.all = all.length;
+                    scopeCounts.card = card.length;
+                    scopeCounts.global = glob.length;
+                } else if (tab === 'wardrobe') {
+                    const [all, card, glob] = await Promise.all([
+                        listWardrobe('all'),
+                        listWardrobe('card'),
+                        listWardrobe('global'),
+                    ]);
+                    scopeCounts.all = all.length;
+                    scopeCounts.card = card.length;
+                    scopeCounts.global = glob.length;
+                } else if (tab === 'items') {
+                    const [all, card, glob] = await Promise.all([
+                        listItems('all'),
+                        listItems('card'),
+                        listItems('global'),
+                    ]);
+                    scopeCounts.all = all.length;
+                    scopeCounts.card = card.length;
+                    scopeCounts.global = glob.length;
+                }
+            } catch (_) {}
+        };
+
+        watch(activeTab, () => {
+            updateScopeCounts();
+        });
 
         const setScope = (mode) => {
             scopeMode.value = mode;
@@ -920,7 +958,7 @@ const ResourcesModalRoot = {
                 v-for="item in themeOptions" 
                 :key="item.value" 
                 class="igs-resources-theme-swatch"
-                :class="{ 'is-active': currentTheme === item.value }"
+                :class="['theme-' + item.value, { 'is-active': currentTheme === item.value }]"
                 :title="item.label"
                 :style="{ backgroundColor: item.swatch.accent, borderColor: item.swatch.base }"
                 @click="handleSetTheme(item.value)"
@@ -1396,6 +1434,7 @@ const ResourcesModalRoot = {
             <textarea 
               v-model="genDialog.prompt" 
               class="igs-form-textarea" 
+              :style="{ backgroundColor: 'var(--igs-settings-field, #ebe2d5)', color: 'var(--igs-settings-ink, #514638)' }"
               placeholder="输入或调整该素材的生成提示词..."
             ></textarea>
           </div>
@@ -1445,7 +1484,12 @@ const ResourcesModalRoot = {
 
           <div v-if="editDialog.type === 'wardrobe'" class="igs-form-row">
             <label class="igs-form-label">服装提示词</label>
-            <textarea v-model="editDialog.form.prompt" class="igs-form-textarea" placeholder="输入生成该服装的专用 TAG 提示词..."></textarea>
+            <textarea 
+              v-model="editDialog.form.prompt" 
+              class="igs-form-textarea" 
+              :style="{ backgroundColor: 'var(--igs-settings-field, #ebe2d5)', color: 'var(--igs-settings-ink, #514638)' }"
+              placeholder="输入生成该服装的专用 TAG 提示词..."
+            ></textarea>
           </div>
 
           <div v-if="editDialog.type !== 'outfit'" class="igs-form-row">
