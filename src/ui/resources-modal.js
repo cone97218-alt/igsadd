@@ -37,6 +37,7 @@ import {
     toggleCgFavorite,
     toggleCgHidden,
     deleteCg,
+    saveCgDataUrl,
     listItems,
     saveItem,
     deleteItem,
@@ -105,7 +106,7 @@ const ResourcesModalRoot = {
         const visible = isResourcesModalVisible;
         const activeTab = ref('characters');
         const searchQuery = ref('');
-        const cgFilter = ref('all');
+        const cgFilter = ref('ready');
         const isLoading = ref(false);
 
         // 响应式主题状态 (彻底解决主题切换无效问题)
@@ -441,14 +442,64 @@ const ResourcesModalRoot = {
 
             genDialog.isGenerating = true;
             try {
-                const baiBai = window.STBaiBaiImage || window.parent?.STBaiBaiImage;
+                const baiBai = window.STBaiBaiImage || window.parent?.STBaiBaiImage || window.top?.STBaiBaiImage;
                 if (baiBai && typeof baiBai.generate === 'function') {
                     notifyToast('已向生图管线提交任务', 'info');
-                    await baiBai.generate({
+                    const reqOptions = {
                         prompt: genDialog.prompt.trim(),
-                        negative: genDialog.negative.trim(),
-                        type: genDialog.type,
-                    });
+                        ...(genDialog.negative.trim() ? { negative: genDialog.negative.trim() } : {}),
+                    };
+                    if (genDialog.type === 'mood') {
+                        reqOptions.character = genDialog.charName;
+                        reqOptions.size = 'portrait';
+                    } else if (genDialog.type === 'cg') {
+                        reqOptions.size = 'landscape';
+                    }
+
+                    const result = await baiBai.generate(reqOptions);
+                    const dataUrl = result && (result.dataUrl || result.url);
+                    if (dataUrl) {
+                        if (genDialog.type === 'mood') {
+                            await saveCharacterMood(
+                                genDialog.charName,
+                                genDialog.moodName,
+                                dataUrl,
+                                genDialog.outfitName,
+                                scopeMode.value
+                            );
+                            const detail = {
+                                category: 'sprite',
+                                character: genDialog.charName,
+                                emotion: genDialog.moodName,
+                                url: dataUrl,
+                                updatedAt: Date.now(),
+                            };
+                            const ev = new CustomEvent('st-baibai-image:generated', { detail });
+                            window.dispatchEvent(ev);
+                            try { window.parent?.dispatchEvent(ev); } catch (_) {}
+                            try { window.top?.dispatchEvent(ev); } catch (_) {}
+                            notifyToast(`立绘差分「${genDialog.moodName}」出图成功`, 'info');
+                        } else if (genDialog.type === 'cg' && genDialog.cgItem) {
+                            await saveCgDataUrl(genDialog.cgItem.key, dataUrl);
+                            const floorMatch = String(genDialog.cgItem.label || '').match(/\d+/);
+                            const floorNum = floorMatch ? parseInt(floorMatch[0], 10) : undefined;
+                            const detail = {
+                                category: 'cg',
+                                floor: floorNum,
+                                title: genDialog.cgItem.label || '剧情CG',
+                                url: dataUrl,
+                                updatedAt: Date.now(),
+                            };
+                            const ev = new CustomEvent('st-baibai-image:generated', { detail });
+                            window.dispatchEvent(ev);
+                            try { window.parent?.dispatchEvent(ev); } catch (_) {}
+                            try { window.top?.dispatchEvent(ev); } catch (_) {}
+                            notifyToast(`CG 图生成并落库成功`, 'info');
+                        }
+                    } else {
+                        notifyToast('生图任务已执行', 'info');
+                    }
+
                     genDialog.visible = false;
                     await loadData();
                     return;
@@ -458,6 +509,7 @@ const ResourcesModalRoot = {
                 notifyToast('生图提示词已复制到剪贴板', 'info');
                 genDialog.visible = false;
             } catch (err) {
+                console.error('[IGS-Patch] 生图异常:', err);
                 notifyToast('提交生图异常', 'error');
             } finally {
                 genDialog.isGenerating = false;
@@ -764,44 +816,78 @@ const ResourcesModalRoot = {
     template: `
     <div v-if="visible" class="igs-resources-overlay" :style="themeStyleVars" @click.self="close">
       <div class="igs-resources-window">
-        <!-- 紧凑单行整合顶栏 -->
-        <header class="igs-resources-header">
-          <div class="igs-resources-title-row">
-            <h2 class="igs-resources-title">
-              <i class="fa-solid fa-photo-film" style="color: var(--igs-settings-accent); font-size: 15px;"></i>
-              <span>放映资源</span>
-            </h2>
+        <!-- 左侧精炼侧边栏 (极简架构，彻底解放主视口空间) -->
+        <aside class="igs-resources-sidebar">
+          <div class="igs-sidebar-brand">
+            <i class="fa-solid fa-photo-film igs-sidebar-brand-icon"></i>
+            <h2 class="igs-sidebar-brand-title">放映资源</h2>
           </div>
 
-          <!-- 紧凑搜索框 -->
-          <div class="igs-resources-header-tools">
-            <div class="igs-resources-search-box">
-              <i class="fa-solid fa-magnifying-glass" style="color: var(--igs-settings-ink-3); font-size: 11px;"></i>
-              <input 
-                v-model="searchQuery" 
-                class="igs-resources-search-input" 
-                placeholder="搜索资源..." 
-              />
-              <i v-if="searchQuery" class="fa-solid fa-xmark" style="font-size: 11px; cursor: pointer;" @click="searchQuery = ''"></i>
-            </div>
-          </div>
-
-          <!-- 顶部右侧工具按钮 -->
-          <div class="igs-resources-header-actions">
+          <!-- 垂直导航选项卡 -->
+          <div class="igs-sidebar-nav">
             <button 
-              v-if="activeTab !== 'cgs' && activeTab !== 'review'" 
-              class="igs-btn-primary-compact" 
-              @click="handleTopAdd"
+              class="igs-sidebar-nav-btn" 
+              :class="{ 'is-active': activeTab === 'characters' }" 
+              @click="activeTab = 'characters'"
             >
-              <i class="fa-solid fa-plus"></i>
-              <span>新增</span>
+              <i class="fa-solid fa-person"></i>
+              <span>立绘</span>
+              <span class="igs-sidebar-badge">{{ characters.length }}</span>
             </button>
 
-            <button class="igs-btn-icon-round" title="刷新列表" @click="loadData">
-              <i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': isLoading }"></i>
+            <button 
+              class="igs-sidebar-nav-btn" 
+              :class="{ 'is-active': activeTab === 'scenes' }" 
+              @click="activeTab = 'scenes'"
+            >
+              <i class="fa-solid fa-image"></i>
+              <span>背景</span>
+              <span class="igs-sidebar-badge">{{ scenes.length }}</span>
             </button>
 
-            <!-- 主题切换：Vue 3 响应式实时更新 -->
+            <button 
+              class="igs-sidebar-nav-btn" 
+              :class="{ 'is-active': activeTab === 'wardrobe' }" 
+              @click="activeTab = 'wardrobe'"
+            >
+              <i class="fa-solid fa-shirt"></i>
+              <span>衣柜</span>
+              <span class="igs-sidebar-badge">{{ wardrobe.length }}</span>
+            </button>
+
+            <button 
+              class="igs-sidebar-nav-btn" 
+              :class="{ 'is-active': activeTab === 'cgs' }" 
+              @click="activeTab = 'cgs'"
+            >
+              <i class="fa-solid fa-film"></i>
+              <span>CG</span>
+              <span class="igs-sidebar-badge">{{ cgs.length }}</span>
+            </button>
+
+            <button 
+              class="igs-sidebar-nav-btn" 
+              :class="{ 'is-active': activeTab === 'items' }" 
+              @click="activeTab = 'items'"
+            >
+              <i class="fa-solid fa-cube"></i>
+              <span>道具</span>
+              <span class="igs-sidebar-badge">{{ items.length }}</span>
+            </button>
+
+            <button 
+              class="igs-sidebar-nav-btn" 
+              :class="{ 'is-active': activeTab === 'review' }" 
+              @click="activeTab = 'review'"
+            >
+              <i class="fa-solid fa-inbox"></i>
+              <span>待确认</span>
+              <span v-if="staging.length" class="igs-sidebar-badge" style="background: var(--igs-settings-accent); color: #111;">{{ staging.length }}</span>
+            </button>
+          </div>
+
+          <!-- 侧边栏底部操作区：主题切换圆圈与刷新 -->
+          <div class="igs-sidebar-footer">
             <div class="igs-patch-theme-group">
               <button 
                 v-for="item in themeOptions" 
@@ -814,92 +900,59 @@ const ResourcesModalRoot = {
               ></button>
             </div>
 
-            <button class="igs-btn-icon-round" title="关闭" @click="close">
-              <i class="fa-solid fa-xmark"></i>
+            <button class="igs-btn-icon-round" title="刷新列表" @click="loadData">
+              <i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': isLoading }"></i>
             </button>
           </div>
-        </header>
+        </aside>
 
-        <!-- 导航与作用域一体化组合条 (极大节省空间) -->
-        <div class="igs-nav-scope-bar">
-          <div class="igs-nav-chips">
-            <button 
-              class="igs-nav-chip-btn" 
-              :class="{ 'is-active': activeTab === 'characters' }" 
-              @click="activeTab = 'characters'"
-            >
-              <i class="fa-solid fa-person"></i>
-              <span>立绘</span>
-              <span class="igs-nav-badge">{{ characters.length }}</span>
-            </button>
+        <!-- 右侧全景主视口 (Main Body) -->
+        <div class="igs-resources-main">
+          <!-- 极简单行顶栏 (Search + Scope + Actions) -->
+          <header class="igs-main-topbar">
+            <!-- 紧凑搜索框 -->
+            <div class="igs-topbar-search-box">
+              <i class="fa-solid fa-magnifying-glass" style="color: var(--igs-settings-ink-3); font-size: 11px;"></i>
+              <input 
+                v-model="searchQuery" 
+                class="igs-topbar-search-input" 
+                placeholder="搜索资源..." 
+              />
+              <i v-if="searchQuery" class="fa-solid fa-xmark" style="font-size: 11px; cursor: pointer;" @click="searchQuery = ''"></i>
+            </div>
 
-            <button 
-              class="igs-nav-chip-btn" 
-              :class="{ 'is-active': activeTab === 'scenes' }" 
-              @click="activeTab = 'scenes'"
-            >
-              <i class="fa-solid fa-image"></i>
-              <span>背景</span>
-              <span class="igs-nav-badge">{{ scenes.length }}</span>
-            </button>
+            <!-- 作用域分段药丸 (全部 / 本卡 / 全局) -->
+            <div v-if="activeTab !== 'cgs' && activeTab !== 'review'" class="igs-scope-segmented">
+              <button class="igs-scope-seg-opt" :class="{ 'is-active': scopeMode === 'all' }" @click="setScope('all')">
+                <span>全部</span>
+                <span style="opacity: 0.75; font-size: 10px;">{{ scopeCounts.all }}</span>
+              </button>
+              <button class="igs-scope-seg-opt" :class="{ 'is-active': scopeMode === 'card' }" @click="setScope('card')">
+                <span>本卡</span>
+                <span style="opacity: 0.75; font-size: 10px;">{{ scopeCounts.card }}</span>
+              </button>
+              <button class="igs-scope-seg-opt" :class="{ 'is-active': scopeMode === 'global' }" @click="setScope('global')">
+                <span>全局</span>
+                <span style="opacity: 0.75; font-size: 10px;">{{ scopeCounts.global }}</span>
+              </button>
+            </div>
 
-            <button 
-              class="igs-nav-chip-btn" 
-              :class="{ 'is-active': activeTab === 'wardrobe' }" 
-              @click="activeTab = 'wardrobe'"
-            >
-              <i class="fa-solid fa-shirt"></i>
-              <span>衣柜</span>
-              <span class="igs-nav-badge">{{ wardrobe.length }}</span>
-            </button>
+            <!-- 顶栏右侧快捷动作 -->
+            <div class="igs-topbar-actions">
+              <button 
+                v-if="activeTab !== 'cgs' && activeTab !== 'review'" 
+                class="igs-btn-primary-compact" 
+                @click="handleTopAdd"
+              >
+                <i class="fa-solid fa-plus"></i>
+                <span>新增</span>
+              </button>
 
-            <button 
-              class="igs-nav-chip-btn" 
-              :class="{ 'is-active': activeTab === 'cgs' }" 
-              @click="activeTab = 'cgs'"
-            >
-              <i class="fa-solid fa-film"></i>
-              <span>CG</span>
-              <span class="igs-nav-badge">{{ cgs.length }}</span>
-            </button>
-
-            <button 
-              class="igs-nav-chip-btn" 
-              :class="{ 'is-active': activeTab === 'items' }" 
-              @click="activeTab = 'items'"
-            >
-              <i class="fa-solid fa-cube"></i>
-              <span>道具</span>
-              <span class="igs-nav-badge">{{ items.length }}</span>
-            </button>
-
-            <button 
-              class="igs-nav-chip-btn" 
-              :class="{ 'is-active': activeTab === 'review' }" 
-              @click="activeTab = 'review'"
-            >
-              <i class="fa-solid fa-inbox"></i>
-              <span>待确认</span>
-              <span v-if="staging.length" class="igs-nav-badge" style="background: var(--igs-settings-accent); color: #111;">{{ staging.length }}</span>
-            </button>
-          </div>
-
-          <!-- 右侧紧凑分段作用域切换 -->
-          <div v-if="activeTab !== 'cgs' && activeTab !== 'review'" class="igs-scope-segmented">
-            <button class="igs-scope-seg-opt" :class="{ 'is-active': scopeMode === 'all' }" @click="setScope('all')">
-              <span>全部</span>
-              <span style="opacity: 0.75; font-size: 10px;">{{ scopeCounts.all }}</span>
-            </button>
-            <button class="igs-scope-seg-opt" :class="{ 'is-active': scopeMode === 'card' }" @click="setScope('card')">
-              <span>本卡</span>
-              <span style="opacity: 0.75; font-size: 10px;">{{ scopeCounts.card }}</span>
-            </button>
-            <button class="igs-scope-seg-opt" :class="{ 'is-active': scopeMode === 'global' }" @click="setScope('global')">
-              <span>全局</span>
-              <span style="opacity: 0.75; font-size: 10px;">{{ scopeCounts.global }}</span>
-            </button>
-          </div>
-        </div>
+              <button class="igs-btn-icon-round" title="关闭" @click="close">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </header>
 
         <!-- 立绘模式：整合角色横向栏与属性工具 -->
         <div v-if="activeTab === 'characters' && filteredCharacters.length" class="igs-char-unified-bar">
@@ -1099,7 +1152,8 @@ const ResourcesModalRoot = {
           <section v-if="activeTab === 'cgs'">
             <div class="igs-resources-subbar">
               <div class="igs-resources-filter-chips">
-                <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'all' }" @click="setCgFilter('all')">全部</button>
+                <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'ready' }" @click="setCgFilter('ready')">已生成</button>
+                <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'pending' }" @click="setCgFilter('pending')">待生成</button>
                 <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'favorites' }" @click="setCgFilter('favorites')">收藏</button>
                 <button class="igs-resources-chip" :class="{ 'is-active': cgFilter === 'hidden' }" @click="setCgFilter('hidden')">已隐藏</button>
               </div>
@@ -1159,7 +1213,7 @@ const ResourcesModalRoot = {
             </div>
             <div v-else style="text-align: center; padding: 60px; color: var(--igs-settings-ink-3);">
               <i class="fa-solid fa-photo-film fa-3x" style="margin-bottom: 12px;"></i>
-              <p>暂无符合筛选的剧情 CG</p>
+              <p>{{ cgFilter === 'ready' ? '还没有生成过CG' : '暂无符合筛选的剧情 CG' }}</p>
             </div>
           </section>
 
@@ -1243,6 +1297,7 @@ const ResourcesModalRoot = {
             </div>
           </section>
         </main>
+        </div>
       </div>
 
       <!-- 隐藏的通用图片选择器 -->

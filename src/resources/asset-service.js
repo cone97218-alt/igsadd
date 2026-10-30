@@ -713,7 +713,7 @@ export function deleteWardrobeItem(name, scopeMode = 'all') {
 /*                            剧情 CG 与画廊管理                             */
 /* ========================================================================= */
 
-export async function listAllCgs(filter = 'all') {
+export async function listAllCgs(filter = 'ready') {
     const list = [];
 
     // 1. 读取 IndexedDB igs-cg-gallery 收藏/隐藏标记
@@ -751,14 +751,16 @@ export async function listAllCgs(filter = 'all') {
                 const isHidden = mark.hidden === true || s.hidden === true;
                 const isFavorite = mark.favorite === true || s.favorite === true;
 
-                if (filter === 'favorites' && !isFavorite) continue;
-                if (filter === 'hidden' && !isHidden) continue;
-                if (filter === 'all' && isHidden) continue;
-
                 const rawDataUrl = s.dataUrl || s.imageUrl || s.originalDataUrl || '';
                 const parts = String(s.floorKey || '').split('|');
                 const floorNo = parts.length >= 2 ? parts[parts.length - 2] : '';
                 const isPending = (s.status === 'pending') || (!rawDataUrl);
+
+                if (filter === 'ready' && (isPending || isHidden)) continue;
+                if (filter === 'pending' && (!isPending || isHidden)) continue;
+                if (filter === 'favorites' && (!isFavorite || isPending)) continue;
+                if (filter === 'hidden' && !isHidden) continue;
+                if (filter === 'all' && isHidden) continue;
 
                 // 提取完整生图描述与提示词
                 let fullPrompt = s.prompt || s.caption || '';
@@ -794,6 +796,7 @@ export async function listAllCgs(filter = 'all') {
         if (!name) continue;
         const rawUrl = typeof item === 'string' ? item : (item?.url || '');
         if (filter === 'hidden') continue;
+        if (filter === 'pending') continue;
 
         list.push({
             key: `event_cg_${name}`,
@@ -858,6 +861,30 @@ export async function toggleCgHidden(cgKey, currentVal) {
     } catch (err) {
         console.warn('[IGS-Patch] 切换隐藏状态异常:', err);
         return { ok: false };
+    }
+}
+
+export async function saveCgDataUrl(cgKey, dataUrl) {
+    try {
+        const dbCg = await openDb(DB_ILLUSTRATIONS);
+        const tx = dbCg.transaction('slots', 'readwrite');
+        const store = tx.objectStore('slots');
+        const slot = await new Promise((res) => {
+            const req = store.get(cgKey);
+            req.onsuccess = () => res(req.result || null);
+            req.onerror = () => res(null);
+        });
+        if (slot) {
+            slot.dataUrl = dataUrl;
+            slot.status = 'ready';
+            slot.updatedAt = new Date().toISOString();
+            store.put(slot);
+        }
+        dbCg.close();
+        return true;
+    } catch (err) {
+        console.warn('[IGS-Patch] 保存 CG 异常:', err);
+        return false;
     }
 }
 
