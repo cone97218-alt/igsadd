@@ -47,11 +47,8 @@ import {
     discardStagingAsset,
     readFileAsDataUrl,
 } from '../resources/asset-service.js';
-import { executeImageGeneration } from '../image-gen/image-service.js';
-import { openSettingsModal } from './settings-modal.js';
 
 export const isResourcesModalVisible = ref(false);
-export const requestedResourcesTab = ref('characters');
 
 let appInstance = null;
 let containerEl = null;
@@ -100,20 +97,8 @@ export function ensureResourcesMounted(targetDoc = null) {
     }
 }
 
-export function openResourcesModal(options = null) {
-    let targetDoc = null;
-    let tab = null;
-    if (options && options.nodeType === 9) {
-        targetDoc = options;
-    } else if (options && typeof options === 'object') {
-        targetDoc = options.targetDoc || null;
-        tab = options.initialTab || options.tab || null;
-    }
-    if (tab) {
-        requestedResourcesTab.value = tab;
-    }
-
-    console.info('[IGS-Patch] 正在呼出放映资源控制台...', tab ? `(初始标签: ${tab})` : '');
+export function openResourcesModal(targetDoc = null) {
+    console.info('[IGS-Patch] 正在呼出放映资源控制台...');
     injectResourcesStyles();
     detectAndSyncIgsTheme();
     ensureResourcesMounted(targetDoc);
@@ -127,11 +112,7 @@ export function closeResourcesModal() {
 const ResourcesModalRoot = {
     setup() {
         const visible = isResourcesModalVisible;
-        const activeTab = ref(requestedResourcesTab.value || 'characters');
-        watch(requestedResourcesTab, (val) => {
-            if (val) activeTab.value = val;
-        });
-
+        const activeTab = ref('characters');
         const searchQuery = ref('');
         const cgFilter = ref('ready');
         const isLoading = ref(false);
@@ -519,17 +500,6 @@ const ResourcesModalRoot = {
             genDialog.visible = true;
         };
 
-        const backendGuideDialog = reactive({
-            visible: false,
-            message: '',
-        });
-
-        const handleGoToImageSettings = () => {
-            backendGuideDialog.visible = false;
-            isResourcesModalVisible.value = false;
-            openSettingsModal({ initialTab: 'imageGen' });
-        };
-
         const handleExecuteGenerate = async () => {
             if (!genDialog.prompt.trim()) {
                 notifyToast('提示词不能为空', 'warning');
@@ -538,16 +508,82 @@ const ResourcesModalRoot = {
 
             genDialog.isGenerating = true;
             try {
-                notifyToast('已向生图管线提交出图任务...', 'info', 1800);
-                const dataUrl = await executeImageGeneration({
-                    prompt: genDialog.prompt.trim(),
-                    negative: genDialog.negative.trim(),
-                    type: genDialog.type,
-                    charName: genDialog.charName,
-                });
+                let dataUrl = null;
+                const prompt = genDialog.prompt.trim();
+                const negative = genDialog.negative.trim();
 
+                // 渠道 1: 柏宝绘 (STBaiBaiImage)
+                const baiBai = window.STBaiBaiImage || window.parent?.STBaiBaiImage || window.top?.STBaiBaiImage;
+                if (baiBai && typeof baiBai.generate === 'function') {
+                    notifyToast('已向生图管线提交任务', 'info');
+                    const reqOptions = {
+                        prompt,
+                        ...(negative ? { negative } : {}),
+                    };
+                    if (genDialog.type === 'mood' || genDialog.type === 'sprite' || genDialog.type === 'character') {
+                        reqOptions.character = genDialog.charName;
+                        reqOptions.size = 'portrait';
+                    } else if (genDialog.type === 'cg' || genDialog.type === 'scene') {
+                        reqOptions.size = 'landscape';
+                    } else if (genDialog.type === 'item') {
+                        reqOptions.size = 'square';
+                    }
+
+                    const result = await baiBai.generate(reqOptions);
+                    dataUrl = result && (result.dataUrl || result.url);
+                }
+
+                // 渠道 2: 原生 IGS 图像生成服务
                 if (!dataUrl) {
-                    throw new Error('生图服务未返回有效图片数据');
+                    for (const w of [window, window.parent, window.top]) {
+                        try {
+                            const igs = w?.IGS || w?.ImmersiveGalgameSystem;
+                            if (igs) {
+                                if (typeof igs.generateImage === 'function') {
+                                    notifyToast('已调用 IGS 原生生图服务', 'info');
+                                    const res = await igs.generateImage({
+                                        prompt,
+                                        negative,
+                                        type: genDialog.type,
+                                        character: genDialog.charName,
+                                    });
+                                    dataUrl = res && (res.dataUrl || res.url || res);
+                                    if (typeof dataUrl === 'string' && dataUrl) break;
+                                }
+                            }
+                        } catch (_) { }
+                    }
+                }
+
+                // 渠道 3: 酒馆原生扩展生图接口
+                if (!dataUrl) {
+                    for (const w of [window, window.parent, window.top]) {
+                        try {
+                            const ctx = w?.SillyTavern?.getContext?.();
+                            if (ctx && typeof ctx.generateImage === 'function') {
+                                notifyToast('正在请求酒馆原生画图接口...', 'info');
+                                const res = await ctx.generateImage(prompt, negative);
+                                dataUrl = res && (res.url || res.dataUrl || res);
+                                if (typeof dataUrl === 'string' && dataUrl) break;
+                            }
+                            if (typeof w?.generateImage === 'function') {
+                                notifyToast('正在请求酒馆原生画图接口...', 'info');
+                                const res = await w.generateImage(prompt, negative);
+                                dataUrl = res && (res.url || res.dataUrl || res);
+                                if (typeof dataUrl === 'string' && dataUrl) break;
+                            }
+                        } catch (_) { }
+                    }
+                }
+
+                // 若上述均未直接返回图片，复制提示词并提示
+                if (!dataUrl) {
+                    try {
+                        navigator.clipboard.writeText(prompt);
+                        notifyToast('未检测到可用生图接口，提示词已复制到剪贴板', 'warning');
+                    } catch (_) { }
+                    genDialog.visible = false;
+                    return;
                 }
 
                 // 落库保存
@@ -592,12 +628,7 @@ const ResourcesModalRoot = {
                 await loadData();
             } catch (err) {
                 console.error('[IGS-Patch] 生图异常:', err);
-                if (err.code === 'NO_IMAGE_BACKEND') {
-                    backendGuideDialog.visible = true;
-                    backendGuideDialog.message = err.message;
-                } else {
-                    notifyToast(`生图执行异常: ${err.message || err}`, 'error', 4500);
-                }
+                notifyToast(`生图执行异常: ${err.message || err}`, 'error');
             } finally {
                 genDialog.isGenerating = false;
             }
@@ -891,8 +922,6 @@ const ResourcesModalRoot = {
             genDialog,
             openGenPromptDialog,
             handleExecuteGenerate,
-            backendGuideDialog,
-            handleGoToImageSettings,
             confirmDialog,
             handleCgFavorite,
             handleCgHidden,
@@ -1513,24 +1542,6 @@ const ResourcesModalRoot = {
             >
               <i class="fa-solid fa-wand-magic-sparkles" :class="{ 'fa-spin': genDialog.isGenerating }"></i>
               <span>确认生图</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 生图后端未就绪引导对话框 -->
-      <div v-if="backendGuideDialog.visible" class="igs-dialog-overlay" :style="themeStyleVars" @click.self="backendGuideDialog.visible = false">
-        <div class="igs-dialog-box" style="max-width: 520px;">
-          <h3 class="igs-dialog-title" style="color: #e6a23c;">
-            <i class="fa-solid fa-triangle-exclamation" style="margin-right: 8px;"></i>
-            未检测到已就绪的生图后端
-          </h3>
-          <div style="font-size: 0.88rem; line-height: 1.6; color: var(--igs-settings-ink); margin: 16px 0; white-space: pre-wrap; background: var(--igs-settings-field, rgba(0,0,0,0.06)); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">{{ backendGuideDialog.message }}</div>
-          <div class="igs-dialog-actions" style="display: flex; justify-content: flex-end; gap: 10px;">
-            <button class="igs-resources-chip" @click="backendGuideDialog.visible = false">关闭</button>
-            <button class="igs-btn-primary-compact" @click="handleGoToImageSettings">
-              <i class="fa-solid fa-gear"></i>
-              <span>前往配置生图引擎</span>
             </button>
           </div>
         </div>

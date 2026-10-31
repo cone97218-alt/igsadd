@@ -30,34 +30,15 @@ import {
     saveBaibaiArtistConfig
 } from '../image-gen/baibai-enhancer.js';
 import { getBaiBaiBookApi, extractFilteredNumericVars } from '../baibai/book-bridge.js';
-import {
-    getImageConfig,
-    saveImageConfig,
-    detectImageBackends,
-    testCustomApiConnection
-} from '../image-gen/image-service.js';
 
 // 响应式显示开关
 export const isModalVisible = ref(false);
-export const requestedSettingsTab = ref('production');
 
 let appInstance = null;
 let containerEl = null;
 
-export function openSettingsModal(options = null) {
-    let targetDoc = null;
-    let tab = null;
-    if (options && options.nodeType === 9) {
-        targetDoc = options;
-    } else if (options && typeof options === 'object') {
-        targetDoc = options.targetDoc || null;
-        tab = options.initialTab || options.tab || null;
-    }
-    if (tab) {
-        requestedSettingsTab.value = tab;
-    }
-
-    console.info('[IGS-Patch] 正在呼出放映设置全屏控制台...', tab ? `(初始标签: ${tab})` : '');
+export function openSettingsModal(targetDoc = null) {
+    console.info('[IGS-Patch] 正在呼出放映设置全屏控制台...');
     injectSettingsStyles();
     detectAndSyncIgsTheme();
     ensureMounted(targetDoc);
@@ -109,11 +90,7 @@ export function ensureMounted(targetDoc = null) {
 const SettingsRootComponent = {
     setup() {
         const visible = isModalVisible;
-        const activeTab = ref(requestedSettingsTab.value || 'production');
-        watch(requestedSettingsTab, (val) => {
-            if (val) activeTab.value = val;
-        });
-
+        const activeTab = ref('production'); // 'production' | 'prompt' | 'data' | 'about'
         const showPromptDetails = ref(false);
 
         // 响应式状态同步
@@ -443,27 +420,11 @@ const SettingsRootComponent = {
             } catch (_) { }
         };
 
-        const handleOpenReader = async () => {
+        const handleOpenReader = () => {
             closeSettingsModal();
             try {
                 const igs = window.parent?.IGS || window.IGS;
                 const mid = currentFloorInfo.id;
-                const sid = currentFloorInfo.swipeId || 0;
-
-                // 预热加载剧本
-                const { preloadScriptToMemory } = await import('../interceptor/render-hook.js');
-                if (mid != null) {
-                    await preloadScriptToMemory(mid, sid);
-                }
-
-                // 强制关闭旧阅读器实例，避免残留旧的未格式化快照
-                if (typeof igs?.closeReader === 'function') {
-                    try { igs.closeReader(); } catch (_) { }
-                }
-                if (typeof igs?.igsUi?.closeReader === 'function') {
-                    try { igs.igsUi.closeReader(); } catch (_) { }
-                }
-
                 if (igs && typeof igs.openViewerFromMessage === 'function' && mid != null) {
                     igs.openViewerFromMessage(mid);
                 } else if (igs && typeof igs.openLatestAvailable === 'function') {
@@ -506,44 +467,6 @@ const SettingsRootComponent = {
                 await refreshCurrentFloor();
             };
             confirmDialog.visible = true;
-        };
-
-        // 生图引擎与诊断状态
-        const imageConfig = reactive(getImageConfig());
-        const imageBackends = ref(detectImageBackends());
-        const imageTesting = ref(false);
-        const imageTestResult = ref(null);
-        const showCustomApiKey = ref(false);
-        const showNaiApiKey = ref(false);
-
-        const refreshImageBackends = () => {
-            imageBackends.value = detectImageBackends();
-        };
-
-        const handleSaveImageConfig = () => {
-            const ok = saveImageConfig(imageConfig);
-            if (ok) {
-                notifyToast('生图配置保存成功并已同步至原生服务', 'success');
-                refreshImageBackends();
-            } else {
-                notifyToast('生图配置保存失败', 'error');
-            }
-        };
-
-        const handleTestImageApi = async () => {
-            imageTesting.value = true;
-            imageTestResult.value = null;
-            try {
-                const res = await testCustomApiConnection(imageConfig.customApi);
-                imageTestResult.value = res;
-                if (res.ok) {
-                    notifyToast('自定义生图 API 连接与测试出图成功！', 'success');
-                } else {
-                    notifyToast(`API 测试未通过: ${res.message}`, 'error', 4500);
-                }
-            } finally {
-                imageTesting.value = false;
-            }
         };
 
         let unsubscribe = null;
@@ -618,15 +541,6 @@ const SettingsRootComponent = {
             isBaiBaiBookDetected,
             detectedNumericVars,
             refreshBaiBaiBookInfo,
-            imageConfig,
-            imageBackends,
-            imageTesting,
-            imageTestResult,
-            showCustomApiKey,
-            showNaiApiKey,
-            refreshImageBackends,
-            handleSaveImageConfig,
-            handleTestImageApi,
             close: closeSettingsModal,
         };
     },
@@ -682,11 +596,11 @@ const SettingsRootComponent = {
 
             <button 
               class="igs-patch-nav-item" 
-              :class="{ 'is-active': activeTab === 'imageGen' }"
-              @click="activeTab = 'imageGen'; refreshImageBackends();"
+              :class="{ 'is-active': activeTab === 'prompt' }"
+              @click="activeTab = 'prompt'"
             >
-              <i class="fa-solid fa-paintbrush"></i>
-              <span>生图引擎</span>
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>提示词</span>
             </button>
 
             <button 
@@ -695,16 +609,7 @@ const SettingsRootComponent = {
               @click="activeTab = 'artist'"
             >
               <i class="fa-solid fa-palette"></i>
-              <span>画风</span>
-            </button>
-
-            <button 
-              class="igs-patch-nav-item" 
-              :class="{ 'is-active': activeTab === 'prompt' }"
-              @click="activeTab = 'prompt'"
-            >
-              <i class="fa-solid fa-shield-halved"></i>
-              <span>提示词</span>
+              <span>生图</span>
             </button>
 
             <button 
@@ -1117,169 +1022,6 @@ const SettingsRootComponent = {
                     <i class="fa-solid" :class="llmTestResult.ok ? 'fa-check' : 'fa-xmark'"></i>
                     <span>{{ llmTestResult.ok ? '连通正常 ' + llmTestResult.latency + ' ms' : '连接失败: ' + llmTestResult.error }}</span>
                   </span>
-                </div>
-              </div>
-            </section>
-
-            <!-- 板块: 生图引擎与实时诊断 -->
-            <section v-if="activeTab === 'imageGen'" class="igs-patch-section">
-              <h3 class="section-title">生图引擎与实时诊断</h3>
-              <p class="section-desc">
-                解决生图失败与未就绪问题。支持通过通用 OpenAI/SiliconFlow 绘图接口 (推荐 FLUX/SDXL)、NovelAI 原生接口或酒馆插件 (柏宝绘/智绘姬) 出图。
-              </p>
-
-              <!-- 状态检测看板 -->
-              <div class="status-card" style="margin-bottom: 20px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                  <span style="font-weight: 700; font-size: 1rem; color: var(--igs-settings-ink);">后端就绪看板</span>
-                  <button class="igs-btn igs-btn-secondary" style="padding: 4px 10px; font-size: 0.82rem;" @click="refreshImageBackends">
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                    <span>重新检测</span>
-                  </button>
-                </div>
-
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
-                  <div style="background: var(--igs-settings-field); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                      <i class="fa-solid" :class="imageBackends.customApi.configured ? 'fa-circle-check status-badge-ok' : 'fa-circle-xmark status-badge-err'"></i>
-                      <strong style="font-size: 0.9rem;">通用绘图 API</strong>
-                    </div>
-                    <div style="font-size: 0.78rem; color: var(--igs-settings-muted);">{{ imageBackends.customApi.detail }}</div>
-                  </div>
-
-                  <div style="background: var(--igs-settings-field); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                      <i class="fa-solid" :class="imageBackends.baibai.configured ? 'fa-circle-check status-badge-ok' : (imageBackends.baibai.detected ? 'fa-circle-exclamation status-badge-warn' : 'fa-circle-xmark status-badge-err')"></i>
-                      <strong style="font-size: 0.9rem;">柏宝绘插件</strong>
-                    </div>
-                    <div style="font-size: 0.78rem; color: var(--igs-settings-muted);">{{ imageBackends.baibai.detail }}</div>
-                  </div>
-
-                  <div style="background: var(--igs-settings-field); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                      <i class="fa-solid" :class="imageBackends.nai.configured ? 'fa-circle-check status-badge-ok' : 'fa-circle-xmark status-badge-err'"></i>
-                      <strong style="font-size: 0.9rem;">NovelAI 接口</strong>
-                    </div>
-                    <div style="font-size: 0.78rem; color: var(--igs-settings-muted);">{{ imageBackends.nai.detail }}</div>
-                  </div>
-
-                  <div style="background: var(--igs-settings-field); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                      <i class="fa-solid" :class="imageBackends.extension.configured ? 'fa-circle-check status-badge-ok' : 'fa-circle-xmark status-badge-err'"></i>
-                      <strong style="font-size: 0.9rem;">智绘姬/原生扩展</strong>
-                    </div>
-                    <div style="font-size: 0.78rem; color: var(--igs-settings-muted);">{{ imageBackends.extension.detail }}</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 调度模式首选项 -->
-              <div class="setting-card">
-                <div class="setting-row">
-                  <div class="setting-info">
-                    <span class="setting-title">出图调度策略</span>
-                    <span class="setting-desc">当点击「确认生图」或补全素材时，优先采用哪种方式出图</span>
-                  </div>
-                  <select class="form-select" v-model="imageConfig.provider" @change="handleSaveImageConfig" style="width: 240px;">
-                    <option value="auto">自动优先 (通用API / 柏宝绘 / 原生)</option>
-                    <option value="custom">仅使用 自定义通用绘图 API</option>
-                    <option value="baibai">仅使用 柏宝绘 (STBaiBaiImage)</option>
-                    <option value="nai">仅使用 NovelAI 官方接口</option>
-                  </select>
-                </div>
-              </div>
-
-              <!-- 自定义通用绘图 API (SiliconFlow / FLUX / SDXL / OpenAI 等) -->
-              <div class="setting-card">
-                <h4 style="margin: 0 0 10px 0; font-size: 0.98rem; color: var(--igs-settings-ink);">
-                  <i class="fa-solid fa-server" style="color: var(--igs-settings-accent); margin-right: 8px;"></i>
-                  自定义通用绘图 API (兼容 OpenAI / 硅基流动 SiliconFlow / WebUI)
-                </h4>
-                <p style="font-size: 0.82rem; color: var(--igs-settings-muted); margin: 0 0 14px 0;">
-                  支持标准的 <code>/v1/images/generations</code> 格式。例如使用硅基流动 SiliconFlow 提供的免费/低价 FLUX 或 SDXL 模型，无需额外安装本地 SD 也能急速出图。
-                </p>
-
-                <div class="form-group">
-                  <label class="form-label">接口地址 (Endpoint URL)</label>
-                  <input type="text" class="form-input" v-model="imageConfig.customApi.endpoint" placeholder="https://api.siliconflow.cn/v1/images/generations" />
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">API Key</label>
-                  <div style="display: flex; gap: 8px;">
-                    <input :type="showCustomApiKey ? 'text' : 'password'" class="form-input" v-model="imageConfig.customApi.apiKey" placeholder="sk-..." />
-                    <button class="igs-btn igs-btn-secondary" style="padding: 0 12px;" @click="showCustomApiKey = !showCustomApiKey">
-                      <i class="fa-solid" :class="showCustomApiKey ? 'fa-eye-slash' : 'fa-eye'"></i>
-                    </button>
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">生图模型 (Model Name)</label>
-                  <div style="display: flex; gap: 8px;">
-                    <input type="text" class="form-input" v-model="imageConfig.customApi.model" placeholder="black-forest-labs/FLUX.1-schnell" />
-                    <select class="form-select" style="width: 220px;" @change="imageConfig.customApi.model = $event.target.value">
-                      <option value="">-- 快速填入推荐模型 --</option>
-                      <option value="black-forest-labs/FLUX.1-schnell">FLUX.1-schnell (极速/高质)</option>
-                      <option value="black-forest-labs/FLUX.1-dev">FLUX.1-dev (顶尖画质)</option>
-                      <option value="stabilityai/stable-diffusion-3-5-large">SD 3.5 Large</option>
-                      <option value="stabilityai/stable-diffusion-xl-base-1.0">SDXL 1.0</option>
-                      <option value="dall-e-3">OpenAI DALL-E 3</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style="display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
-                  <button class="igs-btn igs-btn-primary" @click="handleSaveImageConfig">
-                    <i class="fa-solid fa-floppy-disk"></i>
-                    <span>保存配置</span>
-                  </button>
-                  <button class="igs-btn igs-btn-secondary" :disabled="imageTesting" @click="handleTestImageApi">
-                    <i class="fa-solid" :class="imageTesting ? 'fa-spinner fa-spin' : 'fa-plug'"></i>
-                    <span>{{ imageTesting ? '正在测试...' : '测试生图连接' }}</span>
-                  </button>
-                  <span v-if="imageTestResult" class="test-result-tag" :class="imageTestResult.ok ? 'res-ok' : 'res-err'">
-                    <i class="fa-solid" :class="imageTestResult.ok ? 'fa-check' : 'fa-xmark'"></i>
-                    <span>{{ imageTestResult.message }}</span>
-                  </span>
-                </div>
-              </div>
-
-              <!-- NovelAI 官方接口凭据 -->
-              <div class="setting-card">
-                <h4 style="margin: 0 0 10px 0; font-size: 0.98rem; color: var(--igs-settings-ink);">
-                  <i class="fa-solid fa-key" style="color: var(--igs-settings-accent); margin-right: 8px;"></i>
-                  NovelAI 官方接口凭据 (自动双向同步 IGS 原生配置)
-                </h4>
-                <p style="font-size: 0.82rem; color: var(--igs-settings-muted); margin: 0 0 14px 0;">
-                  填入您的 NovelAI 官方 API Key。保存后将自动深度同步至原生 IGS bridge 配置，使原生阅读器补全与 Vue 界面生图同时生效。
-                </p>
-
-                <div class="form-group">
-                  <label class="form-label">NovelAI API Key</label>
-                  <div style="display: flex; gap: 8px;">
-                    <input :type="showNaiApiKey ? 'text' : 'password'" class="form-input" v-model="imageConfig.nai.apiKey" placeholder="pst-..." />
-                    <button class="igs-btn igs-btn-secondary" style="padding: 0 12px;" @click="showNaiApiKey = !showNaiApiKey">
-                      <i class="fa-solid" :class="showNaiApiKey ? 'fa-eye-slash' : 'fa-eye'"></i>
-                    </button>
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">NovelAI 模型</label>
-                  <select class="form-select" v-model="imageConfig.nai.model">
-                    <option value="nai-diffusion-4-curated-preview">NAI Diffusion V4 Curated (最新V4动漫)</option>
-                    <option value="nai-diffusion-4-full">NAI Diffusion V4 Full (完整版)</option>
-                    <option value="nai-diffusion-3">NAI Diffusion V3 (动漫V3)</option>
-                    <option value="nai-diffusion-furry-3">NAI Furry V3 (兽人)</option>
-                  </select>
-                </div>
-
-                <div style="margin-top: 14px;">
-                  <button class="igs-btn igs-btn-primary" @click="handleSaveImageConfig">
-                    <i class="fa-solid fa-floppy-disk"></i>
-                    <span>保存并同步至 IGS</span>
-                  </button>
                 </div>
               </div>
             </section>
