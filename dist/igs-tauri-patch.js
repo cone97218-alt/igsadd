@@ -25135,6 +25135,72 @@ textarea.igs-form-textarea {
     }
     return saveRawBridgeConfig(bridge);
   }
+  var TARGET_IGS_DBS = /* @__PURE__ */ new Set([
+    "igs-generated-assets",
+    "igs-illustrations",
+    "igs-cg-gallery",
+    "vn"
+  ]);
+  function setupIndexedDbVersionGuard() {
+    const candidateWindows = [window];
+    try {
+      if (window.parent && !candidateWindows.includes(window.parent)) candidateWindows.push(window.parent);
+    } catch (_) {
+    }
+    try {
+      if (window.top && !candidateWindows.includes(window.top)) candidateWindows.push(window.top);
+    } catch (_) {
+    }
+    try {
+      const rootDoc = (window.top || window.parent || window).document;
+      if (rootDoc) {
+        const iframes = rootDoc.querySelectorAll("iframe");
+        for (const f of iframes) {
+          try {
+            const fw = f.contentWindow;
+            if (fw && !candidateWindows.includes(fw)) candidateWindows.push(fw);
+          } catch (_) {
+          }
+        }
+      }
+    } catch (_) {
+    }
+    for (const win of candidateWindows) {
+      try {
+        if (!win.indexedDB || win.indexedDB.__igsVersionHookInstalled) continue;
+        const originalOpen = win.indexedDB.open.bind(win.indexedDB);
+        win.indexedDB.open = function hookedOpen(name, version2) {
+          let req;
+          if (TARGET_IGS_DBS.has(name) && typeof version2 === "number" && version2 <= 1) {
+            req = originalOpen(name);
+          } else if (typeof version2 === "number") {
+            req = originalOpen(name, version2);
+          } else {
+            req = originalOpen(name);
+          }
+          try {
+            req.addEventListener("upgradeneeded", (e) => {
+              const schema = DB_SCHEMAS[name];
+              if (schema && typeof schema.upgrade === "function") {
+                schema.upgrade(req.result, e);
+              }
+            });
+          } catch (_) {
+          }
+          return req;
+        };
+        win.indexedDB.__igsVersionHookInstalled = true;
+        console.info("[IGS-Patch] IndexedDB \u7248\u672C\u517C\u5BB9\u62E6\u622A\u5668\u5DF2\u6302\u8F7D");
+      } catch (err) {
+        console.warn("[IGS-Patch] \u6302\u8F7D IndexedDB \u62E6\u622A\u5668\u5931\u8D25:", err);
+      }
+    }
+  }
+  setupIndexedDbVersionGuard();
+  try {
+    setInterval(setupIndexedDbVersionGuard, 2e3);
+  } catch (_) {
+  }
   var DB_SCHEMAS = {
     [DB_GENERATED_ASSETS]: {
       version: 1,
@@ -27525,6 +27591,7 @@ textarea.igs-form-textarea {
   init_toast();
   (async function initIgsTauriPatch() {
     console.info("[IGS-Patch] \u6B63\u5728\u521D\u59CB\u5316 TauriTavern \u589E\u5F3A\u8865\u4E01 v2.0 (Vue 3 \u67B6\u6784)...");
+    setupIndexedDbVersionGuard();
     await initConfig();
     ensureIgsDatabasesHealthy().catch((err) => console.warn("[IGS-Patch] \u6570\u636E\u5E93\u81EA\u68C0\u5F02\u5E38:", err));
     const handle = await getTauriHandle();

@@ -23,10 +23,13 @@ import { fullResetGalSystem } from './tauri/reset.js';
 import { notifyToast } from './ui/toast.js';
 import { setupBaibaiEnhancer } from './image-gen/baibai-enhancer.js';
 import { setupBaiBaiBookBridge } from './baibai/book-bridge.js';
-import { ensureIgsDatabasesHealthy, repairAllIgsDatabases } from './resources/asset-service.js';
+import { ensureIgsDatabasesHealthy, repairAllIgsDatabases, setupIndexedDbVersionGuard } from './resources/asset-service.js';
 
 (async function initIgsTauriPatch() {
     console.info('[IGS-Patch] 正在初始化 TauriTavern 增强补丁 v2.0 (Vue 3 架构)...');
+
+    // 0. 优先装载 IndexedDB 版本兼容拦截器（阻止原生 IGS 报 requested version 1 is less than 2）
+    setupIndexedDbVersionGuard();
 
     // 1. 初始化持久化配置
     await initConfig();

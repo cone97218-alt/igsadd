@@ -295,6 +295,80 @@ export function updateScopedSceneAssets(updater, scopeMode = 'all', customScopeK
 /*                          IndexedDB 辅助操作与自愈机制                       */
 /* ========================================================================= */
 
+const TARGET_IGS_DBS = new Set([
+    'igs-generated-assets',
+    'igs-illustrations',
+    'igs-cg-gallery',
+    'vn',
+]);
+
+/**
+ * 挂载 IndexedDB 版本兼容拦截器
+ * 核心解决原生 IGS 硬编码 open(name, 1) 在已被版本升级自愈过的库上抛出
+ * "The requested version (1) is less than the existing version (2)" 的问题
+ */
+export function setupIndexedDbVersionGuard() {
+    const candidateWindows = [window];
+    try { if (window.parent && !candidateWindows.includes(window.parent)) candidateWindows.push(window.parent); } catch (_) {}
+    try { if (window.top && !candidateWindows.includes(window.top)) candidateWindows.push(window.top); } catch (_) {}
+    try {
+        const rootDoc = (window.top || window.parent || window).document;
+        if (rootDoc) {
+            const iframes = rootDoc.querySelectorAll('iframe');
+            for (const f of iframes) {
+                try {
+                    const fw = f.contentWindow;
+                    if (fw && !candidateWindows.includes(fw)) candidateWindows.push(fw);
+                } catch (_) {}
+            }
+        }
+    } catch (_) {}
+
+    for (const win of candidateWindows) {
+        try {
+            if (!win.indexedDB || win.indexedDB.__igsVersionHookInstalled) continue;
+            const originalOpen = win.indexedDB.open.bind(win.indexedDB);
+
+            win.indexedDB.open = function hookedOpen(name, version) {
+                let req;
+                // 当原生 IGS 尝试以固定版本 1 打开已被升级补齐过数据表的数据库时：
+                // 如果传入版本 1，当库已被升级至版本 2 时，浏览器会抛出 VersionError:
+                // "The requested version (1) is less than the existing version (2)"
+                // 不传版本参数调用 open(name)，浏览器会自动以该库当前最新实际版本平滑打开，
+                // 既完全杜绝 VersionError，又完美拥有所有数据表！
+                if (TARGET_IGS_DBS.has(name) && typeof version === 'number' && version <= 1) {
+                    req = originalOpen(name);
+                } else if (typeof version === 'number') {
+                    req = originalOpen(name, version);
+                } else {
+                    req = originalOpen(name);
+                }
+
+                // 注入 upgradeneeded 监听，确保任意库新建或升级时所有表结构均健全
+                try {
+                    req.addEventListener('upgradeneeded', (e) => {
+                        const schema = DB_SCHEMAS[name];
+                        if (schema && typeof schema.upgrade === 'function') {
+                            schema.upgrade(req.result, e);
+                        }
+                    });
+                } catch (_) {}
+
+                return req;
+            };
+
+            win.indexedDB.__igsVersionHookInstalled = true;
+            console.info('[IGS-Patch] IndexedDB 版本兼容拦截器已挂载');
+        } catch (err) {
+            console.warn('[IGS-Patch] 挂载 IndexedDB 拦截器失败:', err);
+        }
+    }
+}
+
+// 立即就地挂载一次，并定期加固
+setupIndexedDbVersionGuard();
+try { setInterval(setupIndexedDbVersionGuard, 2000); } catch (_) {}
+
 const DB_SCHEMAS = {
     [DB_GENERATED_ASSETS]: {
         version: 1,
