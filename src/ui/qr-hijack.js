@@ -48,18 +48,24 @@ function getCandidateWindows() {
 export function setupQrHijack() {
     scanAndTransformAll();
 
-    // 监听 DOM 变化以应对 QR 栏重绘、切换对话等生命周期
+    // 监听 DOM 变化以应对 QR 栏重绘、切换对话等生命周期 (防抖优化)
     const docs = getCandidateDocuments();
     for (const doc of docs) {
         try {
+            let debounceTimer = null;
             const observer = new MutationObserver(() => {
-                scanAndTransformDoc(doc);
+                if (debounceTimer) return;
+                debounceTimer = setTimeout(() => {
+                    debounceTimer = null;
+                    scanAndTransformDoc(doc);
+                }, 300);
             });
             observer.observe(doc.body, { childList: true, subtree: true });
         } catch (_) { }
     }
 
-    setInterval(scanAndTransformAll, 1500);
+    // 低频定时保底
+    setInterval(scanAndTransformAll, 6000);
     console.info('[IGS-Patch] QR 栏放映键重构与劫持器已就绪。');
 }
 

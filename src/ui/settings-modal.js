@@ -43,9 +43,6 @@ export function openSettingsModal(targetDoc = null) {
     detectAndSyncIgsTheme();
     ensureMounted(targetDoc);
 
-    // 每次打开面板时，主动触发一次 IGS 规则同步
-    triggerIgsPromptResync();
-
     isModalVisible.value = true;
 }
 
@@ -67,6 +64,8 @@ export function ensureMounted(targetDoc = null) {
     const doc = targetDoc || getCandidateDocument();
     if (!doc) return;
 
+    injectSettingsStyles();
+
     let container = doc.getElementById('igs-patch-settings-mount-root');
     if (!container) {
         container = doc.createElement('div');
@@ -75,11 +74,18 @@ export function ensureMounted(targetDoc = null) {
     }
     containerEl = container;
 
-    if (!appInstance) {
+    if (!appInstance || !containerEl.hasChildNodes()) {
         try {
-            appInstance = createApp(SettingsRootComponent);
-            appInstance.mount(containerEl);
+            if (appInstance) {
+                try { appInstance.unmount(); } catch (_) { }
+                appInstance = null;
+            }
+            containerEl.innerHTML = '';
+            const app = createApp(SettingsRootComponent);
+            app.mount(containerEl);
+            appInstance = app;
         } catch (err) {
+            appInstance = null;
             console.error('[IGS-Patch] 挂载 Vue 3 设置面板失败:', err);
         }
     } else if (containerEl && !doc.body.contains(containerEl)) {

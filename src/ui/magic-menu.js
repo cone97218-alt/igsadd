@@ -40,19 +40,24 @@ export function setupMagicMenu() {
     injectResourcesStyles();
     ensureMagicMenuEntry();
 
-    // 监听 DOM 变化以应对菜单的动态弹出或销毁
+    // 监听 DOM 变化以应对菜单的动态弹出或销毁 (防抖节流优化)
     const docs = getCandidateDocuments();
     for (const doc of docs) {
         try {
+            let debounceTimer = null;
             const observer = new MutationObserver(() => {
-                ensureMagicMenuEntryDoc(doc);
+                if (debounceTimer) return;
+                debounceTimer = setTimeout(() => {
+                    debounceTimer = null;
+                    ensureMagicMenuEntryDoc(doc);
+                }, 300);
             });
             observer.observe(doc.body, { childList: true, subtree: true });
         } catch (_) { }
     }
 
-    // 定时轮询保底
-    setInterval(ensureMagicMenuEntry, 2000);
+    // 低频定时轮询保底 (降低轮询压力)
+    setInterval(ensureMagicMenuEntry, 10000);
     console.info('[IGS-Patch] 魔法棒菜单【放映设置】与【放映资源】入口注入器已就绪。');
 }
 

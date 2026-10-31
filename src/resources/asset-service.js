@@ -302,6 +302,8 @@ const TARGET_IGS_DBS = new Set([
     'vn',
 ]);
 
+let hasLoggedDbHook = false;
+
 /**
  * 挂载 IndexedDB 版本兼容拦截器
  * 核心解决原生 IGS 硬编码 open(name, 1) 在已被版本升级自愈过的库上抛出
@@ -358,16 +360,19 @@ export function setupIndexedDbVersionGuard() {
             };
 
             win.indexedDB.__igsVersionHookInstalled = true;
-            console.info('[IGS-Patch] IndexedDB 版本兼容拦截器已挂载');
+            if (!hasLoggedDbHook) {
+                hasLoggedDbHook = true;
+                console.info('[IGS-Patch] IndexedDB 版本兼容拦截器已挂载');
+            }
         } catch (err) {
             console.warn('[IGS-Patch] 挂载 IndexedDB 拦截器失败:', err);
         }
     }
 }
 
-// 立即就地挂载一次，并定期加固
+// 立即挂载，无需高频空转轮询
 setupIndexedDbVersionGuard();
-try { setInterval(setupIndexedDbVersionGuard, 2000); } catch (_) {}
+setTimeout(setupIndexedDbVersionGuard, 3000);
 
 const DB_SCHEMAS = {
     [DB_GENERATED_ASSETS]: {

@@ -95,25 +95,28 @@ export function saveInterceptedRule(key, content, meta = {}) {
     const strContent = String(content).trim();
     if (!strContent) return;
 
-    patchState.interceptedPrompt.rawKeys[key] = {
-        content: strContent,
-        meta,
-        at: Date.now(),
-    };
-
+    // 检查是否有实质变化，无变化不重复更新与刷屏
     if (key === 'igs-scene-assets-format-rule') {
+        if (patchState.interceptedPrompt.system === strContent) return;
         patchState.interceptedPrompt.system = strContent;
     } else if (key === 'igs-scene-assets-depth0') {
+        if (patchState.interceptedPrompt.depth0 === strContent) return;
         patchState.interceptedPrompt.depth0 = strContent;
     } else {
-        // 分段 rule
         const existingIdx = patchState.interceptedPrompt.segments.findIndex((s) => s.id === key);
         if (existingIdx >= 0) {
+            if (patchState.interceptedPrompt.segments[existingIdx].content === strContent) return;
             patchState.interceptedPrompt.segments[existingIdx] = { id: key, content: strContent, meta };
         } else {
             patchState.interceptedPrompt.segments.push({ id: key, content: strContent, meta });
         }
     }
+
+    patchState.interceptedPrompt.rawKeys[key] = {
+        content: strContent,
+        meta,
+        at: Date.now(),
+    };
 
     patchState.interceptedPrompt.updatedAt = Date.now();
     patchState.interceptedPrompt.charCount =
@@ -121,7 +124,7 @@ export function saveInterceptedRule(key, content, meta = {}) {
         (patchState.interceptedPrompt.depth0.length || 0) +
         patchState.interceptedPrompt.segments.reduce((acc, s) => acc + (s.content?.length || 0), 0);
 
-    console.info(`[IGS-Patch] 已成功截获并更新 IGS 标签规则 [${key}]，当前拦截规则总字数: ${patchState.interceptedPrompt.charCount}`);
+    console.info(`[IGS-Patch] 截获/更新 IGS 规则 [${key}] (${strContent.length}字)`);
     notifyStateChange();
 }
 

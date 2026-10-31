@@ -219,6 +219,7 @@ function prependTags(head, tail) {
 }
 
 let isHookInstalled = false;
+let hasLoggedReady = false;
 
 /**
  * 拦截与劫持 globalThis.STBaiBaiImage.generate
@@ -293,7 +294,10 @@ export function setupBaibaiEnhancer() {
         };
 
         baibai.__igsHooked = true;
-        console.info('[IGS-Patch] 柏宝绘 (STBaiBaiImage) 分区画风联动拦截器已挂载就绪。');
+        if (!hasLoggedReady) {
+            hasLoggedReady = true;
+            console.info('[IGS-Patch] 柏宝绘 (STBaiBaiImage) 分区画风联动拦截器已挂载就绪。');
+        }
         return true;
     };
 
@@ -316,12 +320,18 @@ export function setupBaibaiEnhancer() {
         }
     } catch (_) { }
 
+    let pollCount = 0;
     const interval = setInterval(() => {
+        pollCount++;
         runChecks();
-        if (globalThis.STBaiBaiImage?.__igsHooked) {
+        const isAnyHooked = globalThis.STBaiBaiImage?.__igsHooked
+            || (typeof window !== 'undefined' && window.STBaiBaiImage?.__igsHooked)
+            || (typeof window !== 'undefined' && window.parent?.STBaiBaiImage?.__igsHooked)
+            || (typeof window !== 'undefined' && window.top?.STBaiBaiImage?.__igsHooked);
+        if (isAnyHooked || pollCount >= 10) {
             clearInterval(interval);
         }
-    }, 1500);
+    }, 2000);
 
     isHookInstalled = true;
 }

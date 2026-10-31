@@ -214,26 +214,29 @@
     if (!key || !content) return;
     const strContent = String(content).trim();
     if (!strContent) return;
-    patchState.interceptedPrompt.rawKeys[key] = {
-      content: strContent,
-      meta,
-      at: Date.now()
-    };
     if (key === "igs-scene-assets-format-rule") {
+      if (patchState.interceptedPrompt.system === strContent) return;
       patchState.interceptedPrompt.system = strContent;
     } else if (key === "igs-scene-assets-depth0") {
+      if (patchState.interceptedPrompt.depth0 === strContent) return;
       patchState.interceptedPrompt.depth0 = strContent;
     } else {
       const existingIdx = patchState.interceptedPrompt.segments.findIndex((s) => s.id === key);
       if (existingIdx >= 0) {
+        if (patchState.interceptedPrompt.segments[existingIdx].content === strContent) return;
         patchState.interceptedPrompt.segments[existingIdx] = { id: key, content: strContent, meta };
       } else {
         patchState.interceptedPrompt.segments.push({ id: key, content: strContent, meta });
       }
     }
+    patchState.interceptedPrompt.rawKeys[key] = {
+      content: strContent,
+      meta,
+      at: Date.now()
+    };
     patchState.interceptedPrompt.updatedAt = Date.now();
     patchState.interceptedPrompt.charCount = (patchState.interceptedPrompt.system.length || 0) + (patchState.interceptedPrompt.depth0.length || 0) + patchState.interceptedPrompt.segments.reduce((acc, s) => acc + (s.content?.length || 0), 0);
-    console.info(`[IGS-Patch] \u5DF2\u6210\u529F\u622A\u83B7\u5E76\u66F4\u65B0 IGS \u6807\u7B7E\u89C4\u5219 [${key}]\uFF0C\u5F53\u524D\u62E6\u622A\u89C4\u5219\u603B\u5B57\u6570: ${patchState.interceptedPrompt.charCount}`);
+    console.info(`[IGS-Patch] \u622A\u83B7/\u66F4\u65B0 IGS \u89C4\u5219 [${key}] (${strContent.length}\u5B57)`);
     notifyStateChange();
   }
   function updateProductionStatus(partial) {
@@ -1278,11 +1281,12 @@
     }
     return list;
   }
+  var hasLoggedContextHook = false;
   function setupPromptBlocker() {
     hookAllCandidateWindows();
-    setTimeout(triggerIgsPromptResync, 500);
-    setTimeout(triggerIgsPromptResync, 2e3);
-    setInterval(hookAllCandidateWindows, 2e3);
+    setTimeout(hookAllCandidateWindows, 1e3);
+    setTimeout(hookAllCandidateWindows, 3e3);
+    setInterval(hookAllCandidateWindows, 15e3);
     console.info("[IGS-Patch] \u63D0\u793A\u8BCD\u62E6\u622A\u5668\u5DF2\u542F\u52A8\uFF1A\u4E3B\u6A21\u578B\u7CFB\u7EDF\u63D0\u793A\u8BCD\u4FDD\u6301\u7EAF\u51C0\uFF0CIGS\u89C4\u5219\u5DF2\u8F6C\u5B58\u526F\u6A21\u578B\u3002");
   }
   function hookAllCandidateWindows() {
@@ -1307,7 +1311,10 @@
         };
         hookedGetContext.__isIgsPatchHooked = true;
         win.SillyTavern.getContext = hookedGetContext;
-        console.info("[IGS-Patch] \u6210\u529F\u52AB\u6301 SillyTavern.getContext \u51FD\u6570");
+        if (!hasLoggedContextHook) {
+          hasLoggedContextHook = true;
+          console.info("[IGS-Patch] \u6210\u529F\u52AB\u6301 SillyTavern.getContext \u51FD\u6570");
+        }
       }
       const currentCtx = win.SillyTavern.getContext();
       if (currentCtx) {
@@ -1478,16 +1485,8 @@
     }
   }
   function triggerIgsPromptResync() {
-    console.info("[IGS-Patch] \u4E3B\u52A8\u89E6\u53D1 IGS \u573A\u666F\u89C4\u5219\u91CD\u540C\u6B65...");
     for (const win of getCandidateWindows()) {
       try {
-        const ctx = win.SillyTavern?.getContext?.();
-        const eventSource = ctx?.eventSource;
-        const eventTypes = ctx?.event_types || ctx?.eventTypes || {};
-        const chatChangedEvent = eventTypes.CHAT_CHANGED || "chat_changed";
-        if (eventSource && typeof eventSource.emit === "function") {
-          eventSource.emit(chatChangedEvent, ctx.chatId);
-        }
         const igs = win.IGS || win.ImmersiveGalgameSystem;
         if (igs && typeof igs.refresh === "function") {
           igs.refresh();
@@ -1796,14 +1795,19 @@
     const docs = getCandidateDocuments();
     for (const doc2 of docs) {
       try {
+        let debounceTimer = null;
         const observer = new MutationObserver(() => {
-          scanAndTransformDoc(doc2);
+          if (debounceTimer) return;
+          debounceTimer = setTimeout(() => {
+            debounceTimer = null;
+            scanAndTransformDoc(doc2);
+          }, 300);
         });
         observer.observe(doc2.body, { childList: true, subtree: true });
       } catch (_) {
       }
     }
-    setInterval(scanAndTransformAll, 1500);
+    setInterval(scanAndTransformAll, 6e3);
     console.info("[IGS-Patch] QR \u680F\u653E\u6620\u952E\u91CD\u6784\u4E0E\u52AB\u6301\u5668\u5DF2\u5C31\u7EEA\u3002");
   }
   function scanAndTransformAll() {
@@ -22028,6 +22032,7 @@ ${codeFrame}` : message);
     return `${h2}, ${t}`;
   }
   var isHookInstalled = false;
+  var hasLoggedReady = false;
   function setupBaibaiEnhancer() {
     if (isHookInstalled) return;
     setupActivityWatcher();
@@ -22087,7 +22092,10 @@ ${codeFrame}` : message);
         }
       };
       baibai.__igsHooked = true;
-      console.info("[IGS-Patch] \u67CF\u5B9D\u7ED8 (STBaiBaiImage) \u5206\u533A\u753B\u98CE\u8054\u52A8\u62E6\u622A\u5668\u5DF2\u6302\u8F7D\u5C31\u7EEA\u3002");
+      if (!hasLoggedReady) {
+        hasLoggedReady = true;
+        console.info("[IGS-Patch] \u67CF\u5B9D\u7ED8 (STBaiBaiImage) \u5206\u533A\u753B\u98CE\u8054\u52A8\u62E6\u622A\u5668\u5DF2\u6302\u8F7D\u5C31\u7EEA\u3002");
+      }
       return true;
     };
     const runChecks = () => {
@@ -22112,12 +22120,15 @@ ${codeFrame}` : message);
       }
     } catch (_) {
     }
+    let pollCount = 0;
     const interval = setInterval(() => {
+      pollCount++;
       runChecks();
-      if (globalThis.STBaiBaiImage?.__igsHooked) {
+      const isAnyHooked = globalThis.STBaiBaiImage?.__igsHooked || typeof window !== "undefined" && window.STBaiBaiImage?.__igsHooked || typeof window !== "undefined" && window.parent?.STBaiBaiImage?.__igsHooked || typeof window !== "undefined" && window.top?.STBaiBaiImage?.__igsHooked;
+      if (isAnyHooked || pollCount >= 10) {
         clearInterval(interval);
       }
-    }, 1500);
+    }, 2e3);
     isHookInstalled = true;
   }
 
@@ -22449,7 +22460,6 @@ ${codeFrame}` : message);
     injectSettingsStyles();
     detectAndSyncIgsTheme();
     ensureMounted(targetDoc);
-    triggerIgsPromptResync();
     isModalVisible.value = true;
   }
   function closeSettingsModal() {
@@ -22469,6 +22479,7 @@ ${codeFrame}` : message);
   function ensureMounted(targetDoc = null) {
     const doc2 = targetDoc || getCandidateDocument2();
     if (!doc2) return;
+    injectSettingsStyles();
     let container = doc2.getElementById("igs-patch-settings-mount-root");
     if (!container) {
       container = doc2.createElement("div");
@@ -22476,11 +22487,21 @@ ${codeFrame}` : message);
       (doc2.body || doc2.documentElement).appendChild(container);
     }
     containerEl = container;
-    if (!appInstance) {
+    if (!appInstance || !containerEl.hasChildNodes()) {
       try {
-        appInstance = createApp(SettingsRootComponent);
-        appInstance.mount(containerEl);
+        if (appInstance) {
+          try {
+            appInstance.unmount();
+          } catch (_) {
+          }
+          appInstance = null;
+        }
+        containerEl.innerHTML = "";
+        const app = createApp(SettingsRootComponent);
+        app.mount(containerEl);
+        appInstance = app;
       } catch (err) {
+        appInstance = null;
         console.error("[IGS-Patch] \u6302\u8F7D Vue 3 \u8BBE\u7F6E\u9762\u677F\u5931\u8D25:", err);
       }
     } else if (containerEl && !doc2.body.contains(containerEl)) {
@@ -25141,6 +25162,7 @@ textarea.igs-form-textarea {
     "igs-cg-gallery",
     "vn"
   ]);
+  var hasLoggedDbHook = false;
   function setupIndexedDbVersionGuard() {
     const candidateWindows = [window];
     try {
@@ -25190,17 +25212,17 @@ textarea.igs-form-textarea {
           return req;
         };
         win.indexedDB.__igsVersionHookInstalled = true;
-        console.info("[IGS-Patch] IndexedDB \u7248\u672C\u517C\u5BB9\u62E6\u622A\u5668\u5DF2\u6302\u8F7D");
+        if (!hasLoggedDbHook) {
+          hasLoggedDbHook = true;
+          console.info("[IGS-Patch] IndexedDB \u7248\u672C\u517C\u5BB9\u62E6\u622A\u5668\u5DF2\u6302\u8F7D");
+        }
       } catch (err) {
         console.warn("[IGS-Patch] \u6302\u8F7D IndexedDB \u62E6\u622A\u5668\u5931\u8D25:", err);
       }
     }
   }
   setupIndexedDbVersionGuard();
-  try {
-    setInterval(setupIndexedDbVersionGuard, 2e3);
-  } catch (_) {
-  }
+  setTimeout(setupIndexedDbVersionGuard, 3e3);
   var DB_SCHEMAS = {
     [DB_GENERATED_ASSETS]: {
       version: 1,
@@ -27479,14 +27501,19 @@ textarea.igs-form-textarea {
     const docs = getCandidateDocuments2();
     for (const doc2 of docs) {
       try {
+        let debounceTimer = null;
         const observer = new MutationObserver(() => {
-          ensureMagicMenuEntryDoc(doc2);
+          if (debounceTimer) return;
+          debounceTimer = setTimeout(() => {
+            debounceTimer = null;
+            ensureMagicMenuEntryDoc(doc2);
+          }, 300);
         });
         observer.observe(doc2.body, { childList: true, subtree: true });
       } catch (_) {
       }
     }
-    setInterval(ensureMagicMenuEntry, 2e3);
+    setInterval(ensureMagicMenuEntry, 1e4);
     console.info("[IGS-Patch] \u9B54\u6CD5\u68D2\u83DC\u5355\u3010\u653E\u6620\u8BBE\u7F6E\u3011\u4E0E\u3010\u653E\u6620\u8D44\u6E90\u3011\u5165\u53E3\u6CE8\u5165\u5668\u5DF2\u5C31\u7EEA\u3002");
   }
   function ensureMagicMenuEntry() {

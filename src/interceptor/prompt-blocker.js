@@ -57,18 +57,20 @@ function getCandidateWindows() {
     return list;
 }
 
+let hasLoggedContextHook = false;
+
 /**
  * 启动提示词拦截
  */
 export function setupPromptBlocker() {
     hookAllCandidateWindows();
 
-    // 立即尝试主动触发一次 IGS 规则同步
-    setTimeout(triggerIgsPromptResync, 500);
-    setTimeout(triggerIgsPromptResync, 2000);
+    // 初始快速检测保底
+    setTimeout(hookAllCandidateWindows, 1000);
+    setTimeout(hookAllCandidateWindows, 3000);
 
-    // 持续监控与定期加固
-    setInterval(hookAllCandidateWindows, 2000);
+    // 低频静默守护进程（降低 CPU 消耗，杜绝高频空转）
+    setInterval(hookAllCandidateWindows, 15000);
 
     console.info('[IGS-Patch] 提示词拦截器已启动：主模型系统提示词保持纯净，IGS规则已转存副模型。');
 }
@@ -106,7 +108,10 @@ function hookSillyTavernGetContext(win) {
 
             hookedGetContext.__isIgsPatchHooked = true;
             win.SillyTavern.getContext = hookedGetContext;
-            console.info('[IGS-Patch] 成功劫持 SillyTavern.getContext 函数');
+            if (!hasLoggedContextHook) {
+                hasLoggedContextHook = true;
+                console.info('[IGS-Patch] 成功劫持 SillyTavern.getContext 函数');
+            }
         }
 
         // 同时对当前已有的上下文立即包裹一次
@@ -327,26 +332,15 @@ function hookEventSource(ctx) {
  * 主动触发 IGS 重新计算并下发场景资产规则
  */
 export function triggerIgsPromptResync() {
-    console.info('[IGS-Patch] 主动触发 IGS 场景规则重同步...');
     for (const win of getCandidateWindows()) {
         try {
-            // 方式 1: 触发 eventSource 的 CHAT_CHANGED 事件（IGS 侦听此事件执行 resync）
-            const ctx = win.SillyTavern?.getContext?.();
-            const eventSource = ctx?.eventSource;
-            const eventTypes = ctx?.event_types || ctx?.eventTypes || {};
-            const chatChangedEvent = eventTypes.CHAT_CHANGED || 'chat_changed';
-
-            if (eventSource && typeof eventSource.emit === 'function') {
-                eventSource.emit(chatChangedEvent, ctx.chatId);
-            }
-
-            // 方式 2: 若 IGS 全局对象有暴露内部 refresh 或 sync，则直接触发
+            // 方式 1: 若 IGS 全局对象有暴露内部 refresh 或 sync，则直接触发
             const igs = win.IGS || win.ImmersiveGalgameSystem;
             if (igs && typeof igs.refresh === 'function') {
                 igs.refresh();
             }
 
-            // 方式 3: 立即重新扫描领养已有规则
+            // 方式 2: 重新扫描领养已有规则
             scanAndAdoptExistingPrompts(win);
         } catch (_) { }
     }
