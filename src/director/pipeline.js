@@ -229,6 +229,12 @@ export function attachScriptToMessage(messageId, script, swipeId = 0) {
                     msg.plainText = script;
                     msg.formattedText = script;
                     msg.rawHtml = script;
+                    msg.mes = script;
+                    if (Array.isArray(msg.swipes) && msg.swipes[sid] !== undefined) {
+                        msg.swipes[sid] = script;
+                    }
+                    // 强制清空 element，阻止 dom-visible-override 覆盖
+                    msg.element = null;
                 }
             }
         } catch (_) { }
@@ -303,7 +309,12 @@ export function normalizeGalScript(rawScript) {
         normalizedBlocks.push(trimmed);
     }
 
-    return normalizedBlocks.join('\n\n');
+    const body = normalizedBlocks.join('\n\n');
+    // 如果没有 content 标签，包裹 <content> 以满足 IGS 默认 sourceFilter.textIncludeTags 提取要求，杜绝回退至未格式化原文
+    if (!body.includes('<content>')) {
+        return `<content>\n${body}\n</content>`;
+    }
+    return body;
 }
 
 /**
@@ -492,6 +503,14 @@ export function refreshIgsStage(messageId) {
         try {
             const igs = w.IGS || w.ImmersiveGalgameSystem;
             if (!igs) continue;
+
+            // 如果当前阅读器已开启，先关闭旧阅读器实例，杜绝残留未格式化的旧快照
+            if (typeof igs.closeReader === 'function') {
+                try { igs.closeReader(); } catch (_) { }
+            }
+            if (typeof igs.igsUi?.closeReader === 'function') {
+                try { igs.igsUi.closeReader(); } catch (_) { }
+            }
 
             if (typeof igs.refresh === 'function') {
                 igs.refresh({ messageId });

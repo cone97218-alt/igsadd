@@ -467,6 +467,24 @@ export const SETTINGS_MODAL_CSS = `
   font-size: 0.95rem;
 }
 
+.status-badge-warn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e6a23c;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.status-badge-err {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f56c6c;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
 .intercepted-meta {
   font-size: 0.85rem;
   color: var(--igs-settings-ink-3, rgba(255,255,255,0.5));

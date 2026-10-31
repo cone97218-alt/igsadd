@@ -1005,6 +1005,11 @@
             msg.plainText = script;
             msg.formattedText = script;
             msg.rawHtml = script;
+            msg.mes = script;
+            if (Array.isArray(msg.swipes) && msg.swipes[sid] !== void 0) {
+              msg.swipes[sid] = script;
+            }
+            msg.element = null;
           }
         }
       } catch (_) {
@@ -1053,7 +1058,13 @@
       }
       normalizedBlocks.push(trimmed);
     }
-    return normalizedBlocks.join("\n\n");
+    const body = normalizedBlocks.join("\n\n");
+    if (!body.includes("<content>")) {
+      return `<content>
+${body}
+</content>`;
+    }
+    return body;
   }
   async function convertMessageToGal(messageId, rawText, contextMeta = {}, force = false) {
     if (messageId == null || !rawText || !rawText.trim()) {
@@ -1196,6 +1207,18 @@
       try {
         const igs = w.IGS || w.ImmersiveGalgameSystem;
         if (!igs) continue;
+        if (typeof igs.closeReader === "function") {
+          try {
+            igs.closeReader();
+          } catch (_) {
+          }
+        }
+        if (typeof igs.igsUi?.closeReader === "function") {
+          try {
+            igs.igsUi.closeReader();
+          } catch (_) {
+          }
+        }
         if (typeof igs.refresh === "function") {
           igs.refresh({ messageId });
         }
@@ -1227,6 +1250,289 @@
       pendingConversions = /* @__PURE__ */ new Map();
       getScriptStoreKey = (mid, sid) => `script_${getActiveChatId()}_${mid}_s${sid}`;
       getScriptMemKey = (mid, sid) => `${getActiveChatId()}_${mid}_${sid}`;
+    }
+  });
+
+  // src/interceptor/render-hook.js
+  var render_hook_exports = {};
+  __export(render_hook_exports, {
+    preloadScriptToMemory: () => preloadScriptToMemory,
+    setupRenderHook: () => setupRenderHook,
+    syncAllStoredScriptsToChat: () => syncAllStoredScriptsToChat
+  });
+  function getCandidateWindows4() {
+    const wins = [window];
+    try {
+      if (window.parent && !wins.includes(window.parent)) wins.push(window.parent);
+    } catch (_) {
+    }
+    try {
+      if (window.top && !wins.includes(window.top)) wins.push(window.top);
+    } catch (_) {
+    }
+    try {
+      const rootDoc = (window.top || window.parent || window).document;
+      if (rootDoc) {
+        const iframes = rootDoc.querySelectorAll("iframe");
+        for (const f of iframes) {
+          try {
+            const fw = f.contentWindow;
+            if (fw && !wins.includes(fw)) wins.push(fw);
+          } catch (_) {
+          }
+        }
+      }
+    } catch (_) {
+    }
+    return wins;
+  }
+  async function preloadScriptToMemory(messageId, swipeId = 0) {
+    if (messageId == null) return null;
+    const mid = Number(messageId);
+    const sid = Number(swipeId) || 0;
+    const memKey = getScriptMemKey(mid, sid);
+    if (scriptMemoryStore.has(memKey)) {
+      const cached = scriptMemoryStore.get(memKey);
+      const normalized = normalizeGalScript(cached);
+      if (normalized !== cached) {
+        scriptMemoryStore.set(memKey, normalized);
+      }
+      attachScriptToMessage(mid, normalized, sid);
+      return normalized;
+    }
+    const key = getScriptStoreKey(mid, sid);
+    let script = await getStoredJson(key);
+    if (!script) {
+      script = await getStoredJson(`script_${mid}_s${sid}`);
+    }
+    if (script) {
+      const normalized = normalizeGalScript(script);
+      scriptMemoryStore.set(memKey, normalized);
+      attachScriptToMessage(mid, normalized, sid);
+      return normalized;
+    }
+    return null;
+  }
+  async function syncAllStoredScriptsToChat() {
+    try {
+      const keys = await listStoredKeys();
+      if (!Array.isArray(keys)) return;
+      const currentChatId = getActiveChatId();
+      for (const k of keys) {
+        const scopedMatch = k.match(/^script_(.+)_(\d+)_s(\d+)$/);
+        if (scopedMatch) {
+          const cId = scopedMatch[1];
+          if (cId === currentChatId) {
+            const mid = parseInt(scopedMatch[2], 10);
+            const sid = parseInt(scopedMatch[3], 10);
+            await preloadScriptToMemory(mid, sid);
+          }
+          continue;
+        }
+        const match = k.match(/^script_(\d+)_s(\d+)$/);
+        if (match) {
+          const mid = parseInt(match[1], 10);
+          const sid = parseInt(match[2], 10);
+          await preloadScriptToMemory(mid, sid);
+        } else if (k.startsWith("script_")) {
+          const mid = parseInt(k.replace("script_", ""), 10);
+          if (!isNaN(mid)) {
+            await preloadScriptToMemory(mid, 0);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[IGS-Patch] \u5168\u91CF\u540C\u6B65\u5267\u672C\u5230\u5185\u5B58\u5F02\u5E38:", err);
+    }
+  }
+  function setupRenderHook() {
+    const wins = getCandidateWindows4();
+    wins.forEach((w) => {
+      hookTavernHelperInWindow(w);
+      observeIgsInWindow(w, (igs) => {
+        hookIgsInstance(igs, w);
+      });
+    });
+    syncAllStoredScriptsToChat();
+  }
+  function hookTavernHelperInWindow(win) {
+    try {
+      const helper = win.TavernHelper;
+      if (helper && typeof helper.getChatMessages === "function" && !helper.__tauri_patch_hooked) {
+        helper.__tauri_patch_hooked = true;
+        const originalGetChatMessages = helper.getChatMessages.bind(helper);
+        helper.getChatMessages = function(range2, ...rest) {
+          const messages = originalGetChatMessages(range2, ...rest);
+          if (!Array.isArray(messages)) return messages;
+          return messages.map((msg, i) => {
+            const realId = findRealFloorIndex(msg, i, win);
+            const swipeId = Number(msg.swipe_id) || 0;
+            const scopedKey = getScriptMemKey(realId, swipeId);
+            const legacyKey = `${realId}_${swipeId}`;
+            const rawScript = scriptMemoryStore.get(scopedKey) || scriptMemoryStore.get(legacyKey) || msg.extra?.igs_patch_scripts?.[swipeId];
+            if (rawScript) {
+              const script = normalizeGalScript(rawScript);
+              return {
+                ...msg,
+                id: realId,
+                text: script,
+                visibleText: script,
+                displayText: script,
+                plainText: script,
+                formattedText: script,
+                rawHtml: script,
+                mes: script,
+                element: null
+                // 强制清空 element，阻止 dom-visible-override 覆盖
+              };
+            } else if (msg && typeof msg.mes === "string" && msg.mes.includes("[speaker:")) {
+              const cleaned = normalizeGalScript(msg.mes);
+              return {
+                ...msg,
+                text: cleaned,
+                visibleText: cleaned,
+                displayText: cleaned,
+                plainText: cleaned,
+                formattedText: cleaned,
+                rawHtml: cleaned,
+                mes: cleaned,
+                element: null
+              };
+            }
+            return msg;
+          });
+        };
+        console.info("[IGS-Patch] \u5DF2\u6210\u529F\u6302\u94A9 TavernHelper.getChatMessages");
+      }
+    } catch (_) {
+    }
+  }
+  function findRealFloorIndex(msg, defaultIdx, win) {
+    const chat = win.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
+    if (Array.isArray(chat)) {
+      const directIdx = chat.indexOf(msg);
+      if (directIdx !== -1) return directIdx;
+      const contentIdx = chat.findIndex((m) => m && msg && m.mes === msg.mes && Boolean(m.is_user) === Boolean(msg.is_user));
+      if (contentIdx !== -1) return contentIdx;
+    }
+    return Number(msg?.id ?? defaultIdx);
+  }
+  function hookIgsInstance(igs, ownerWin) {
+    if (!igs || igs.__tauri_patch_hooked) return;
+    igs.__tauri_patch_hooked = true;
+    if (typeof igs.openViewerFromMessage === "function") {
+      const originalOpen = igs.openViewerFromMessage.bind(igs);
+      igs.openViewerFromMessage = async function(messageId, mode, openOptions = {}) {
+        const mid = Number(messageId);
+        const chat = ownerWin.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
+        const sid = Number(chat?.[mid]?.swipe_id) || 0;
+        const script = await preloadScriptToMemory(mid, sid);
+        try {
+          if (typeof igs.closeReader === "function") igs.closeReader();
+          if (typeof igs.igsUi?.closeReader === "function") igs.igsUi.closeReader();
+        } catch (_) {
+        }
+        let resolvedMode = mode;
+        let resolvedOptions = openOptions;
+        if (mode && typeof mode === "object" && !Array.isArray(mode)) {
+          resolvedMode = mode.mode;
+          resolvedOptions = mode;
+        } else if (!resolvedOptions || typeof resolvedOptions !== "object") {
+          resolvedOptions = {};
+        }
+        if (script && !resolvedOptions.message) {
+          const baseMsg = chat?.[mid] || {};
+          const swipesCopy = Array.isArray(baseMsg.swipes) ? [...baseMsg.swipes] : [];
+          if (swipesCopy.length > sid) swipesCopy[sid] = script;
+          resolvedOptions.message = {
+            ...baseMsg,
+            id: mid,
+            text: script,
+            visibleText: script,
+            displayText: script,
+            plainText: script,
+            formattedText: script,
+            rawHtml: script,
+            mes: script,
+            swipes: swipesCopy,
+            element: null
+            // 强制清空 element，阻止 dom-visible-override 覆盖
+          };
+        }
+        return originalOpen(messageId, resolvedMode, resolvedOptions);
+      };
+    }
+    if (typeof igs.openLatestAvailable === "function") {
+      const originalOpenLatest = igs.openLatestAvailable.bind(igs);
+      igs.openLatestAvailable = async function(mode, options = {}) {
+        const chat = ownerWin.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
+        let targetMid = null;
+        let targetSid = 0;
+        if (Array.isArray(chat) && chat.length > 0) {
+          for (let i = chat.length - 1; i >= 0; i--) {
+            if (chat[i] && !chat[i].is_user) {
+              targetMid = i;
+              targetSid = Number(chat[i].swipe_id) || 0;
+              break;
+            }
+          }
+        }
+        try {
+          if (typeof igs.closeReader === "function") igs.closeReader();
+          if (typeof igs.igsUi?.closeReader === "function") igs.igsUi.closeReader();
+        } catch (_) {
+        }
+        let resolvedMode = mode;
+        let resolvedOptions = options;
+        if (mode && typeof mode === "object" && !Array.isArray(mode)) {
+          resolvedMode = mode.mode;
+          resolvedOptions = mode;
+        } else if (!resolvedOptions || typeof resolvedOptions !== "object") {
+          resolvedOptions = {};
+        }
+        if (targetMid != null) {
+          const script = await preloadScriptToMemory(targetMid, targetSid);
+          if (script && !resolvedOptions.message) {
+            const baseMsg = chat[targetMid] || {};
+            const swipesCopy = Array.isArray(baseMsg.swipes) ? [...baseMsg.swipes] : [];
+            if (swipesCopy.length > targetSid) swipesCopy[targetSid] = script;
+            resolvedOptions.message = {
+              ...baseMsg,
+              id: targetMid,
+              text: script,
+              visibleText: script,
+              displayText: script,
+              plainText: script,
+              formattedText: script,
+              rawHtml: script,
+              mes: script,
+              swipes: swipesCopy,
+              element: null
+              // 强制清空 element，阻止 dom-visible-override 覆盖
+            };
+          }
+        }
+        return originalOpenLatest(resolvedMode, resolvedOptions);
+      };
+    }
+  }
+  function observeIgsInWindow(win, onFound) {
+    if (win.IGS || win.ImmersiveGalgameSystem) {
+      onFound(win.IGS || win.ImmersiveGalgameSystem);
+      return;
+    }
+    let intervalId = setInterval(() => {
+      if (win.IGS || win.ImmersiveGalgameSystem) {
+        clearInterval(intervalId);
+        onFound(win.IGS || win.ImmersiveGalgameSystem);
+      }
+    }, 500);
+    setTimeout(() => clearInterval(intervalId), 3e4);
+  }
+  var init_render_hook = __esm({
+    "src/interceptor/render-hook.js"() {
+      init_adapter();
+      init_pipeline();
     }
   });
 
@@ -1498,265 +1804,10 @@
     }
   }
 
-  // src/interceptor/render-hook.js
-  init_adapter();
-  init_pipeline();
-  function getCandidateWindows4() {
-    const wins = [window];
-    try {
-      if (window.parent && !wins.includes(window.parent)) wins.push(window.parent);
-    } catch (_) {
-    }
-    try {
-      if (window.top && !wins.includes(window.top)) wins.push(window.top);
-    } catch (_) {
-    }
-    try {
-      const rootDoc = (window.top || window.parent || window).document;
-      if (rootDoc) {
-        const iframes = rootDoc.querySelectorAll("iframe");
-        for (const f of iframes) {
-          try {
-            const fw = f.contentWindow;
-            if (fw && !wins.includes(fw)) wins.push(fw);
-          } catch (_) {
-          }
-        }
-      }
-    } catch (_) {
-    }
-    return wins;
-  }
-  async function preloadScriptToMemory(messageId, swipeId = 0) {
-    if (messageId == null) return null;
-    const mid = Number(messageId);
-    const sid = Number(swipeId) || 0;
-    const memKey = getScriptMemKey(mid, sid);
-    if (scriptMemoryStore.has(memKey)) {
-      const cached = scriptMemoryStore.get(memKey);
-      const normalized = normalizeGalScript(cached);
-      if (normalized !== cached) {
-        scriptMemoryStore.set(memKey, normalized);
-      }
-      attachScriptToMessage(mid, normalized, sid);
-      return normalized;
-    }
-    const key = getScriptStoreKey(mid, sid);
-    let script = await getStoredJson(key);
-    if (!script) {
-      script = await getStoredJson(`script_${mid}_s${sid}`);
-    }
-    if (script) {
-      const normalized = normalizeGalScript(script);
-      scriptMemoryStore.set(memKey, normalized);
-      attachScriptToMessage(mid, normalized, sid);
-      return normalized;
-    }
-    return null;
-  }
-  async function syncAllStoredScriptsToChat() {
-    try {
-      const keys = await listStoredKeys();
-      if (!Array.isArray(keys)) return;
-      const currentChatId = getActiveChatId();
-      for (const k of keys) {
-        const scopedMatch = k.match(/^script_(.+)_(\d+)_s(\d+)$/);
-        if (scopedMatch) {
-          const cId = scopedMatch[1];
-          if (cId === currentChatId) {
-            const mid = parseInt(scopedMatch[2], 10);
-            const sid = parseInt(scopedMatch[3], 10);
-            await preloadScriptToMemory(mid, sid);
-          }
-          continue;
-        }
-        const match = k.match(/^script_(\d+)_s(\d+)$/);
-        if (match) {
-          const mid = parseInt(match[1], 10);
-          const sid = parseInt(match[2], 10);
-          await preloadScriptToMemory(mid, sid);
-        } else if (k.startsWith("script_")) {
-          const mid = parseInt(k.replace("script_", ""), 10);
-          if (!isNaN(mid)) {
-            await preloadScriptToMemory(mid, 0);
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("[IGS-Patch] \u5168\u91CF\u540C\u6B65\u5267\u672C\u5230\u5185\u5B58\u5F02\u5E38:", err);
-    }
-  }
-  function setupRenderHook() {
-    const wins = getCandidateWindows4();
-    wins.forEach((w) => {
-      hookTavernHelperInWindow(w);
-      observeIgsInWindow(w, (igs) => {
-        hookIgsInstance(igs, w);
-      });
-    });
-    syncAllStoredScriptsToChat();
-  }
-  function hookTavernHelperInWindow(win) {
-    try {
-      const helper = win.TavernHelper;
-      if (helper && typeof helper.getChatMessages === "function" && !helper.__tauri_patch_hooked) {
-        helper.__tauri_patch_hooked = true;
-        const originalGetChatMessages = helper.getChatMessages.bind(helper);
-        helper.getChatMessages = function(range2, ...rest) {
-          const messages = originalGetChatMessages(range2, ...rest);
-          if (!Array.isArray(messages)) return messages;
-          return messages.map((msg, i) => {
-            const realId = findRealFloorIndex(msg, i, win);
-            const swipeId = Number(msg.swipe_id) || 0;
-            const scopedKey = getScriptMemKey(realId, swipeId);
-            const legacyKey = `${realId}_${swipeId}`;
-            const rawScript = scriptMemoryStore.get(scopedKey) || scriptMemoryStore.get(legacyKey) || msg.extra?.igs_patch_scripts?.[swipeId];
-            if (rawScript) {
-              const script = normalizeGalScript(rawScript);
-              return {
-                ...msg,
-                id: realId,
-                text: script,
-                visibleText: script,
-                displayText: script,
-                plainText: script,
-                formattedText: script,
-                rawHtml: script,
-                mes: script,
-                element: null
-                // 强制清空 element，阻止 dom-visible-override 覆盖
-              };
-            } else if (msg && typeof msg.mes === "string" && msg.mes.includes("[speaker:")) {
-              const cleaned = normalizeGalScript(msg.mes);
-              return {
-                ...msg,
-                text: cleaned,
-                visibleText: cleaned,
-                displayText: cleaned,
-                plainText: cleaned,
-                formattedText: cleaned,
-                rawHtml: cleaned,
-                mes: cleaned,
-                element: null
-              };
-            }
-            return msg;
-          });
-        };
-        console.info("[IGS-Patch] \u5DF2\u6210\u529F\u6302\u94A9 TavernHelper.getChatMessages");
-      }
-    } catch (_) {
-    }
-  }
-  function findRealFloorIndex(msg, defaultIdx, win) {
-    const chat = win.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
-    if (Array.isArray(chat)) {
-      const directIdx = chat.indexOf(msg);
-      if (directIdx !== -1) return directIdx;
-      const contentIdx = chat.findIndex((m) => m && msg && m.mes === msg.mes && Boolean(m.is_user) === Boolean(msg.is_user));
-      if (contentIdx !== -1) return contentIdx;
-    }
-    return Number(msg?.id ?? defaultIdx);
-  }
-  function hookIgsInstance(igs, ownerWin) {
-    if (!igs || igs.__tauri_patch_hooked) return;
-    igs.__tauri_patch_hooked = true;
-    if (typeof igs.openViewerFromMessage === "function") {
-      const originalOpen = igs.openViewerFromMessage.bind(igs);
-      igs.openViewerFromMessage = async function(messageId, mode, openOptions = {}) {
-        const mid = Number(messageId);
-        const chat = ownerWin.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
-        const sid = Number(chat?.[mid]?.swipe_id) || 0;
-        const script = await preloadScriptToMemory(mid, sid);
-        let resolvedMode = mode;
-        let resolvedOptions = openOptions;
-        if (mode && typeof mode === "object" && !Array.isArray(mode)) {
-          resolvedMode = mode.mode;
-          resolvedOptions = mode;
-        } else if (!resolvedOptions || typeof resolvedOptions !== "object") {
-          resolvedOptions = {};
-        }
-        if (script && !resolvedOptions.message) {
-          const baseMsg = chat?.[mid] || {};
-          resolvedOptions.message = {
-            ...baseMsg,
-            id: mid,
-            text: script,
-            visibleText: script,
-            displayText: script,
-            plainText: script,
-            formattedText: script,
-            rawHtml: script,
-            mes: script,
-            element: null
-            // 强制清空 element，阻止 dom-visible-override 覆盖
-          };
-        }
-        return originalOpen(messageId, resolvedMode, resolvedOptions);
-      };
-    }
-    if (typeof igs.openLatestAvailable === "function") {
-      const originalOpenLatest = igs.openLatestAvailable.bind(igs);
-      igs.openLatestAvailable = async function(mode, options = {}) {
-        const chat = ownerWin.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
-        let targetMid = null;
-        let targetSid = 0;
-        if (Array.isArray(chat) && chat.length > 0) {
-          for (let i = chat.length - 1; i >= 0; i--) {
-            if (chat[i] && !chat[i].is_user) {
-              targetMid = i;
-              targetSid = Number(chat[i].swipe_id) || 0;
-              break;
-            }
-          }
-        }
-        let resolvedMode = mode;
-        let resolvedOptions = options;
-        if (mode && typeof mode === "object" && !Array.isArray(mode)) {
-          resolvedMode = mode.mode;
-          resolvedOptions = mode;
-        } else if (!resolvedOptions || typeof resolvedOptions !== "object") {
-          resolvedOptions = {};
-        }
-        if (targetMid != null) {
-          const script = await preloadScriptToMemory(targetMid, targetSid);
-          if (script && !resolvedOptions.message) {
-            const baseMsg = chat[targetMid] || {};
-            resolvedOptions.message = {
-              ...baseMsg,
-              id: targetMid,
-              text: script,
-              visibleText: script,
-              displayText: script,
-              plainText: script,
-              formattedText: script,
-              rawHtml: script,
-              mes: script,
-              element: null
-              // 强制清空 element，阻止 dom-visible-override 覆盖
-            };
-          }
-        }
-        return originalOpenLatest(resolvedMode, resolvedOptions);
-      };
-    }
-  }
-  function observeIgsInWindow(win, onFound) {
-    if (win.IGS || win.ImmersiveGalgameSystem) {
-      onFound(win.IGS || win.ImmersiveGalgameSystem);
-      return;
-    }
-    let intervalId = setInterval(() => {
-      if (win.IGS || win.ImmersiveGalgameSystem) {
-        clearInterval(intervalId);
-        onFound(win.IGS || win.ImmersiveGalgameSystem);
-      }
-    }, 500);
-    setTimeout(() => clearInterval(intervalId), 3e4);
-  }
-
   // src/index.js
+  init_render_hook();
   init_pipeline();
+  init_render_hook();
 
   // src/ui/qr-hijack.js
   init_state();
@@ -20973,6 +21024,24 @@ ${codeFrame}` : message);
   font-size: 0.95rem;
 }
 
+.status-badge-warn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e6a23c;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.status-badge-err {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f56c6c;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
 .intercepted-meta {
   font-size: 0.85rem;
   color: var(--igs-settings-ink-3, rgba(255,255,255,0.5));
@@ -22440,12 +22509,1422 @@ ${codeFrame}` : message);
     }
   }
 
+  // src/image-gen/image-service.js
+  init_toast();
+
+  // src/resources/asset-service.js
+  var STORAGE_KEY_BRIDGE = "igs_bridge_config";
+  var DB_ILLUSTRATIONS = "igs-illustrations";
+  var DB_CG_GALLERY = "igs-cg-gallery";
+  var DB_GENERATED_ASSETS = "igs-generated-assets";
+  function getStorage() {
+    return window.localStorage;
+  }
+  function getCandidateWindows7() {
+    const wins = [window];
+    try {
+      if (window.parent && !wins.includes(window.parent)) wins.push(window.parent);
+    } catch (_) {
+    }
+    try {
+      if (window.top && !wins.includes(window.top)) wins.push(window.top);
+    } catch (_) {
+    }
+    return wins;
+  }
+  function getRawBridgeConfig() {
+    for (const w of getCandidateWindows7()) {
+      try {
+        if (w.IGS) {
+          if (typeof w.IGS.getConfig === "function") {
+            const cfg = w.IGS.getConfig();
+            if (cfg && cfg.sceneAssets) return cfg;
+          }
+          if (typeof w.IGS.getUnifiedSettings === "function") {
+            const unified = w.IGS.getUnifiedSettings();
+            if (unified?.bridge?.sceneAssets) return unified.bridge;
+          }
+        }
+      } catch (_) {
+      }
+    }
+    try {
+      const raw = getStorage().getItem(STORAGE_KEY_BRIDGE);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  function saveRawBridgeConfig(bridge) {
+    try {
+      getStorage().setItem(STORAGE_KEY_BRIDGE, JSON.stringify(bridge));
+      for (const w of getCandidateWindows7()) {
+        try {
+          if (w.IGS && typeof w.IGS.getState === "function") {
+            const igsState = w.IGS.getState();
+            if (igsState) {
+              if (igsState.config) {
+                igsState.config.sceneAssets = bridge.sceneAssets;
+              }
+              if (igsState.legacyIgs?.bridge) {
+                igsState.legacyIgs.bridge.sceneAssets = bridge.sceneAssets;
+              }
+            }
+          }
+        } catch (_) {
+        }
+      }
+      broadcastSettingsUpdated(bridge);
+      return true;
+    } catch (err) {
+      console.warn("[IGS-Patch] \u4FDD\u5B58\u914D\u7F6E\u5931\u8D25:", err);
+      return false;
+    }
+  }
+  try {
+    const rawSetItem = window.localStorage.setItem.bind(window.localStorage);
+    window.localStorage.setItem = function(key, value) {
+      const res = rawSetItem(key, value);
+      if (key === STORAGE_KEY_BRIDGE) {
+        try {
+          window.dispatchEvent(new CustomEvent("igs:legacy-settings-updated"));
+        } catch (_) {
+        }
+      }
+      return res;
+    };
+  } catch (_) {
+  }
+  function broadcastSettingsUpdated(bridge) {
+    for (const w of getCandidateWindows7()) {
+      try {
+        w.dispatchEvent(new CustomEvent("igs:legacy-settings-updated", { detail: bridge }));
+        if (w.eventSource && typeof w.eventSource.emit === "function") {
+          w.eventSource.emit("igs:legacy-settings-updated", bridge);
+        }
+      } catch (_) {
+      }
+    }
+  }
+  function getActiveCardScope() {
+    for (const w of getCandidateWindows7()) {
+      try {
+        const ctx = w.SillyTavern?.getContext?.();
+        if (ctx) {
+          if (ctx.groupId != null && String(ctx.groupId) !== "") {
+            return `group:${ctx.groupId}`;
+          }
+          const chars = Array.isArray(ctx.characters) ? ctx.characters : [];
+          const card = ctx.characterId != null ? chars[ctx.characterId] : null;
+          const name = card && card.name && String(card.name).trim() || ctx.name2 && String(ctx.name2).trim();
+          if (name) return `card:${name}`;
+        }
+      } catch (_) {
+      }
+    }
+    const bridge = getRawBridgeConfig();
+    const cards = Object.keys(bridge.sceneAssets?.cards || {});
+    const userCards = cards.filter((c) => c !== "card:SillyTavern System");
+    if (userCards.length > 0) return userCards[0];
+    return cards[0] || "";
+  }
+  function getScopedSceneAssets(scopeMode = "all", customScopeKey = null) {
+    const bridge = getRawBridgeConfig();
+    const root = bridge.sceneAssets || {};
+    const scopeKey = customScopeKey || getActiveCardScope();
+    const card = scopeKey && root.cards && root.cards[scopeKey] ? root.cards[scopeKey] : null;
+    if (scopeMode === "card") {
+      if (!card) return emptyAssetCollection(scopeKey);
+      return {
+        characters: card.characters || {},
+        characterOutfits: card.characterOutfits || {},
+        characterDefaultOutfits: card.characterDefaultOutfits || {},
+        characterSpriteNotes: card.characterSpriteNotes || {},
+        characterSpriteScales: card.characterSpriteScales || root.characterSpriteScales || {},
+        userCharacter: card.userCharacter || root.userCharacter || "",
+        scenes: card.scenes || {},
+        wardrobe: card.wardrobe || {},
+        items: card.items || {},
+        eventCgs: card.eventCgs || {},
+        statusAvatars: card.statusAvatars || {},
+        characterDna: card.characterDna || {},
+        generated: card.generated || {},
+        scopeKey
+      };
+    }
+    if (scopeMode === "global") {
+      return {
+        characters: root.characters || {},
+        characterOutfits: root.characterOutfits || {},
+        characterDefaultOutfits: root.characterDefaultOutfits || {},
+        characterSpriteNotes: root.characterSpriteNotes || {},
+        characterSpriteScales: root.characterSpriteScales || {},
+        userCharacter: root.userCharacter || "",
+        scenes: root.scenes || {},
+        wardrobe: root.wardrobe || {},
+        items: root.items || {},
+        eventCgs: root.eventCgs || {},
+        statusAvatars: root.statusAvatars || {},
+        characterDna: root.characterDna || {},
+        generated: root.generated || {},
+        scopeKey: ""
+      };
+    }
+    const cardOutfits = card?.characterOutfits || {};
+    const rootOutfits = root.characterOutfits || {};
+    const mergedOutfits = { ...rootOutfits };
+    for (const [charName, outfits] of Object.entries(cardOutfits)) {
+      mergedOutfits[charName] = { ...mergedOutfits[charName] || {}, ...outfits };
+    }
+    return {
+      characters: { ...root.characters || {}, ...card?.characters || {} },
+      characterOutfits: mergedOutfits,
+      characterDefaultOutfits: { ...root.characterDefaultOutfits || {}, ...card?.characterDefaultOutfits || {} },
+      characterSpriteNotes: { ...root.characterSpriteNotes || {}, ...card?.characterSpriteNotes || {} },
+      characterSpriteScales: { ...root.characterSpriteScales || {}, ...card?.characterSpriteScales || {} },
+      userCharacter: card?.userCharacter || root.userCharacter || "",
+      scenes: { ...root.scenes || {}, ...card?.scenes || {} },
+      wardrobe: { ...root.wardrobe || {}, ...card?.wardrobe || {} },
+      items: { ...root.items || {}, ...card?.items || {} },
+      eventCgs: { ...root.eventCgs || {}, ...card?.eventCgs || {} },
+      statusAvatars: { ...root.statusAvatars || {}, ...card?.statusAvatars || {} },
+      characterDna: { ...root.characterDna || {}, ...card?.characterDna || {} },
+      generated: {
+        scenes: { ...root.generated?.scenes || {}, ...card?.generated?.scenes || {} },
+        characters: { ...root.generated?.characters || {}, ...card?.generated?.characters || {} },
+        items: { ...root.generated?.items || {}, ...card?.generated?.items || {} }
+      },
+      scopeKey
+    };
+  }
+  function emptyAssetCollection(scopeKey = "") {
+    return {
+      characters: {},
+      characterOutfits: {},
+      characterDefaultOutfits: {},
+      characterSpriteNotes: {},
+      characterSpriteScales: {},
+      userCharacter: "",
+      scenes: {},
+      wardrobe: {},
+      items: {},
+      eventCgs: {},
+      statusAvatars: {},
+      characterDna: {},
+      generated: {},
+      scopeKey
+    };
+  }
+  function updateScopedSceneAssets(updater, scopeMode = "all", customScopeKey = null) {
+    const bridge = getRawBridgeConfig();
+    if (!bridge.sceneAssets || typeof bridge.sceneAssets !== "object") {
+      bridge.sceneAssets = {};
+    }
+    const root = bridge.sceneAssets;
+    const scopeKey = customScopeKey || getActiveCardScope();
+    if (scopeMode === "card" && scopeKey) {
+      if (!root.cards || typeof root.cards !== "object") root.cards = {};
+      if (!root.cards[scopeKey] || typeof root.cards[scopeKey] !== "object") {
+        root.cards[scopeKey] = emptyAssetCollection(scopeKey);
+      }
+      updater(root.cards[scopeKey]);
+    } else if (scopeMode === "global") {
+      updater(root);
+    } else {
+      if (scopeKey) {
+        if (!root.cards || typeof root.cards !== "object") root.cards = {};
+        if (!root.cards[scopeKey] || typeof root.cards[scopeKey] !== "object") {
+          root.cards[scopeKey] = emptyAssetCollection(scopeKey);
+        }
+        updater(root.cards[scopeKey]);
+      } else {
+        updater(root);
+      }
+    }
+    return saveRawBridgeConfig(bridge);
+  }
+  var TARGET_IGS_DBS = /* @__PURE__ */ new Set([
+    "igs-generated-assets",
+    "igs-illustrations",
+    "igs-cg-gallery",
+    "vn"
+  ]);
+  function setupIndexedDbVersionGuard() {
+    const candidateWindows = [window];
+    try {
+      if (window.parent && !candidateWindows.includes(window.parent)) candidateWindows.push(window.parent);
+    } catch (_) {
+    }
+    try {
+      if (window.top && !candidateWindows.includes(window.top)) candidateWindows.push(window.top);
+    } catch (_) {
+    }
+    try {
+      const rootDoc = (window.top || window.parent || window).document;
+      if (rootDoc) {
+        const iframes = rootDoc.querySelectorAll("iframe");
+        for (const f of iframes) {
+          try {
+            const fw = f.contentWindow;
+            if (fw && !candidateWindows.includes(fw)) candidateWindows.push(fw);
+          } catch (_) {
+          }
+        }
+      }
+    } catch (_) {
+    }
+    for (const win of candidateWindows) {
+      try {
+        if (!win.indexedDB || win.indexedDB.__igsVersionHookInstalled) continue;
+        const originalOpen = win.indexedDB.open.bind(win.indexedDB);
+        win.indexedDB.open = function hookedOpen(name, version2) {
+          let req;
+          if (TARGET_IGS_DBS.has(name) && typeof version2 === "number" && version2 <= 1) {
+            req = originalOpen(name);
+          } else if (typeof version2 === "number") {
+            req = originalOpen(name, version2);
+          } else {
+            req = originalOpen(name);
+          }
+          try {
+            req.addEventListener("upgradeneeded", (e) => {
+              const schema = DB_SCHEMAS[name];
+              if (schema && typeof schema.upgrade === "function") {
+                schema.upgrade(req.result, e);
+              }
+            });
+          } catch (_) {
+          }
+          return req;
+        };
+        win.indexedDB.__igsVersionHookInstalled = true;
+        console.info("[IGS-Patch] IndexedDB \u7248\u672C\u517C\u5BB9\u62E6\u622A\u5668\u5DF2\u6302\u8F7D");
+      } catch (err) {
+        console.warn("[IGS-Patch] \u6302\u8F7D IndexedDB \u62E6\u622A\u5668\u5931\u8D25:", err);
+      }
+    }
+  }
+  setupIndexedDbVersionGuard();
+  try {
+    setInterval(setupIndexedDbVersionGuard, 2e3);
+  } catch (_) {
+  }
+  var DB_SCHEMAS = {
+    [DB_GENERATED_ASSETS]: {
+      version: 1,
+      stores: ["images", "floors", "assets", "items", "scenes", "characters"],
+      upgrade: (db) => {
+        if (!db.objectStoreNames.contains("images")) db.createObjectStore("images", { keyPath: "id" });
+        if (!db.objectStoreNames.contains("floors")) db.createObjectStore("floors", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("assets")) {
+          const store = db.createObjectStore("assets", { keyPath: "key" });
+          try {
+            store.createIndex("chatId", "chatId", { unique: false });
+          } catch (_) {
+          }
+          try {
+            store.createIndex("floorKey", "floorKey", { unique: false });
+          } catch (_) {
+          }
+        }
+        if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("scenes")) db.createObjectStore("scenes", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("characters")) db.createObjectStore("characters", { keyPath: "key" });
+      }
+    },
+    [DB_ILLUSTRATIONS]: {
+      version: 1,
+      stores: ["floors", "slots", "cgs", "illustrations"],
+      upgrade: (db) => {
+        if (!db.objectStoreNames.contains("floors")) db.createObjectStore("floors", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("slots")) {
+          const store = db.createObjectStore("slots", { keyPath: "key" });
+          try {
+            store.createIndex("floorKey", "floorKey", { unique: false });
+          } catch (_) {
+          }
+        }
+        if (!db.objectStoreNames.contains("cgs")) db.createObjectStore("cgs", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("illustrations")) db.createObjectStore("illustrations", { keyPath: "key" });
+      }
+    },
+    [DB_CG_GALLERY]: {
+      version: 1,
+      stores: ["marks", "items"],
+      upgrade: (db) => {
+        if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "key" });
+      }
+    }
+  };
+  function deleteDb(name, timeoutMs = 3500) {
+    return new Promise((resolve2) => {
+      try {
+        const req = window.indexedDB.deleteDatabase(name);
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u8D85\u65F6\uFF0C\u8DF3\u8FC7`);
+            resolve2(false);
+          }
+        }, timeoutMs);
+        req.onsuccess = () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            console.info(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u6210\u529F`);
+            resolve2(true);
+          }
+        };
+        req.onerror = () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u5931\u8D25:`, req.error);
+            resolve2(false);
+          }
+        };
+        req.onblocked = () => {
+          console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u88AB\u5360\u7528\uFF0C\u7B49\u5F85\u8FDE\u63A5\u91CA\u653E...`);
+          try {
+            const igs = window.IGS || window.ImmersiveGalgameSystem;
+            if (igs && typeof igs.shutdown === "function") {
+              igs.shutdown().catch(() => {
+              });
+            }
+          } catch (_) {
+          }
+        };
+      } catch (_) {
+        resolve2(false);
+      }
+    });
+  }
+  function openDb(name, version2 = void 0, onUpgrade = null) {
+    const schema = DB_SCHEMAS[name];
+    const targetVersion = typeof version2 === "number" ? version2 : schema ? schema.version : void 0;
+    const upgradeFn = onUpgrade || (schema ? schema.upgrade : null);
+    const openAttempt = (ver) => {
+      return new Promise((resolve2, reject) => {
+        if (!window.indexedDB) {
+          return reject(new Error("IndexedDB not supported"));
+        }
+        let req;
+        try {
+          req = typeof ver === "number" ? window.indexedDB.open(name, ver) : window.indexedDB.open(name);
+        } catch (err) {
+          return reject(err);
+        }
+        req.onupgradeneeded = (e) => {
+          if (typeof upgradeFn === "function") upgradeFn(req.result, e);
+        };
+        req.onsuccess = () => resolve2(req.result);
+        req.onerror = () => reject(req.error || new Error(`\u65E0\u6CD5\u6253\u5F00\u6570\u636E\u5E93: ${name}`));
+        req.onblocked = () => {
+          console.warn(`[IGS-Patch] IndexedDB ${name} \u6253\u5F00\u88AB\u963B\u585E`);
+        };
+      });
+    };
+    return openAttempt(targetVersion).then(async (db) => {
+      if (schema && schema.stores) {
+        const missing = schema.stores.filter((s) => !db.objectStoreNames.contains(s));
+        if (missing.length > 0) {
+          const currentVer = db.version || 1;
+          console.warn(`[IGS-Patch] \u6570\u636E\u5E93 ${name} \u7F3A\u5C11\u5FC5\u8981\u7684\u6570\u636E\u8868 [${missing.join(", ")}]\uFF0C\u6B63\u5728\u81EA\u52A8\u7248\u672C\u81EA\u6108...`);
+          db.close();
+          try {
+            const healedDb = await new Promise((res, rej) => {
+              const upReq = window.indexedDB.open(name, currentVer + 1);
+              upReq.onupgradeneeded = (e) => {
+                if (typeof schema.upgrade === "function") schema.upgrade(upReq.result, e);
+              };
+              upReq.onsuccess = () => res(upReq.result);
+              upReq.onerror = () => rej(upReq.error);
+            });
+            return healedDb;
+          } catch (upErr) {
+            console.warn(`[IGS-Patch] \u7248\u672C\u5347\u7EA7\u81EA\u6108\u5F02\u5E38\uFF0C\u5C1D\u8BD5\u5B8C\u5168\u91CD\u5EFA\u5E93:`, upErr);
+            await deleteDb(name);
+            return openAttempt(schema.version);
+          }
+        }
+      }
+      return db;
+    });
+  }
+  async function ensureIgsDatabasesHealthy() {
+    if (typeof window === "undefined" || !window.indexedDB) return;
+    for (const [dbName, schema] of Object.entries(DB_SCHEMAS)) {
+      try {
+        const db = await openDb(dbName);
+        db.close();
+      } catch (err) {
+        console.warn(`[IGS-Patch] \u6570\u636E\u5E93\u81EA\u68C0\u5931\u8D25: ${dbName}`, err);
+      }
+    }
+  }
+  async function repairAllIgsDatabases(forceNuclear = false) {
+    console.info("[IGS-Patch] \u6B63\u5728\u6267\u884C\u5168\u91CF IndexedDB \u7ED3\u6784\u4FEE\u590D\u4E0E\u81EA\u6108...");
+    for (const [dbName, schema] of Object.entries(DB_SCHEMAS)) {
+      try {
+        if (forceNuclear) {
+          await deleteDb(dbName);
+        }
+        const db = await openDb(dbName);
+        db.close();
+        console.info(`[IGS-Patch] \u6570\u636E\u5E93 ${dbName} \u81EA\u6108\u68C0\u67E5\u5C31\u7EEA`);
+      } catch (err) {
+        console.warn(`[IGS-Patch] \u6570\u636E\u5E93 ${dbName} \u4FEE\u590D\u5F02\u5E38:`, err);
+      }
+    }
+  }
+  var resolvedImageCache = /* @__PURE__ */ new Map();
+  async function resolveImageUrl(url) {
+    if (!url || typeof url !== "string") return "";
+    let cleanUrl = url.trim();
+    if (!cleanUrl) return "";
+    if (cleanUrl.startsWith("data:") || cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://") || cleanUrl.startsWith("blob:")) {
+      return cleanUrl;
+    }
+    if (cleanUrl.startsWith("igs-gen:")) {
+      const imageId = cleanUrl.replace("igs-gen:", "");
+      if (resolvedImageCache.has(imageId)) {
+        return resolvedImageCache.get(imageId);
+      }
+      try {
+        const db = await openDb(DB_GENERATED_ASSETS);
+        if (db.objectStoreNames.contains("images")) {
+          const tx = db.transaction("images", "readonly");
+          const store = tx.objectStore("images");
+          const record = await new Promise((res) => {
+            const r = store.get(imageId);
+            r.onsuccess = () => res(r.result);
+            r.onerror = () => res(null);
+          });
+          db.close();
+          if (record && (record.dataUrl || record.originalDataUrl)) {
+            let finalUrl = record.dataUrl || record.originalDataUrl;
+            if (!finalUrl.startsWith("data:") && !finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && !finalUrl.startsWith("blob:") && !finalUrl.startsWith("/")) {
+              finalUrl = "/" + finalUrl;
+            }
+            resolvedImageCache.set(imageId, finalUrl);
+            return finalUrl;
+          }
+        } else {
+          db.close();
+        }
+      } catch (_) {
+      }
+      const fallbackUrl = `/user/images/igs-media/${imageId}.png`;
+      resolvedImageCache.set(imageId, fallbackUrl);
+      return fallbackUrl;
+    }
+    if (!cleanUrl.startsWith("/") && (cleanUrl.startsWith("user/") || cleanUrl.startsWith("scripts/") || cleanUrl.startsWith("public/"))) {
+      return "/" + cleanUrl;
+    }
+    return cleanUrl;
+  }
+  async function listCharacters(scopeMode = "all", customScopeKey = null) {
+    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
+    const charsObj = assets.characters || {};
+    const outfitsObj = assets.characterOutfits || {};
+    const defaultOutfits = assets.characterDefaultOutfits || {};
+    const spriteNotes = assets.characterSpriteNotes || {};
+    const spriteScales = assets.characterSpriteScales || {};
+    const statusAvatars = assets.statusAvatars || {};
+    const userCharName = String(assets.userCharacter || "").trim();
+    const allNames = new Set([
+      ...Object.keys(charsObj),
+      ...Object.keys(outfitsObj),
+      ...Object.keys(spriteNotes),
+      ...Object.keys(statusAvatars)
+    ].filter(Boolean));
+    const result = [];
+    for (const name of allNames) {
+      const isUser = userCharName === name;
+      const height = Number(spriteScales[name]) || 100;
+      const rawAvatar = statusAvatars[name] || "";
+      const resolvedAvatar = await resolveImageUrl(rawAvatar);
+      const note = spriteNotes[name] || "";
+      const charOutfits = outfitsObj[name] || {};
+      const defaultOutfitName = defaultOutfits[name]?.outfitName || Object.keys(charOutfits)[0] || "\u9ED8\u8BA4\u8863\u88C5";
+      const outfitsList = [];
+      for (const [outfitName, outfitData] of Object.entries(charOutfits)) {
+        const isDefault = outfitName === defaultOutfitName;
+        const moodMap = outfitData && typeof outfitData === "object" && outfitData.moods ? outfitData.moods : {};
+        const moodList = [];
+        for (const [moodName, moodUrl] of Object.entries(moodMap)) {
+          if (!moodUrl) continue;
+          moodList.push({
+            name: moodName,
+            rawUrl: moodUrl,
+            resolvedUrl: await resolveImageUrl(moodUrl)
+          });
+        }
+        outfitsList.push({
+          name: outfitName,
+          isDefault,
+          prompt: outfitData?.prompt || "",
+          moods: moodList,
+          count: moodList.length
+        });
+      }
+      const directChar = charsObj[name];
+      const directMoodsObj = directChar && typeof directChar === "object" && directChar.moods ? directChar.moods : directChar && typeof directChar === "object" ? directChar : {};
+      const directMoodsList = [];
+      for (const [mName, mUrl] of Object.entries(directMoodsObj)) {
+        if (typeof mUrl === "string" && mUrl.trim()) {
+          directMoodsList.push({
+            name: mName,
+            rawUrl: mUrl,
+            resolvedUrl: await resolveImageUrl(mUrl)
+          });
+        }
+      }
+      if (directMoodsList.length && !outfitsList.length) {
+        outfitsList.push({
+          name: defaultOutfitName,
+          isDefault: true,
+          prompt: "",
+          moods: directMoodsList,
+          count: directMoodsList.length
+        });
+      }
+      let baseResolvedUrl = resolvedAvatar;
+      let baseRawUrl = rawAvatar;
+      if (!baseResolvedUrl && outfitsList.length) {
+        const defOutfit = outfitsList.find((o) => o.isDefault) || outfitsList[0];
+        const firstMood = defOutfit.moods.find((m) => m.name === "\u5E73\u548C") || defOutfit.moods[0];
+        if (firstMood) {
+          baseResolvedUrl = firstMood.resolvedUrl;
+          baseRawUrl = firstMood.rawUrl;
+        }
+      }
+      const totalDiffCount = outfitsList.reduce((acc, cur) => acc + cur.moods.length, 0);
+      result.push({
+        name,
+        isUser,
+        height,
+        avatarUrl: resolvedAvatar,
+        baseRawUrl,
+        baseResolvedUrl,
+        note,
+        outfits: outfitsList,
+        moodCount: totalDiffCount,
+        activeOutfitIndex: 0
+      });
+    }
+    return result.sort((a, b) => {
+      if (a.isUser && !b.isUser) return -1;
+      if (!a.isUser && b.isUser) return 1;
+      return a.name.localeCompare(b.name, "zh-Hans-CN");
+    });
+  }
+  function saveCharacter(name, baseRawUrl = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.characters) assets.characters = {};
+      if (!assets.characters[name]) assets.characters[name] = {};
+      if (!assets.characterOutfits) assets.characterOutfits = {};
+      const defOutfitName = `${name}\xB7\u521D\u59CB\u8863\u88C5`;
+      if (!assets.characterOutfits[name]) {
+        assets.characterOutfits[name] = {
+          [defOutfitName]: {
+            words: [],
+            moods: baseRawUrl ? { "\u5E73\u548C": baseRawUrl } : {},
+            legacyOriginal: 1,
+            wardrobe: defOutfitName
+          }
+        };
+      }
+      if (!assets.characterDefaultOutfits) assets.characterDefaultOutfits = {};
+      assets.characterDefaultOutfits[name] = { version: 1, outfitName: defOutfitName, migrated: true };
+    }, scopeMode);
+  }
+  function setUserCharacter(name, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      assets.userCharacter = name;
+    }, scopeMode);
+  }
+  function setCharacterHeight(name, height, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.characterSpriteScales) assets.characterSpriteScales = {};
+      assets.characterSpriteScales[name] = Number(height) || 100;
+    }, scopeMode);
+  }
+  function saveCharacterOutfit(charName, outfitName, prompt = "", isDefault = false, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.characterOutfits) assets.characterOutfits = {};
+      if (!assets.characterOutfits[charName]) assets.characterOutfits[charName] = {};
+      const oldOutfit = assets.characterOutfits[charName][outfitName] || {};
+      assets.characterOutfits[charName][outfitName] = {
+        ...oldOutfit,
+        words: [],
+        prompt,
+        moods: oldOutfit.moods || {},
+        wardrobe: outfitName
+      };
+      if (isDefault) {
+        if (!assets.characterDefaultOutfits) assets.characterDefaultOutfits = {};
+        assets.characterDefaultOutfits[charName] = { version: 1, outfitName, migrated: true };
+      }
+    }, scopeMode);
+  }
+  function deleteCharacterOutfit(charName, outfitName, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (assets.characterOutfits?.[charName]) {
+        delete assets.characterOutfits[charName][outfitName];
+      }
+    }, scopeMode);
+  }
+  function saveCharacterMood(characterName, moodName, moodRawUrl, outfitName = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.characterOutfits) assets.characterOutfits = {};
+      if (!assets.characterOutfits[characterName]) assets.characterOutfits[characterName] = {};
+      let targetOutfit = outfitName;
+      if (!targetOutfit) {
+        const def2 = assets.characterDefaultOutfits?.[characterName]?.outfitName;
+        targetOutfit = def2 || Object.keys(assets.characterOutfits[characterName])[0] || `${characterName}\xB7\u521D\u59CB\u8863\u88C5`;
+      }
+      if (!assets.characterOutfits[characterName][targetOutfit]) {
+        assets.characterOutfits[characterName][targetOutfit] = { words: [], moods: {}, wardrobe: targetOutfit };
+      }
+      if (!assets.characterOutfits[characterName][targetOutfit].moods) {
+        assets.characterOutfits[characterName][targetOutfit].moods = {};
+      }
+      assets.characterOutfits[characterName][targetOutfit].moods[moodName] = moodRawUrl;
+    }, scopeMode);
+  }
+  function deleteCharacterMood(characterName, moodName, outfitName = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (assets.characterOutfits?.[characterName]) {
+        if (outfitName && assets.characterOutfits[characterName][outfitName]?.moods) {
+          delete assets.characterOutfits[characterName][outfitName].moods[moodName];
+        } else {
+          for (const o of Object.values(assets.characterOutfits[characterName])) {
+            if (o.moods && o.moods[moodName]) delete o.moods[moodName];
+          }
+        }
+      }
+      if (assets.characters?.[characterName]?.[moodName]) {
+        delete assets.characters[characterName][moodName];
+      }
+    }, scopeMode);
+  }
+  async function listScenes(scopeMode = "all", customScopeKey = null) {
+    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
+    const scenesObj = assets.scenes || {};
+    const result = [];
+    for (const [name, data] of Object.entries(scenesObj)) {
+      if (!name) continue;
+      const sceneData = data && typeof data === "object" ? data : { url: String(data || "") };
+      const baseRawUrl = sceneData.url || "";
+      const baseResolved = await resolveImageUrl(baseRawUrl);
+      const timesObj = sceneData.times && typeof sceneData.times === "object" ? sceneData.times : {};
+      const timesList = [];
+      for (const [timeName, timeVal] of Object.entries(timesObj)) {
+        const tUrl = typeof timeVal === "string" ? timeVal : timeVal?.url || "";
+        if (!tUrl) continue;
+        timesList.push({
+          name: timeName,
+          rawUrl: tUrl,
+          resolvedUrl: await resolveImageUrl(tUrl),
+          desc: typeof timeVal === "object" ? timeVal.desc || "" : ""
+        });
+      }
+      result.push({
+        name,
+        desc: sceneData.desc || "",
+        baseRawUrl,
+        baseResolvedUrl: baseResolved,
+        timeCount: timesList.length,
+        times: timesList
+      });
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+  }
+  function saveScene(name, baseRawUrl, desc = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.scenes) assets.scenes = {};
+      if (!assets.scenes[name]) {
+        assets.scenes[name] = { url: baseRawUrl, desc, times: {} };
+      } else if (typeof assets.scenes[name] === "object") {
+        assets.scenes[name].url = baseRawUrl;
+        if (desc) assets.scenes[name].desc = desc;
+      } else {
+        assets.scenes[name] = { url: baseRawUrl, desc, times: {} };
+      }
+    }, scopeMode);
+  }
+  function deleteScene(name, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (assets.scenes) delete assets.scenes[name];
+    }, scopeMode);
+  }
+  function saveSceneTime(sceneName, timeName, timeRawUrl, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.scenes) assets.scenes = {};
+      let sceneObj = assets.scenes[sceneName];
+      if (!sceneObj || typeof sceneObj !== "object") {
+        sceneObj = { url: "", desc: "", times: {} };
+        assets.scenes[sceneName] = sceneObj;
+      }
+      if (!sceneObj.times) sceneObj.times = {};
+      sceneObj.times[timeName] = timeRawUrl;
+    }, scopeMode);
+  }
+  function deleteSceneTime(sceneName, timeName, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      const sceneObj = assets.scenes?.[sceneName];
+      if (sceneObj && sceneObj.times) {
+        delete sceneObj.times[timeName];
+      }
+    }, scopeMode);
+  }
+  async function listWardrobe(scopeMode = "all", customScopeKey = null) {
+    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
+    const wardrobeObj = assets.wardrobe || {};
+    const result = [];
+    for (const [name, data] of Object.entries(wardrobeObj)) {
+      if (!name) continue;
+      const item = data && typeof data === "object" ? data : { prompt: String(data || "") };
+      const rawUrl = item.image || item.rawUrl || item.url || "";
+      result.push({
+        name,
+        character: item.character || "",
+        prompt: item.prompt || "",
+        rawUrl,
+        resolvedUrl: await resolveImageUrl(rawUrl),
+        scenes: Array.isArray(item.scenes) ? item.scenes : []
+      });
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+  }
+  function saveWardrobeItem(name, itemData, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.wardrobe) assets.wardrobe = {};
+      assets.wardrobe[name] = {
+        name,
+        character: itemData.character || "",
+        prompt: itemData.prompt || "",
+        image: itemData.rawUrl || itemData.image || "",
+        scenes: Array.isArray(itemData.scenes) ? itemData.scenes : []
+      };
+    }, scopeMode);
+  }
+  function deleteWardrobeItem(name, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (assets.wardrobe) delete assets.wardrobe[name];
+    }, scopeMode);
+  }
+  async function listAllCgs(filter = "ready") {
+    const list = [];
+    const marksMap = /* @__PURE__ */ new Map();
+    try {
+      const dbMarks = await openDb(DB_CG_GALLERY);
+      if (dbMarks.objectStoreNames.contains("marks")) {
+        const tx = dbMarks.transaction("marks", "readonly");
+        const allMarks = await new Promise((res) => {
+          const req = tx.objectStore("marks").getAll();
+          req.onsuccess = () => res(req.result || []);
+          req.onerror = () => res([]);
+        });
+        for (const m of allMarks) {
+          if (m && m.key) marksMap.set(m.key, m);
+        }
+      }
+      dbMarks.close();
+    } catch (_) {
+    }
+    try {
+      const dbCg = await openDb(DB_ILLUSTRATIONS);
+      if (dbCg.objectStoreNames.contains("slots")) {
+        const tx = dbCg.transaction("slots", "readonly");
+        const allSlots = await new Promise((res) => {
+          const req = tx.objectStore("slots").getAll();
+          req.onsuccess = () => res(req.result || []);
+          req.onerror = () => res([]);
+        });
+        for (const s of allSlots) {
+          if (!s || !s.key) continue;
+          const mark = marksMap.get(s.key) || {};
+          const isHidden = mark.hidden === true || s.hidden === true;
+          const isFavorite = mark.favorite === true || s.favorite === true;
+          const rawDataUrl = s.dataUrl || s.imageUrl || s.originalDataUrl || "";
+          const parts = String(s.floorKey || "").split("|");
+          const floorNo = parts.length >= 2 ? parts[parts.length - 2] : "";
+          const isPending = s.status === "pending" || !rawDataUrl;
+          if (filter === "ready" && (isPending || isHidden)) continue;
+          if (filter === "pending" && (!isPending || isHidden)) continue;
+          if (filter === "favorites" && (!isFavorite || isPending)) continue;
+          if (filter === "hidden" && !isHidden) continue;
+          if (filter === "all" && (isPending || isHidden)) continue;
+          let fullPrompt = s.prompt || s.caption || "";
+          if (!fullPrompt && (s.scene || s.chars)) {
+            const charTags = Array.isArray(s.chars) ? s.chars.map((c) => c.tags).filter(Boolean).join(", ") : "";
+            fullPrompt = [s.scene, charTags].filter(Boolean).join("\n");
+          }
+          list.push({
+            key: s.key,
+            floorKey: s.floorKey || "",
+            slot: s.slot || 1,
+            label: floorNo ? `\u7B2C ${floorNo} \u697C` : s.key,
+            prompt: fullPrompt,
+            description: s.description || s.analysis || "",
+            status: s.status || (rawDataUrl ? "done" : "pending"),
+            isPending,
+            rawUrl: rawDataUrl,
+            resolvedUrl: isPending ? "" : await resolveImageUrl(rawDataUrl),
+            isFavorite,
+            isHidden,
+            isEventCg: false
+          });
+        }
+      }
+      dbCg.close();
+    } catch (_) {
+    }
+    const assets = getScopedSceneAssets("all");
+    const eventCgs = assets.eventCgs || {};
+    for (const [name, item] of Object.entries(eventCgs)) {
+      if (!name) continue;
+      const rawUrl = typeof item === "string" ? item : item?.url || "";
+      if (filter === "hidden") continue;
+      if (filter === "pending") continue;
+      list.push({
+        key: `event_cg_${name}`,
+        label: name,
+        prompt: typeof item === "object" ? item.prompt || "" : "",
+        description: "\u9884\u7F6E\u4E8B\u4EF6CG",
+        status: "done",
+        isPending: false,
+        rawUrl,
+        resolvedUrl: await resolveImageUrl(rawUrl),
+        isFavorite: true,
+        isHidden: false,
+        isEventCg: true
+      });
+    }
+    return list;
+  }
+  async function toggleCgFavorite(cgKey, currentVal) {
+    const nextVal = !currentVal;
+    try {
+      const dbMarks = await openDb(DB_CG_GALLERY, void 0, (db) => {
+        if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
+      });
+      const tx = dbMarks.transaction("marks", "readwrite");
+      const store = tx.objectStore("marks");
+      const existing = await new Promise((res) => {
+        const req = store.get(cgKey);
+        req.onsuccess = () => res(req.result || { key: cgKey });
+        req.onerror = () => res({ key: cgKey });
+      });
+      existing.favorite = nextVal;
+      existing.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      store.put(existing);
+      dbMarks.close();
+      return { ok: true, isFavorite: nextVal };
+    } catch (err) {
+      console.warn("[IGS-Patch] \u5207\u6362\u6536\u85CF\u72B6\u6001\u5F02\u5E38:", err);
+      return { ok: false };
+    }
+  }
+  async function toggleCgHidden(cgKey, currentVal) {
+    const nextVal = !currentVal;
+    try {
+      const dbMarks = await openDb(DB_CG_GALLERY, void 0, (db) => {
+        if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
+      });
+      const tx = dbMarks.transaction("marks", "readwrite");
+      const store = tx.objectStore("marks");
+      const existing = await new Promise((res) => {
+        const req = store.get(cgKey);
+        req.onsuccess = () => res(req.result || { key: cgKey });
+        req.onerror = () => res({ key: cgKey });
+      });
+      existing.hidden = nextVal;
+      existing.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      store.put(existing);
+      dbMarks.close();
+      return { ok: true, isHidden: nextVal };
+    } catch (err) {
+      console.warn("[IGS-Patch] \u5207\u6362\u9690\u85CF\u72B6\u6001\u5F02\u5E38:", err);
+      return { ok: false };
+    }
+  }
+  async function saveCgDataUrl(cgKey, dataUrl) {
+    try {
+      const dbCg = await openDb(DB_ILLUSTRATIONS);
+      const tx = dbCg.transaction("slots", "readwrite");
+      const store = tx.objectStore("slots");
+      const slot = await new Promise((res) => {
+        const req = store.get(cgKey);
+        req.onsuccess = () => res(req.result || null);
+        req.onerror = () => res(null);
+      });
+      if (slot) {
+        slot.dataUrl = dataUrl;
+        slot.status = "ready";
+        slot.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+        store.put(slot);
+      }
+      dbCg.close();
+      return true;
+    } catch (err) {
+      console.warn("[IGS-Patch] \u4FDD\u5B58 CG \u5F02\u5E38:", err);
+      return false;
+    }
+  }
+  async function deleteCg(cgKey, isEventCg = false) {
+    if (isEventCg) {
+      const name = cgKey.replace("event_cg_", "");
+      return updateScopedSceneAssets((assets) => {
+        if (assets.eventCgs) delete assets.eventCgs[name];
+      }, "all");
+    }
+    try {
+      const dbCg = await openDb(DB_ILLUSTRATIONS);
+      const tx = dbCg.transaction("slots", "readwrite");
+      tx.objectStore("slots").delete(cgKey);
+      dbCg.close();
+      return true;
+    } catch (err) {
+      console.warn("[IGS-Patch] \u5220\u9664 CG \u5F02\u5E38:", err);
+      return false;
+    }
+  }
+  async function listItems(scopeMode = "all", customScopeKey = null) {
+    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
+    const combined = { ...assets.items || {}, ...assets.generated?.items || {} };
+    const result = [];
+    for (const [name, data] of Object.entries(combined)) {
+      if (!name) continue;
+      const item = data && typeof data === "object" ? data : { url: String(data || "") };
+      const rawUrl = item.url || item.image || "";
+      result.push({
+        name,
+        desc: item.desc || "",
+        rawUrl,
+        resolvedUrl: await resolveImageUrl(rawUrl)
+      });
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+  }
+  function saveItem(name, rawUrl, desc = "", scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (!assets.items) assets.items = {};
+      if (!assets.generated) assets.generated = {};
+      if (!assets.generated.items) assets.generated.items = {};
+      const entry = { url: rawUrl, desc };
+      assets.items[name] = entry;
+      assets.generated.items[name] = entry;
+    }, scopeMode);
+  }
+  function deleteItem(name, scopeMode = "all") {
+    return updateScopedSceneAssets((assets) => {
+      if (assets.items) {
+        delete assets.items[name];
+      }
+      if (assets.generated?.items) {
+        delete assets.generated.items[name];
+      }
+    }, scopeMode);
+  }
+  async function listStagingAssets() {
+    const list = [];
+    try {
+      const db = await openDb(DB_GENERATED_ASSETS);
+      if (db.objectStoreNames.contains("assets")) {
+        const tx = db.transaction("assets", "readonly");
+        const all = await new Promise((res) => {
+          const req = tx.objectStore("assets").getAll();
+          req.onsuccess = () => res(req.result || []);
+          req.onerror = () => res([]);
+        });
+        for (const item of all) {
+          if (item && item.status === "temp") {
+            const rawUrl = item.imageId ? `igs-gen:${item.imageId}` : item.dataUrl || "";
+            list.push({
+              key: item.key || item.id,
+              type: item.type || "sprite",
+              name: item.name || "\u672A\u547D\u540D",
+              rawUrl,
+              resolvedUrl: await resolveImageUrl(rawUrl)
+            });
+          }
+        }
+      }
+      db.close();
+    } catch (_) {
+    }
+    return list;
+  }
+  async function acceptStagingAsset(item, targetName, targetType) {
+    const resolvedUrl = item.rawUrl;
+    if (targetType === "sprite") {
+      saveCharacter(targetName, resolvedUrl);
+    } else if (targetType === "background") {
+      saveScene(targetName, resolvedUrl);
+    } else if (targetType === "item") {
+      saveItem(targetName, resolvedUrl);
+    }
+    await discardStagingAsset(item.key);
+    return true;
+  }
+  async function discardStagingAsset(key) {
+    try {
+      const db = await openDb(DB_GENERATED_ASSETS);
+      const tx = db.transaction("assets", "readwrite");
+      tx.objectStore("assets").delete(key);
+      db.close();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve2, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve2(reader.result);
+      reader.onerror = () => reject(reader.error || new Error("\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // src/image-gen/image-service.js
+  var STORAGE_KEY_IMAGE_CONFIG = "igs:patch:image_config_v1";
+  var DEFAULT_IMAGE_CONFIG = Object.freeze({
+    provider: "auto",
+    // 'auto' | 'custom' | 'baibai' | 'nai'
+    // 自定义生图 API (标准 OpenAI / SiliconFlow 格式: POST /v1/images/generations)
+    customApi: {
+      enabled: true,
+      endpoint: "https://api.siliconflow.cn/v1/images/generations",
+      apiKey: "",
+      model: "black-forest-labs/FLUX.1-schnell",
+      size: "1024x1024"
+    },
+    // NovelAI 原生接口
+    nai: {
+      enabled: false,
+      apiKey: "",
+      endpoint: "https://image.novelai.net",
+      model: "nai-diffusion-4-curated-preview"
+    }
+  });
+  function getCandidateWindows8() {
+    const list = [window];
+    try {
+      if (window.parent && window.parent !== window && !list.includes(window.parent)) list.push(window.parent);
+    } catch (_) {
+    }
+    try {
+      if (window.top && window.top !== window && !list.includes(window.top)) list.push(window.top);
+    } catch (_) {
+    }
+    return list;
+  }
+  function getImageConfig() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_IMAGE_CONFIG);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          ...DEFAULT_IMAGE_CONFIG,
+          ...parsed,
+          customApi: { ...DEFAULT_IMAGE_CONFIG.customApi, ...parsed.customApi || {} },
+          nai: { ...DEFAULT_IMAGE_CONFIG.nai, ...parsed.nai || {} }
+        };
+      }
+    } catch (_) {
+    }
+    const cfg = { ...DEFAULT_IMAGE_CONFIG };
+    try {
+      const bridge = getRawBridgeConfig();
+      const naiKey = bridge?.autoIllustration?.nai?.apiKey || bridge?.imageApi?.apiKey;
+      if (naiKey) {
+        cfg.nai.apiKey = naiKey;
+        cfg.nai.enabled = true;
+      }
+    } catch (_) {
+    }
+    return cfg;
+  }
+  function saveImageConfig(newConfig) {
+    try {
+      localStorage.setItem(STORAGE_KEY_IMAGE_CONFIG, JSON.stringify(newConfig));
+      if (newConfig?.nai?.apiKey) {
+        const bridge = getRawBridgeConfig();
+        if (bridge) {
+          bridge.autoIllustration = bridge.autoIllustration || {};
+          bridge.autoIllustration.nai = bridge.autoIllustration.nai || {};
+          bridge.autoIllustration.nai.apiKey = newConfig.nai.apiKey;
+          if (newConfig.nai.endpoint) bridge.autoIllustration.nai.endpoint = newConfig.nai.endpoint;
+          if (newConfig.nai.model) bridge.autoIllustration.nai.model = newConfig.nai.model;
+          bridge.imageApi = bridge.imageApi || {};
+          bridge.imageApi.apiKey = newConfig.nai.apiKey;
+          if (newConfig.nai.endpoint) bridge.imageApi.endpoint = newConfig.nai.endpoint;
+          if (newConfig.nai.model) bridge.imageApi.model = newConfig.nai.model;
+          saveRawBridgeConfig(bridge);
+        }
+      }
+      return true;
+    } catch (err) {
+      console.warn("[IGS-Patch] \u4FDD\u5B58\u751F\u56FE\u914D\u7F6E\u5931\u8D25:", err);
+      return false;
+    }
+  }
+  function detectImageBackends() {
+    const status = {
+      baibai: { detected: false, configured: false, label: "\u67CF\u5B9D\u7ED8 (ST-BaiBai-Image)", detail: "\u672A\u68C0\u6D4B\u5230\u63D2\u4EF6" },
+      customApi: { detected: false, configured: false, label: "\u901A\u7528/OpenAI \u517C\u5BB9\u7ED8\u56FE API", detail: "\u672A\u914D\u7F6E API Key" },
+      nai: { detected: false, configured: false, label: "NovelAI \u539F\u751F\u63A5\u53E3", detail: "\u672A\u914D\u7F6E API Key" },
+      extension: { detected: false, configured: false, label: "\u9152\u9986\u539F\u751F/\u667A\u7ED8\u59EC\u6269\u5C55", detail: "\u672A\u68C0\u6D4B\u5230\u51FA\u56FE\u63A5\u53E3" }
+    };
+    for (const w of getCandidateWindows8()) {
+      try {
+        const api = w.STBaiBaiImage;
+        if (api && typeof api.generate === "function") {
+          status.baibai.detected = true;
+          const backendStatus = typeof api.getBackendStatus === "function" ? api.getBackendStatus() : null;
+          if (backendStatus && backendStatus.configured === false) {
+            status.baibai.configured = false;
+            status.baibai.detail = backendStatus.reason || "\u67CF\u5B9D\u7ED8\u672A\u914D\u7F6E\u51FA\u56FE\u6E20\u9053";
+          } else {
+            status.baibai.configured = true;
+            status.baibai.detail = "\u5DF2\u5C31\u7EEA (\u53EF\u76F4\u63A5\u51FA\u56FE)";
+          }
+          break;
+        }
+      } catch (_) {
+      }
+    }
+    const config = getImageConfig();
+    if (config?.customApi?.apiKey && config?.customApi?.endpoint) {
+      status.customApi.detected = true;
+      status.customApi.configured = true;
+      status.customApi.detail = `\u5DF2\u914D\u7F6E (${config.customApi.model || "\u9ED8\u8BA4\u6A21\u578B"})`;
+    }
+    const bridge = getRawBridgeConfig();
+    const naiKey = config?.nai?.apiKey || bridge?.autoIllustration?.nai?.apiKey || bridge?.imageApi?.apiKey;
+    if (naiKey && naiKey.trim()) {
+      status.nai.detected = true;
+      status.nai.configured = true;
+      status.nai.detail = "\u5DF2\u914D\u7F6E API Key";
+    }
+    for (const w of getCandidateWindows8()) {
+      try {
+        if (typeof w.generateImage === "function" || typeof w.SillyTavern?.getContext?.()?.generateImage === "function") {
+          status.extension.detected = true;
+          status.extension.configured = true;
+          status.extension.detail = "\u5DF2\u5C31\u7EEA (\u8C03\u7528\u9152\u9986\u753B\u56FE\u63D2\u4EF6)";
+          break;
+        }
+      } catch (_) {
+      }
+    }
+    return status;
+  }
+  async function testCustomApiConnection(customApiConfig) {
+    if (!customApiConfig || !customApiConfig.endpoint || !customApiConfig.apiKey) {
+      return { ok: false, message: "\u8BF7\u5148\u586B\u5199\u63A5\u53E3\u5730\u5740\u4E0E API Key" };
+    }
+    try {
+      let url = customApiConfig.endpoint.trim();
+      if (!url.includes("/images/generations") && !url.endsWith("/")) {
+        url = `${url}/images/generations`;
+      }
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${customApiConfig.apiKey.trim()}`
+        },
+        body: JSON.stringify({
+          model: customApiConfig.model || "black-forest-labs/FLUX.1-schnell",
+          prompt: "1girl, anime, cute smile, masterpiece",
+          n: 1,
+          size: "512x512"
+        })
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        let parsedReason = "";
+        try {
+          const j = JSON.parse(errText);
+          parsedReason = j?.error?.message || j?.message || "";
+        } catch (_) {
+        }
+        return {
+          ok: false,
+          message: `\u670D\u52A1\u5668\u8FD4\u56DE HTTP ${res.status}: ${parsedReason || errText.slice(0, 150)}`
+        };
+      }
+      const json = await res.json();
+      const b64 = json?.data?.[0]?.b64_json;
+      const imgUrl = json?.data?.[0]?.url;
+      if (b64 || imgUrl) {
+        return { ok: true, message: "\u8FDE\u63A5\u4E0E\u751F\u56FE\u6D4B\u8BD5\u6210\u529F\uFF01" };
+      }
+      return { ok: false, message: "\u63A5\u53E3\u8FD4\u56DE\u6570\u636E\u4E2D\u672A\u5305\u542B\u6709\u6548\u7684\u56FE\u7247\u5185\u5BB9 (data[0].b64_json \u6216 url \u4E3A\u7A7A)" };
+    } catch (err) {
+      return { ok: false, message: `\u7F51\u7EDC\u8BF7\u6C42\u5931\u8D25: ${err.message}` };
+    }
+  }
+  async function executeImageGeneration(options = {}) {
+    const prompt = String(options.prompt || "").trim();
+    const negative = String(options.negative || "").trim();
+    const type = options.type || "sprite";
+    const charName = options.charName || "";
+    const size = options.size || (type === "cg" || type === "scene" ? "landscape" : type === "item" ? "square" : "portrait");
+    if (!prompt) {
+      throw new Error("\u751F\u56FE\u63D0\u793A\u8BCD\u4E0D\u80FD\u4E3A\u7A7A");
+    }
+    const config = getImageConfig();
+    const backends = detectImageBackends();
+    if ((config.provider === "custom" || config.provider === "auto") && backends.customApi.configured) {
+      try {
+        console.info("[IGS-Patch] \u6B63\u5728\u901A\u8FC7\u81EA\u5B9A\u4E49\u901A\u7528\u751F\u56FE API \u751F\u6210\u56FE\u7247...");
+        let url = config.customApi.endpoint.trim();
+        if (!url.includes("/images/generations") && !url.endsWith("/")) {
+          url = `${url}/images/generations`;
+        }
+        let pixelSize = "1024x1024";
+        if (size === "landscape") pixelSize = "1024x768";
+        else if (size === "portrait") pixelSize = "768x1024";
+        const payload = {
+          model: config.customApi.model || "black-forest-labs/FLUX.1-schnell",
+          prompt,
+          n: 1,
+          size: pixelSize
+        };
+        if (negative) {
+          payload.negative_prompt = negative;
+        }
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${config.customApi.apiKey.trim()}`
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          let detail = "";
+          try {
+            const j = JSON.parse(errText);
+            detail = j?.error?.message || j?.message || "";
+          } catch (_) {
+          }
+          throw new Error(`\u901A\u7528\u751F\u56FE API \u9519\u8BEF (HTTP ${res.status}): ${detail || errText.slice(0, 160)}`);
+        }
+        const data = await res.json();
+        const b64 = data?.data?.[0]?.b64_json;
+        if (b64) return `data:image/png;base64,${b64}`;
+        const imgUrl = data?.data?.[0]?.url;
+        if (imgUrl) return imgUrl;
+        throw new Error("\u751F\u56FE API \u672A\u8FD4\u56DE\u56FE\u7247\u6570\u636E (b64_json \u4E0E url \u5747\u4E3A\u7A7A)");
+      } catch (err2) {
+        console.warn("[IGS-Patch] \u81EA\u5B9A\u4E49\u751F\u56FE API \u6267\u884C\u5931\u8D25:", err2);
+        if (config.provider === "custom") throw err2;
+      }
+    }
+    if ((config.provider === "baibai" || config.provider === "auto") && backends.baibai.detected) {
+      for (const w of getCandidateWindows8()) {
+        try {
+          const api = w.STBaiBaiImage;
+          if (api && typeof api.generate === "function") {
+            const status = typeof api.getBackendStatus === "function" ? api.getBackendStatus() : null;
+            if (status && status.configured === false) {
+              throw new Error(`\u67CF\u5B9D\u7ED8\u672A\u5C31\u7EEA\uFF1A${status.reason || "\u8BF7\u5728\u9152\u9986\u62D3\u5C55\u83DC\u5355\u300C\u67CF\u5B9D\u7ED8\u300D\u4E2D\u914D\u7F6E\u51FA\u56FE\u6E20\u9053"}`);
+            }
+            console.info("[IGS-Patch] \u6B63\u5728\u901A\u8FC7\u67CF\u5B9D\u7ED8 (STBaiBaiImage) \u751F\u6210\u56FE\u7247...");
+            const reqOptions = {
+              prompt,
+              ...negative ? { negative } : {},
+              size: size === "landscape" ? "landscape" : "portrait",
+              save: false
+            };
+            if (charName) reqOptions.character = charName;
+            const result = await api.generate(reqOptions);
+            const dataUrl = result && (result.dataUrl || result.url);
+            if (dataUrl) return dataUrl;
+            if (result && result.error) throw new Error(result.error);
+          }
+        } catch (err2) {
+          console.warn("[IGS-Patch] \u67CF\u5B9D\u7ED8\u51FA\u56FE\u5F02\u5E38:", err2);
+          if (config.provider === "baibai") throw err2;
+        }
+      }
+    }
+    for (const w of getCandidateWindows8()) {
+      try {
+        const igs = w.IGS || w.ImmersiveGalgameSystem;
+        if (igs && typeof igs.generateImage === "function") {
+          console.info("[IGS-Patch] \u6B63\u5728\u5C1D\u8BD5\u8C03\u7528 IGS \u539F\u751F\u751F\u56FE\u670D\u52A1...");
+          const res = await igs.generateImage({
+            prompt,
+            negative,
+            type,
+            character: charName
+          });
+          if (res && res.ok !== false) {
+            const dataUrl = res.dataUrl || res.url || res;
+            if (typeof dataUrl === "string" && dataUrl) return dataUrl;
+          } else if (res && res.reason && res.reason !== "provider-not-enabled") {
+            throw new Error(`IGS \u751F\u56FE\u9519\u8BEF: ${res.reason}`);
+          }
+        }
+      } catch (err2) {
+        console.warn("[IGS-Patch] IGS \u539F\u751F\u751F\u56FE\u670D\u52A1\u8C03\u7528\u5931\u8D25:", err2);
+      }
+    }
+    for (const w of getCandidateWindows8()) {
+      try {
+        if (typeof w.generateImage === "function") {
+          console.info("[IGS-Patch] \u6B63\u5728\u8BF7\u6C42\u9152\u9986\u539F\u751F\u753B\u56FE\u63A5\u53E3...");
+          const res = await w.generateImage(prompt, negative);
+          const dataUrl = res && (res.url || res.dataUrl || res);
+          if (typeof dataUrl === "string" && dataUrl) return dataUrl;
+        }
+      } catch (err2) {
+        console.warn("[IGS-Patch] \u9152\u9986\u753B\u56FE\u63A5\u53E3\u8C03\u7528\u5931\u8D25:", err2);
+      }
+    }
+    const failureMsg = [
+      "\u672A\u68C0\u6D4B\u5230\u5DF2\u5C31\u7EEA\u7684\u751F\u56FE\u540E\u7AEF\uFF1A",
+      `\u2022 \u67CF\u5B9D\u7ED8 (STBaiBaiImage): ${backends.baibai.detail}`,
+      `\u2022 \u901A\u7528/OpenAI \u517C\u5BB9 API: ${backends.customApi.detail}`,
+      `\u2022 NovelAI \u51ED\u636E: ${backends.nai.detail}`,
+      `\u2022 \u9152\u9986\u753B\u56FE\u6269\u5C55: ${backends.extension.detail}`,
+      "\u63D0\u793A\uFF1A\u5EFA\u8BAE\u5728\u300C\u8BBE\u7F6E \u203A \u751F\u56FE\u5F15\u64CE\u300D\u4E2D\u586B\u5165\u901A\u7528\u7684\u7ED8\u56FE API (\u5982 SiliconFlow / OpenAI \u7B49) \u6216\u5728\u9152\u9986\u4E2D\u914D\u7F6E\u67CF\u5B9D\u7ED8\u63D2\u4EF6\u3002"
+    ].join("\n");
+    const err = new Error(failureMsg);
+    err.code = "NO_IMAGE_BACKEND";
+    err.backends = backends;
+    throw err;
+  }
+
   // src/ui/settings-modal.js
   var isModalVisible = ref(false);
+  var requestedSettingsTab = ref("production");
   var appInstance = null;
   var containerEl = null;
-  function openSettingsModal(targetDoc = null) {
-    console.info("[IGS-Patch] \u6B63\u5728\u547C\u51FA\u653E\u6620\u8BBE\u7F6E\u5168\u5C4F\u63A7\u5236\u53F0...");
+  function openSettingsModal(options = null) {
+    let targetDoc = null;
+    let tab = null;
+    if (options && options.nodeType === 9) {
+      targetDoc = options;
+    } else if (options && typeof options === "object") {
+      targetDoc = options.targetDoc || null;
+      tab = options.initialTab || options.tab || null;
+    }
+    if (tab) {
+      requestedSettingsTab.value = tab;
+    }
+    console.info("[IGS-Patch] \u6B63\u5728\u547C\u51FA\u653E\u6620\u8BBE\u7F6E\u5168\u5C4F\u63A7\u5236\u53F0...", tab ? `(\u521D\u59CB\u6807\u7B7E: ${tab})` : "");
     injectSettingsStyles();
     detectAndSyncIgsTheme();
     ensureMounted(targetDoc);
@@ -22490,7 +23969,10 @@ ${codeFrame}` : message);
   var SettingsRootComponent = {
     setup() {
       const visible = isModalVisible;
-      const activeTab = ref("production");
+      const activeTab = ref(requestedSettingsTab.value || "production");
+      watch2(requestedSettingsTab, (val) => {
+        if (val) activeTab.value = val;
+      });
       const showPromptDetails = ref(false);
       const state = reactive({
         productionMode: patchState.productionMode,
@@ -22770,11 +24252,28 @@ ${codeFrame}` : message);
         } catch (_) {
         }
       };
-      const handleOpenReader = () => {
+      const handleOpenReader = async () => {
         closeSettingsModal();
         try {
           const igs = window.parent?.IGS || window.IGS;
           const mid = currentFloorInfo.id;
+          const sid = currentFloorInfo.swipeId || 0;
+          const { preloadScriptToMemory: preloadScriptToMemory2 } = await Promise.resolve().then(() => (init_render_hook(), render_hook_exports));
+          if (mid != null) {
+            await preloadScriptToMemory2(mid, sid);
+          }
+          if (typeof igs?.closeReader === "function") {
+            try {
+              igs.closeReader();
+            } catch (_) {
+            }
+          }
+          if (typeof igs?.igsUi?.closeReader === "function") {
+            try {
+              igs.igsUi.closeReader();
+            } catch (_) {
+            }
+          }
           if (igs && typeof igs.openViewerFromMessage === "function" && mid != null) {
             igs.openViewerFromMessage(mid);
           } else if (igs && typeof igs.openLatestAvailable === "function") {
@@ -22814,6 +24313,39 @@ ${codeFrame}` : message);
           await refreshCurrentFloor();
         };
         confirmDialog.visible = true;
+      };
+      const imageConfig = reactive(getImageConfig());
+      const imageBackends = ref(detectImageBackends());
+      const imageTesting = ref(false);
+      const imageTestResult = ref(null);
+      const showCustomApiKey = ref(false);
+      const showNaiApiKey = ref(false);
+      const refreshImageBackends = () => {
+        imageBackends.value = detectImageBackends();
+      };
+      const handleSaveImageConfig = () => {
+        const ok = saveImageConfig(imageConfig);
+        if (ok) {
+          notifyToast("\u751F\u56FE\u914D\u7F6E\u4FDD\u5B58\u6210\u529F\u5E76\u5DF2\u540C\u6B65\u81F3\u539F\u751F\u670D\u52A1", "success");
+          refreshImageBackends();
+        } else {
+          notifyToast("\u751F\u56FE\u914D\u7F6E\u4FDD\u5B58\u5931\u8D25", "error");
+        }
+      };
+      const handleTestImageApi = async () => {
+        imageTesting.value = true;
+        imageTestResult.value = null;
+        try {
+          const res = await testCustomApiConnection(imageConfig.customApi);
+          imageTestResult.value = res;
+          if (res.ok) {
+            notifyToast("\u81EA\u5B9A\u4E49\u751F\u56FE API \u8FDE\u63A5\u4E0E\u6D4B\u8BD5\u51FA\u56FE\u6210\u529F\uFF01", "success");
+          } else {
+            notifyToast(`API \u6D4B\u8BD5\u672A\u901A\u8FC7: ${res.message}`, "error", 4500);
+          }
+        } finally {
+          imageTesting.value = false;
+        }
       };
       let unsubscribe = null;
       onMounted(() => {
@@ -22884,6 +24416,15 @@ ${codeFrame}` : message);
         isBaiBaiBookDetected,
         detectedNumericVars,
         refreshBaiBaiBookInfo,
+        imageConfig,
+        imageBackends,
+        imageTesting,
+        imageTestResult,
+        showCustomApiKey,
+        showNaiApiKey,
+        refreshImageBackends,
+        handleSaveImageConfig,
+        handleTestImageApi,
         close: closeSettingsModal
       };
     },
@@ -22938,11 +24479,11 @@ ${codeFrame}` : message);
 
             <button 
               class="igs-patch-nav-item" 
-              :class="{ 'is-active': activeTab === 'prompt' }"
-              @click="activeTab = 'prompt'"
+              :class="{ 'is-active': activeTab === 'imageGen' }"
+              @click="activeTab = 'imageGen'; refreshImageBackends();"
             >
-              <i class="fa-solid fa-shield-halved"></i>
-              <span>\u63D0\u793A\u8BCD</span>
+              <i class="fa-solid fa-paintbrush"></i>
+              <span>\u751F\u56FE\u5F15\u64CE</span>
             </button>
 
             <button 
@@ -22951,7 +24492,16 @@ ${codeFrame}` : message);
               @click="activeTab = 'artist'"
             >
               <i class="fa-solid fa-palette"></i>
-              <span>\u751F\u56FE</span>
+              <span>\u753B\u98CE</span>
+            </button>
+
+            <button 
+              class="igs-patch-nav-item" 
+              :class="{ 'is-active': activeTab === 'prompt' }"
+              @click="activeTab = 'prompt'"
+            >
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>\u63D0\u793A\u8BCD</span>
             </button>
 
             <button 
@@ -23364,6 +24914,169 @@ ${codeFrame}` : message);
                     <i class="fa-solid" :class="llmTestResult.ok ? 'fa-check' : 'fa-xmark'"></i>
                     <span>{{ llmTestResult.ok ? '\u8FDE\u901A\u6B63\u5E38 ' + llmTestResult.latency + ' ms' : '\u8FDE\u63A5\u5931\u8D25: ' + llmTestResult.error }}</span>
                   </span>
+                </div>
+              </div>
+            </section>
+
+            <!-- \u677F\u5757: \u751F\u56FE\u5F15\u64CE\u4E0E\u5B9E\u65F6\u8BCA\u65AD -->
+            <section v-if="activeTab === 'imageGen'" class="igs-patch-section">
+              <h3 class="section-title">\u751F\u56FE\u5F15\u64CE\u4E0E\u5B9E\u65F6\u8BCA\u65AD</h3>
+              <p class="section-desc">
+                \u89E3\u51B3\u751F\u56FE\u5931\u8D25\u4E0E\u672A\u5C31\u7EEA\u95EE\u9898\u3002\u652F\u6301\u901A\u8FC7\u901A\u7528 OpenAI/SiliconFlow \u7ED8\u56FE\u63A5\u53E3 (\u63A8\u8350 FLUX/SDXL)\u3001NovelAI \u539F\u751F\u63A5\u53E3\u6216\u9152\u9986\u63D2\u4EF6 (\u67CF\u5B9D\u7ED8/\u667A\u7ED8\u59EC) \u51FA\u56FE\u3002
+              </p>
+
+              <!-- \u72B6\u6001\u68C0\u6D4B\u770B\u677F -->
+              <div class="status-card" style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <span style="font-weight: 700; font-size: 1rem; color: var(--igs-settings-ink);">\u540E\u7AEF\u5C31\u7EEA\u770B\u677F</span>
+                  <button class="igs-btn igs-btn-secondary" style="padding: 4px 10px; font-size: 0.82rem;" @click="refreshImageBackends">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>\u91CD\u65B0\u68C0\u6D4B</span>
+                  </button>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                  <div style="background: var(--igs-settings-field); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                      <i class="fa-solid" :class="imageBackends.customApi.configured ? 'fa-circle-check status-badge-ok' : 'fa-circle-xmark status-badge-err'"></i>
+                      <strong style="font-size: 0.9rem;">\u901A\u7528\u7ED8\u56FE API</strong>
+                    </div>
+                    <div style="font-size: 0.78rem; color: var(--igs-settings-muted);">{{ imageBackends.customApi.detail }}</div>
+                  </div>
+
+                  <div style="background: var(--igs-settings-field); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                      <i class="fa-solid" :class="imageBackends.baibai.configured ? 'fa-circle-check status-badge-ok' : (imageBackends.baibai.detected ? 'fa-circle-exclamation status-badge-warn' : 'fa-circle-xmark status-badge-err')"></i>
+                      <strong style="font-size: 0.9rem;">\u67CF\u5B9D\u7ED8\u63D2\u4EF6</strong>
+                    </div>
+                    <div style="font-size: 0.78rem; color: var(--igs-settings-muted);">{{ imageBackends.baibai.detail }}</div>
+                  </div>
+
+                  <div style="background: var(--igs-settings-field); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                      <i class="fa-solid" :class="imageBackends.nai.configured ? 'fa-circle-check status-badge-ok' : 'fa-circle-xmark status-badge-err'"></i>
+                      <strong style="font-size: 0.9rem;">NovelAI \u63A5\u53E3</strong>
+                    </div>
+                    <div style="font-size: 0.78rem; color: var(--igs-settings-muted);">{{ imageBackends.nai.detail }}</div>
+                  </div>
+
+                  <div style="background: var(--igs-settings-field); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                      <i class="fa-solid" :class="imageBackends.extension.configured ? 'fa-circle-check status-badge-ok' : 'fa-circle-xmark status-badge-err'"></i>
+                      <strong style="font-size: 0.9rem;">\u667A\u7ED8\u59EC/\u539F\u751F\u6269\u5C55</strong>
+                    </div>
+                    <div style="font-size: 0.78rem; color: var(--igs-settings-muted);">{{ imageBackends.extension.detail }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- \u8C03\u5EA6\u6A21\u5F0F\u9996\u9009\u9879 -->
+              <div class="setting-card">
+                <div class="setting-row">
+                  <div class="setting-info">
+                    <span class="setting-title">\u51FA\u56FE\u8C03\u5EA6\u7B56\u7565</span>
+                    <span class="setting-desc">\u5F53\u70B9\u51FB\u300C\u786E\u8BA4\u751F\u56FE\u300D\u6216\u8865\u5168\u7D20\u6750\u65F6\uFF0C\u4F18\u5148\u91C7\u7528\u54EA\u79CD\u65B9\u5F0F\u51FA\u56FE</span>
+                  </div>
+                  <select class="form-select" v-model="imageConfig.provider" @change="handleSaveImageConfig" style="width: 240px;">
+                    <option value="auto">\u81EA\u52A8\u4F18\u5148 (\u901A\u7528API / \u67CF\u5B9D\u7ED8 / \u539F\u751F)</option>
+                    <option value="custom">\u4EC5\u4F7F\u7528 \u81EA\u5B9A\u4E49\u901A\u7528\u7ED8\u56FE API</option>
+                    <option value="baibai">\u4EC5\u4F7F\u7528 \u67CF\u5B9D\u7ED8 (STBaiBaiImage)</option>
+                    <option value="nai">\u4EC5\u4F7F\u7528 NovelAI \u5B98\u65B9\u63A5\u53E3</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- \u81EA\u5B9A\u4E49\u901A\u7528\u7ED8\u56FE API (SiliconFlow / FLUX / SDXL / OpenAI \u7B49) -->
+              <div class="setting-card">
+                <h4 style="margin: 0 0 10px 0; font-size: 0.98rem; color: var(--igs-settings-ink);">
+                  <i class="fa-solid fa-server" style="color: var(--igs-settings-accent); margin-right: 8px;"></i>
+                  \u81EA\u5B9A\u4E49\u901A\u7528\u7ED8\u56FE API (\u517C\u5BB9 OpenAI / \u7845\u57FA\u6D41\u52A8 SiliconFlow / WebUI)
+                </h4>
+                <p style="font-size: 0.82rem; color: var(--igs-settings-muted); margin: 0 0 14px 0;">
+                  \u652F\u6301\u6807\u51C6\u7684 <code>/v1/images/generations</code> \u683C\u5F0F\u3002\u4F8B\u5982\u4F7F\u7528\u7845\u57FA\u6D41\u52A8 SiliconFlow \u63D0\u4F9B\u7684\u514D\u8D39/\u4F4E\u4EF7 FLUX \u6216 SDXL \u6A21\u578B\uFF0C\u65E0\u9700\u989D\u5916\u5B89\u88C5\u672C\u5730 SD \u4E5F\u80FD\u6025\u901F\u51FA\u56FE\u3002
+                </p>
+
+                <div class="form-group">
+                  <label class="form-label">\u63A5\u53E3\u5730\u5740 (Endpoint URL)</label>
+                  <input type="text" class="form-input" v-model="imageConfig.customApi.endpoint" placeholder="https://api.siliconflow.cn/v1/images/generations" />
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">API Key</label>
+                  <div style="display: flex; gap: 8px;">
+                    <input :type="showCustomApiKey ? 'text' : 'password'" class="form-input" v-model="imageConfig.customApi.apiKey" placeholder="sk-..." />
+                    <button class="igs-btn igs-btn-secondary" style="padding: 0 12px;" @click="showCustomApiKey = !showCustomApiKey">
+                      <i class="fa-solid" :class="showCustomApiKey ? 'fa-eye-slash' : 'fa-eye'"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">\u751F\u56FE\u6A21\u578B (Model Name)</label>
+                  <div style="display: flex; gap: 8px;">
+                    <input type="text" class="form-input" v-model="imageConfig.customApi.model" placeholder="black-forest-labs/FLUX.1-schnell" />
+                    <select class="form-select" style="width: 220px;" @change="imageConfig.customApi.model = $event.target.value">
+                      <option value="">-- \u5FEB\u901F\u586B\u5165\u63A8\u8350\u6A21\u578B --</option>
+                      <option value="black-forest-labs/FLUX.1-schnell">FLUX.1-schnell (\u6781\u901F/\u9AD8\u8D28)</option>
+                      <option value="black-forest-labs/FLUX.1-dev">FLUX.1-dev (\u9876\u5C16\u753B\u8D28)</option>
+                      <option value="stabilityai/stable-diffusion-3-5-large">SD 3.5 Large</option>
+                      <option value="stabilityai/stable-diffusion-xl-base-1.0">SDXL 1.0</option>
+                      <option value="dall-e-3">OpenAI DALL-E 3</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+                  <button class="igs-btn igs-btn-primary" @click="handleSaveImageConfig">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>\u4FDD\u5B58\u914D\u7F6E</span>
+                  </button>
+                  <button class="igs-btn igs-btn-secondary" :disabled="imageTesting" @click="handleTestImageApi">
+                    <i class="fa-solid" :class="imageTesting ? 'fa-spinner fa-spin' : 'fa-plug'"></i>
+                    <span>{{ imageTesting ? '\u6B63\u5728\u6D4B\u8BD5...' : '\u6D4B\u8BD5\u751F\u56FE\u8FDE\u63A5' }}</span>
+                  </button>
+                  <span v-if="imageTestResult" class="test-result-tag" :class="imageTestResult.ok ? 'res-ok' : 'res-err'">
+                    <i class="fa-solid" :class="imageTestResult.ok ? 'fa-check' : 'fa-xmark'"></i>
+                    <span>{{ imageTestResult.message }}</span>
+                  </span>
+                </div>
+              </div>
+
+              <!-- NovelAI \u5B98\u65B9\u63A5\u53E3\u51ED\u636E -->
+              <div class="setting-card">
+                <h4 style="margin: 0 0 10px 0; font-size: 0.98rem; color: var(--igs-settings-ink);">
+                  <i class="fa-solid fa-key" style="color: var(--igs-settings-accent); margin-right: 8px;"></i>
+                  NovelAI \u5B98\u65B9\u63A5\u53E3\u51ED\u636E (\u81EA\u52A8\u53CC\u5411\u540C\u6B65 IGS \u539F\u751F\u914D\u7F6E)
+                </h4>
+                <p style="font-size: 0.82rem; color: var(--igs-settings-muted); margin: 0 0 14px 0;">
+                  \u586B\u5165\u60A8\u7684 NovelAI \u5B98\u65B9 API Key\u3002\u4FDD\u5B58\u540E\u5C06\u81EA\u52A8\u6DF1\u5EA6\u540C\u6B65\u81F3\u539F\u751F IGS bridge \u914D\u7F6E\uFF0C\u4F7F\u539F\u751F\u9605\u8BFB\u5668\u8865\u5168\u4E0E Vue \u754C\u9762\u751F\u56FE\u540C\u65F6\u751F\u6548\u3002
+                </p>
+
+                <div class="form-group">
+                  <label class="form-label">NovelAI API Key</label>
+                  <div style="display: flex; gap: 8px;">
+                    <input :type="showNaiApiKey ? 'text' : 'password'" class="form-input" v-model="imageConfig.nai.apiKey" placeholder="pst-..." />
+                    <button class="igs-btn igs-btn-secondary" style="padding: 0 12px;" @click="showNaiApiKey = !showNaiApiKey">
+                      <i class="fa-solid" :class="showNaiApiKey ? 'fa-eye-slash' : 'fa-eye'"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">NovelAI \u6A21\u578B</label>
+                  <select class="form-select" v-model="imageConfig.nai.model">
+                    <option value="nai-diffusion-4-curated-preview">NAI Diffusion V4 Curated (\u6700\u65B0V4\u52A8\u6F2B)</option>
+                    <option value="nai-diffusion-4-full">NAI Diffusion V4 Full (\u5B8C\u6574\u7248)</option>
+                    <option value="nai-diffusion-3">NAI Diffusion V3 (\u52A8\u6F2BV3)</option>
+                    <option value="nai-diffusion-furry-3">NAI Furry V3 (\u517D\u4EBA)</option>
+                  </select>
+                </div>
+
+                <div style="margin-top: 14px;">
+                  <button class="igs-btn igs-btn-primary" @click="handleSaveImageConfig">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>\u4FDD\u5B58\u5E76\u540C\u6B65\u81F3 IGS</span>
+                  </button>
                 </div>
               </div>
             </section>
@@ -24904,1088 +26617,9 @@ textarea.igs-form-textarea {
     }
   }
 
-  // src/resources/asset-service.js
-  var STORAGE_KEY_BRIDGE = "igs_bridge_config";
-  var DB_ILLUSTRATIONS = "igs-illustrations";
-  var DB_CG_GALLERY = "igs-cg-gallery";
-  var DB_GENERATED_ASSETS = "igs-generated-assets";
-  function getStorage() {
-    return window.localStorage;
-  }
-  function getCandidateWindows7() {
-    const wins = [window];
-    try {
-      if (window.parent && !wins.includes(window.parent)) wins.push(window.parent);
-    } catch (_) {
-    }
-    try {
-      if (window.top && !wins.includes(window.top)) wins.push(window.top);
-    } catch (_) {
-    }
-    return wins;
-  }
-  function getRawBridgeConfig() {
-    for (const w of getCandidateWindows7()) {
-      try {
-        if (w.IGS) {
-          if (typeof w.IGS.getConfig === "function") {
-            const cfg = w.IGS.getConfig();
-            if (cfg && cfg.sceneAssets) return cfg;
-          }
-          if (typeof w.IGS.getUnifiedSettings === "function") {
-            const unified = w.IGS.getUnifiedSettings();
-            if (unified?.bridge?.sceneAssets) return unified.bridge;
-          }
-        }
-      } catch (_) {
-      }
-    }
-    try {
-      const raw = getStorage().getItem(STORAGE_KEY_BRIDGE);
-      return raw ? JSON.parse(raw) : {};
-    } catch (_) {
-      return {};
-    }
-  }
-  function saveRawBridgeConfig(bridge) {
-    try {
-      getStorage().setItem(STORAGE_KEY_BRIDGE, JSON.stringify(bridge));
-      for (const w of getCandidateWindows7()) {
-        try {
-          if (w.IGS && typeof w.IGS.getState === "function") {
-            const igsState = w.IGS.getState();
-            if (igsState) {
-              if (igsState.config) {
-                igsState.config.sceneAssets = bridge.sceneAssets;
-              }
-              if (igsState.legacyIgs?.bridge) {
-                igsState.legacyIgs.bridge.sceneAssets = bridge.sceneAssets;
-              }
-            }
-          }
-        } catch (_) {
-        }
-      }
-      broadcastSettingsUpdated(bridge);
-      return true;
-    } catch (err) {
-      console.warn("[IGS-Patch] \u4FDD\u5B58\u914D\u7F6E\u5931\u8D25:", err);
-      return false;
-    }
-  }
-  try {
-    const rawSetItem = window.localStorage.setItem.bind(window.localStorage);
-    window.localStorage.setItem = function(key, value) {
-      const res = rawSetItem(key, value);
-      if (key === STORAGE_KEY_BRIDGE) {
-        try {
-          window.dispatchEvent(new CustomEvent("igs:legacy-settings-updated"));
-        } catch (_) {
-        }
-      }
-      return res;
-    };
-  } catch (_) {
-  }
-  function broadcastSettingsUpdated(bridge) {
-    for (const w of getCandidateWindows7()) {
-      try {
-        w.dispatchEvent(new CustomEvent("igs:legacy-settings-updated", { detail: bridge }));
-        if (w.eventSource && typeof w.eventSource.emit === "function") {
-          w.eventSource.emit("igs:legacy-settings-updated", bridge);
-        }
-      } catch (_) {
-      }
-    }
-  }
-  function getActiveCardScope() {
-    for (const w of getCandidateWindows7()) {
-      try {
-        const ctx = w.SillyTavern?.getContext?.();
-        if (ctx) {
-          if (ctx.groupId != null && String(ctx.groupId) !== "") {
-            return `group:${ctx.groupId}`;
-          }
-          const chars = Array.isArray(ctx.characters) ? ctx.characters : [];
-          const card = ctx.characterId != null ? chars[ctx.characterId] : null;
-          const name = card && card.name && String(card.name).trim() || ctx.name2 && String(ctx.name2).trim();
-          if (name) return `card:${name}`;
-        }
-      } catch (_) {
-      }
-    }
-    const bridge = getRawBridgeConfig();
-    const cards = Object.keys(bridge.sceneAssets?.cards || {});
-    const userCards = cards.filter((c) => c !== "card:SillyTavern System");
-    if (userCards.length > 0) return userCards[0];
-    return cards[0] || "";
-  }
-  function getScopedSceneAssets(scopeMode = "all", customScopeKey = null) {
-    const bridge = getRawBridgeConfig();
-    const root = bridge.sceneAssets || {};
-    const scopeKey = customScopeKey || getActiveCardScope();
-    const card = scopeKey && root.cards && root.cards[scopeKey] ? root.cards[scopeKey] : null;
-    if (scopeMode === "card") {
-      if (!card) return emptyAssetCollection(scopeKey);
-      return {
-        characters: card.characters || {},
-        characterOutfits: card.characterOutfits || {},
-        characterDefaultOutfits: card.characterDefaultOutfits || {},
-        characterSpriteNotes: card.characterSpriteNotes || {},
-        characterSpriteScales: card.characterSpriteScales || root.characterSpriteScales || {},
-        userCharacter: card.userCharacter || root.userCharacter || "",
-        scenes: card.scenes || {},
-        wardrobe: card.wardrobe || {},
-        items: card.items || {},
-        eventCgs: card.eventCgs || {},
-        statusAvatars: card.statusAvatars || {},
-        characterDna: card.characterDna || {},
-        generated: card.generated || {},
-        scopeKey
-      };
-    }
-    if (scopeMode === "global") {
-      return {
-        characters: root.characters || {},
-        characterOutfits: root.characterOutfits || {},
-        characterDefaultOutfits: root.characterDefaultOutfits || {},
-        characterSpriteNotes: root.characterSpriteNotes || {},
-        characterSpriteScales: root.characterSpriteScales || {},
-        userCharacter: root.userCharacter || "",
-        scenes: root.scenes || {},
-        wardrobe: root.wardrobe || {},
-        items: root.items || {},
-        eventCgs: root.eventCgs || {},
-        statusAvatars: root.statusAvatars || {},
-        characterDna: root.characterDna || {},
-        generated: root.generated || {},
-        scopeKey: ""
-      };
-    }
-    const cardOutfits = card?.characterOutfits || {};
-    const rootOutfits = root.characterOutfits || {};
-    const mergedOutfits = { ...rootOutfits };
-    for (const [charName, outfits] of Object.entries(cardOutfits)) {
-      mergedOutfits[charName] = { ...mergedOutfits[charName] || {}, ...outfits };
-    }
-    return {
-      characters: { ...root.characters || {}, ...card?.characters || {} },
-      characterOutfits: mergedOutfits,
-      characterDefaultOutfits: { ...root.characterDefaultOutfits || {}, ...card?.characterDefaultOutfits || {} },
-      characterSpriteNotes: { ...root.characterSpriteNotes || {}, ...card?.characterSpriteNotes || {} },
-      characterSpriteScales: { ...root.characterSpriteScales || {}, ...card?.characterSpriteScales || {} },
-      userCharacter: card?.userCharacter || root.userCharacter || "",
-      scenes: { ...root.scenes || {}, ...card?.scenes || {} },
-      wardrobe: { ...root.wardrobe || {}, ...card?.wardrobe || {} },
-      items: { ...root.items || {}, ...card?.items || {} },
-      eventCgs: { ...root.eventCgs || {}, ...card?.eventCgs || {} },
-      statusAvatars: { ...root.statusAvatars || {}, ...card?.statusAvatars || {} },
-      characterDna: { ...root.characterDna || {}, ...card?.characterDna || {} },
-      generated: {
-        scenes: { ...root.generated?.scenes || {}, ...card?.generated?.scenes || {} },
-        characters: { ...root.generated?.characters || {}, ...card?.generated?.characters || {} },
-        items: { ...root.generated?.items || {}, ...card?.generated?.items || {} }
-      },
-      scopeKey
-    };
-  }
-  function emptyAssetCollection(scopeKey = "") {
-    return {
-      characters: {},
-      characterOutfits: {},
-      characterDefaultOutfits: {},
-      characterSpriteNotes: {},
-      characterSpriteScales: {},
-      userCharacter: "",
-      scenes: {},
-      wardrobe: {},
-      items: {},
-      eventCgs: {},
-      statusAvatars: {},
-      characterDna: {},
-      generated: {},
-      scopeKey
-    };
-  }
-  function updateScopedSceneAssets(updater, scopeMode = "all", customScopeKey = null) {
-    const bridge = getRawBridgeConfig();
-    if (!bridge.sceneAssets || typeof bridge.sceneAssets !== "object") {
-      bridge.sceneAssets = {};
-    }
-    const root = bridge.sceneAssets;
-    const scopeKey = customScopeKey || getActiveCardScope();
-    if (scopeMode === "card" && scopeKey) {
-      if (!root.cards || typeof root.cards !== "object") root.cards = {};
-      if (!root.cards[scopeKey] || typeof root.cards[scopeKey] !== "object") {
-        root.cards[scopeKey] = emptyAssetCollection(scopeKey);
-      }
-      updater(root.cards[scopeKey]);
-    } else if (scopeMode === "global") {
-      updater(root);
-    } else {
-      if (scopeKey) {
-        if (!root.cards || typeof root.cards !== "object") root.cards = {};
-        if (!root.cards[scopeKey] || typeof root.cards[scopeKey] !== "object") {
-          root.cards[scopeKey] = emptyAssetCollection(scopeKey);
-        }
-        updater(root.cards[scopeKey]);
-      } else {
-        updater(root);
-      }
-    }
-    return saveRawBridgeConfig(bridge);
-  }
-  var TARGET_IGS_DBS = /* @__PURE__ */ new Set([
-    "igs-generated-assets",
-    "igs-illustrations",
-    "igs-cg-gallery",
-    "vn"
-  ]);
-  function setupIndexedDbVersionGuard() {
-    const candidateWindows = [window];
-    try {
-      if (window.parent && !candidateWindows.includes(window.parent)) candidateWindows.push(window.parent);
-    } catch (_) {
-    }
-    try {
-      if (window.top && !candidateWindows.includes(window.top)) candidateWindows.push(window.top);
-    } catch (_) {
-    }
-    try {
-      const rootDoc = (window.top || window.parent || window).document;
-      if (rootDoc) {
-        const iframes = rootDoc.querySelectorAll("iframe");
-        for (const f of iframes) {
-          try {
-            const fw = f.contentWindow;
-            if (fw && !candidateWindows.includes(fw)) candidateWindows.push(fw);
-          } catch (_) {
-          }
-        }
-      }
-    } catch (_) {
-    }
-    for (const win of candidateWindows) {
-      try {
-        if (!win.indexedDB || win.indexedDB.__igsVersionHookInstalled) continue;
-        const originalOpen = win.indexedDB.open.bind(win.indexedDB);
-        win.indexedDB.open = function hookedOpen(name, version2) {
-          let req;
-          if (TARGET_IGS_DBS.has(name) && typeof version2 === "number" && version2 <= 1) {
-            req = originalOpen(name);
-          } else if (typeof version2 === "number") {
-            req = originalOpen(name, version2);
-          } else {
-            req = originalOpen(name);
-          }
-          try {
-            req.addEventListener("upgradeneeded", (e) => {
-              const schema = DB_SCHEMAS[name];
-              if (schema && typeof schema.upgrade === "function") {
-                schema.upgrade(req.result, e);
-              }
-            });
-          } catch (_) {
-          }
-          return req;
-        };
-        win.indexedDB.__igsVersionHookInstalled = true;
-        console.info("[IGS-Patch] IndexedDB \u7248\u672C\u517C\u5BB9\u62E6\u622A\u5668\u5DF2\u6302\u8F7D");
-      } catch (err) {
-        console.warn("[IGS-Patch] \u6302\u8F7D IndexedDB \u62E6\u622A\u5668\u5931\u8D25:", err);
-      }
-    }
-  }
-  setupIndexedDbVersionGuard();
-  try {
-    setInterval(setupIndexedDbVersionGuard, 2e3);
-  } catch (_) {
-  }
-  var DB_SCHEMAS = {
-    [DB_GENERATED_ASSETS]: {
-      version: 1,
-      stores: ["images", "floors", "assets", "items", "scenes", "characters"],
-      upgrade: (db) => {
-        if (!db.objectStoreNames.contains("images")) db.createObjectStore("images", { keyPath: "id" });
-        if (!db.objectStoreNames.contains("floors")) db.createObjectStore("floors", { keyPath: "key" });
-        if (!db.objectStoreNames.contains("assets")) {
-          const store = db.createObjectStore("assets", { keyPath: "key" });
-          try {
-            store.createIndex("chatId", "chatId", { unique: false });
-          } catch (_) {
-          }
-          try {
-            store.createIndex("floorKey", "floorKey", { unique: false });
-          } catch (_) {
-          }
-        }
-        if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "key" });
-        if (!db.objectStoreNames.contains("scenes")) db.createObjectStore("scenes", { keyPath: "key" });
-        if (!db.objectStoreNames.contains("characters")) db.createObjectStore("characters", { keyPath: "key" });
-      }
-    },
-    [DB_ILLUSTRATIONS]: {
-      version: 1,
-      stores: ["floors", "slots", "cgs", "illustrations"],
-      upgrade: (db) => {
-        if (!db.objectStoreNames.contains("floors")) db.createObjectStore("floors", { keyPath: "key" });
-        if (!db.objectStoreNames.contains("slots")) {
-          const store = db.createObjectStore("slots", { keyPath: "key" });
-          try {
-            store.createIndex("floorKey", "floorKey", { unique: false });
-          } catch (_) {
-          }
-        }
-        if (!db.objectStoreNames.contains("cgs")) db.createObjectStore("cgs", { keyPath: "key" });
-        if (!db.objectStoreNames.contains("illustrations")) db.createObjectStore("illustrations", { keyPath: "key" });
-      }
-    },
-    [DB_CG_GALLERY]: {
-      version: 1,
-      stores: ["marks", "items"],
-      upgrade: (db) => {
-        if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
-        if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "key" });
-      }
-    }
-  };
-  function deleteDb(name, timeoutMs = 3500) {
-    return new Promise((resolve2) => {
-      try {
-        const req = window.indexedDB.deleteDatabase(name);
-        let settled = false;
-        const timer = setTimeout(() => {
-          if (!settled) {
-            settled = true;
-            console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u8D85\u65F6\uFF0C\u8DF3\u8FC7`);
-            resolve2(false);
-          }
-        }, timeoutMs);
-        req.onsuccess = () => {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timer);
-            console.info(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u6210\u529F`);
-            resolve2(true);
-          }
-        };
-        req.onerror = () => {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timer);
-            console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u5931\u8D25:`, req.error);
-            resolve2(false);
-          }
-        };
-        req.onblocked = () => {
-          console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u88AB\u5360\u7528\uFF0C\u7B49\u5F85\u8FDE\u63A5\u91CA\u653E...`);
-          try {
-            const igs = window.IGS || window.ImmersiveGalgameSystem;
-            if (igs && typeof igs.shutdown === "function") {
-              igs.shutdown().catch(() => {
-              });
-            }
-          } catch (_) {
-          }
-        };
-      } catch (_) {
-        resolve2(false);
-      }
-    });
-  }
-  function openDb(name, version2 = void 0, onUpgrade = null) {
-    const schema = DB_SCHEMAS[name];
-    const targetVersion = typeof version2 === "number" ? version2 : schema ? schema.version : void 0;
-    const upgradeFn = onUpgrade || (schema ? schema.upgrade : null);
-    const openAttempt = (ver) => {
-      return new Promise((resolve2, reject) => {
-        if (!window.indexedDB) {
-          return reject(new Error("IndexedDB not supported"));
-        }
-        let req;
-        try {
-          req = typeof ver === "number" ? window.indexedDB.open(name, ver) : window.indexedDB.open(name);
-        } catch (err) {
-          return reject(err);
-        }
-        req.onupgradeneeded = (e) => {
-          if (typeof upgradeFn === "function") upgradeFn(req.result, e);
-        };
-        req.onsuccess = () => resolve2(req.result);
-        req.onerror = () => reject(req.error || new Error(`\u65E0\u6CD5\u6253\u5F00\u6570\u636E\u5E93: ${name}`));
-        req.onblocked = () => {
-          console.warn(`[IGS-Patch] IndexedDB ${name} \u6253\u5F00\u88AB\u963B\u585E`);
-        };
-      });
-    };
-    return openAttempt(targetVersion).then(async (db) => {
-      if (schema && schema.stores) {
-        const missing = schema.stores.filter((s) => !db.objectStoreNames.contains(s));
-        if (missing.length > 0) {
-          const currentVer = db.version || 1;
-          console.warn(`[IGS-Patch] \u6570\u636E\u5E93 ${name} \u7F3A\u5C11\u5FC5\u8981\u7684\u6570\u636E\u8868 [${missing.join(", ")}]\uFF0C\u6B63\u5728\u81EA\u52A8\u7248\u672C\u81EA\u6108...`);
-          db.close();
-          try {
-            const healedDb = await new Promise((res, rej) => {
-              const upReq = window.indexedDB.open(name, currentVer + 1);
-              upReq.onupgradeneeded = (e) => {
-                if (typeof schema.upgrade === "function") schema.upgrade(upReq.result, e);
-              };
-              upReq.onsuccess = () => res(upReq.result);
-              upReq.onerror = () => rej(upReq.error);
-            });
-            return healedDb;
-          } catch (upErr) {
-            console.warn(`[IGS-Patch] \u7248\u672C\u5347\u7EA7\u81EA\u6108\u5F02\u5E38\uFF0C\u5C1D\u8BD5\u5B8C\u5168\u91CD\u5EFA\u5E93:`, upErr);
-            await deleteDb(name);
-            return openAttempt(schema.version);
-          }
-        }
-      }
-      return db;
-    });
-  }
-  async function ensureIgsDatabasesHealthy() {
-    if (typeof window === "undefined" || !window.indexedDB) return;
-    for (const [dbName, schema] of Object.entries(DB_SCHEMAS)) {
-      try {
-        const db = await openDb(dbName);
-        db.close();
-      } catch (err) {
-        console.warn(`[IGS-Patch] \u6570\u636E\u5E93\u81EA\u68C0\u5931\u8D25: ${dbName}`, err);
-      }
-    }
-  }
-  async function repairAllIgsDatabases(forceNuclear = false) {
-    console.info("[IGS-Patch] \u6B63\u5728\u6267\u884C\u5168\u91CF IndexedDB \u7ED3\u6784\u4FEE\u590D\u4E0E\u81EA\u6108...");
-    for (const [dbName, schema] of Object.entries(DB_SCHEMAS)) {
-      try {
-        if (forceNuclear) {
-          await deleteDb(dbName);
-        }
-        const db = await openDb(dbName);
-        db.close();
-        console.info(`[IGS-Patch] \u6570\u636E\u5E93 ${dbName} \u81EA\u6108\u68C0\u67E5\u5C31\u7EEA`);
-      } catch (err) {
-        console.warn(`[IGS-Patch] \u6570\u636E\u5E93 ${dbName} \u4FEE\u590D\u5F02\u5E38:`, err);
-      }
-    }
-  }
-  var resolvedImageCache = /* @__PURE__ */ new Map();
-  async function resolveImageUrl(url) {
-    if (!url || typeof url !== "string") return "";
-    let cleanUrl = url.trim();
-    if (!cleanUrl) return "";
-    if (cleanUrl.startsWith("data:") || cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://") || cleanUrl.startsWith("blob:")) {
-      return cleanUrl;
-    }
-    if (cleanUrl.startsWith("igs-gen:")) {
-      const imageId = cleanUrl.replace("igs-gen:", "");
-      if (resolvedImageCache.has(imageId)) {
-        return resolvedImageCache.get(imageId);
-      }
-      try {
-        const db = await openDb(DB_GENERATED_ASSETS);
-        if (db.objectStoreNames.contains("images")) {
-          const tx = db.transaction("images", "readonly");
-          const store = tx.objectStore("images");
-          const record = await new Promise((res) => {
-            const r = store.get(imageId);
-            r.onsuccess = () => res(r.result);
-            r.onerror = () => res(null);
-          });
-          db.close();
-          if (record && (record.dataUrl || record.originalDataUrl)) {
-            let finalUrl = record.dataUrl || record.originalDataUrl;
-            if (!finalUrl.startsWith("data:") && !finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && !finalUrl.startsWith("blob:") && !finalUrl.startsWith("/")) {
-              finalUrl = "/" + finalUrl;
-            }
-            resolvedImageCache.set(imageId, finalUrl);
-            return finalUrl;
-          }
-        } else {
-          db.close();
-        }
-      } catch (_) {
-      }
-      const fallbackUrl = `/user/images/igs-media/${imageId}.png`;
-      resolvedImageCache.set(imageId, fallbackUrl);
-      return fallbackUrl;
-    }
-    if (!cleanUrl.startsWith("/") && (cleanUrl.startsWith("user/") || cleanUrl.startsWith("scripts/") || cleanUrl.startsWith("public/"))) {
-      return "/" + cleanUrl;
-    }
-    return cleanUrl;
-  }
-  async function listCharacters(scopeMode = "all", customScopeKey = null) {
-    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
-    const charsObj = assets.characters || {};
-    const outfitsObj = assets.characterOutfits || {};
-    const defaultOutfits = assets.characterDefaultOutfits || {};
-    const spriteNotes = assets.characterSpriteNotes || {};
-    const spriteScales = assets.characterSpriteScales || {};
-    const statusAvatars = assets.statusAvatars || {};
-    const userCharName = String(assets.userCharacter || "").trim();
-    const allNames = new Set([
-      ...Object.keys(charsObj),
-      ...Object.keys(outfitsObj),
-      ...Object.keys(spriteNotes),
-      ...Object.keys(statusAvatars)
-    ].filter(Boolean));
-    const result = [];
-    for (const name of allNames) {
-      const isUser = userCharName === name;
-      const height = Number(spriteScales[name]) || 100;
-      const rawAvatar = statusAvatars[name] || "";
-      const resolvedAvatar = await resolveImageUrl(rawAvatar);
-      const note = spriteNotes[name] || "";
-      const charOutfits = outfitsObj[name] || {};
-      const defaultOutfitName = defaultOutfits[name]?.outfitName || Object.keys(charOutfits)[0] || "\u9ED8\u8BA4\u8863\u88C5";
-      const outfitsList = [];
-      for (const [outfitName, outfitData] of Object.entries(charOutfits)) {
-        const isDefault = outfitName === defaultOutfitName;
-        const moodMap = outfitData && typeof outfitData === "object" && outfitData.moods ? outfitData.moods : {};
-        const moodList = [];
-        for (const [moodName, moodUrl] of Object.entries(moodMap)) {
-          if (!moodUrl) continue;
-          moodList.push({
-            name: moodName,
-            rawUrl: moodUrl,
-            resolvedUrl: await resolveImageUrl(moodUrl)
-          });
-        }
-        outfitsList.push({
-          name: outfitName,
-          isDefault,
-          prompt: outfitData?.prompt || "",
-          moods: moodList,
-          count: moodList.length
-        });
-      }
-      const directChar = charsObj[name];
-      const directMoodsObj = directChar && typeof directChar === "object" && directChar.moods ? directChar.moods : directChar && typeof directChar === "object" ? directChar : {};
-      const directMoodsList = [];
-      for (const [mName, mUrl] of Object.entries(directMoodsObj)) {
-        if (typeof mUrl === "string" && mUrl.trim()) {
-          directMoodsList.push({
-            name: mName,
-            rawUrl: mUrl,
-            resolvedUrl: await resolveImageUrl(mUrl)
-          });
-        }
-      }
-      if (directMoodsList.length && !outfitsList.length) {
-        outfitsList.push({
-          name: defaultOutfitName,
-          isDefault: true,
-          prompt: "",
-          moods: directMoodsList,
-          count: directMoodsList.length
-        });
-      }
-      let baseResolvedUrl = resolvedAvatar;
-      let baseRawUrl = rawAvatar;
-      if (!baseResolvedUrl && outfitsList.length) {
-        const defOutfit = outfitsList.find((o) => o.isDefault) || outfitsList[0];
-        const firstMood = defOutfit.moods.find((m) => m.name === "\u5E73\u548C") || defOutfit.moods[0];
-        if (firstMood) {
-          baseResolvedUrl = firstMood.resolvedUrl;
-          baseRawUrl = firstMood.rawUrl;
-        }
-      }
-      const totalDiffCount = outfitsList.reduce((acc, cur) => acc + cur.moods.length, 0);
-      result.push({
-        name,
-        isUser,
-        height,
-        avatarUrl: resolvedAvatar,
-        baseRawUrl,
-        baseResolvedUrl,
-        note,
-        outfits: outfitsList,
-        moodCount: totalDiffCount,
-        activeOutfitIndex: 0
-      });
-    }
-    return result.sort((a, b) => {
-      if (a.isUser && !b.isUser) return -1;
-      if (!a.isUser && b.isUser) return 1;
-      return a.name.localeCompare(b.name, "zh-Hans-CN");
-    });
-  }
-  function saveCharacter(name, baseRawUrl = "", scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (!assets.characters) assets.characters = {};
-      if (!assets.characters[name]) assets.characters[name] = {};
-      if (!assets.characterOutfits) assets.characterOutfits = {};
-      const defOutfitName = `${name}\xB7\u521D\u59CB\u8863\u88C5`;
-      if (!assets.characterOutfits[name]) {
-        assets.characterOutfits[name] = {
-          [defOutfitName]: {
-            words: [],
-            moods: baseRawUrl ? { "\u5E73\u548C": baseRawUrl } : {},
-            legacyOriginal: 1,
-            wardrobe: defOutfitName
-          }
-        };
-      }
-      if (!assets.characterDefaultOutfits) assets.characterDefaultOutfits = {};
-      assets.characterDefaultOutfits[name] = { version: 1, outfitName: defOutfitName, migrated: true };
-    }, scopeMode);
-  }
-  function setUserCharacter(name, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      assets.userCharacter = name;
-    }, scopeMode);
-  }
-  function setCharacterHeight(name, height, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (!assets.characterSpriteScales) assets.characterSpriteScales = {};
-      assets.characterSpriteScales[name] = Number(height) || 100;
-    }, scopeMode);
-  }
-  function saveCharacterOutfit(charName, outfitName, prompt = "", isDefault = false, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (!assets.characterOutfits) assets.characterOutfits = {};
-      if (!assets.characterOutfits[charName]) assets.characterOutfits[charName] = {};
-      const oldOutfit = assets.characterOutfits[charName][outfitName] || {};
-      assets.characterOutfits[charName][outfitName] = {
-        ...oldOutfit,
-        words: [],
-        prompt,
-        moods: oldOutfit.moods || {},
-        wardrobe: outfitName
-      };
-      if (isDefault) {
-        if (!assets.characterDefaultOutfits) assets.characterDefaultOutfits = {};
-        assets.characterDefaultOutfits[charName] = { version: 1, outfitName, migrated: true };
-      }
-    }, scopeMode);
-  }
-  function deleteCharacterOutfit(charName, outfitName, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (assets.characterOutfits?.[charName]) {
-        delete assets.characterOutfits[charName][outfitName];
-      }
-    }, scopeMode);
-  }
-  function saveCharacterMood(characterName, moodName, moodRawUrl, outfitName = "", scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (!assets.characterOutfits) assets.characterOutfits = {};
-      if (!assets.characterOutfits[characterName]) assets.characterOutfits[characterName] = {};
-      let targetOutfit = outfitName;
-      if (!targetOutfit) {
-        const def2 = assets.characterDefaultOutfits?.[characterName]?.outfitName;
-        targetOutfit = def2 || Object.keys(assets.characterOutfits[characterName])[0] || `${characterName}\xB7\u521D\u59CB\u8863\u88C5`;
-      }
-      if (!assets.characterOutfits[characterName][targetOutfit]) {
-        assets.characterOutfits[characterName][targetOutfit] = { words: [], moods: {}, wardrobe: targetOutfit };
-      }
-      if (!assets.characterOutfits[characterName][targetOutfit].moods) {
-        assets.characterOutfits[characterName][targetOutfit].moods = {};
-      }
-      assets.characterOutfits[characterName][targetOutfit].moods[moodName] = moodRawUrl;
-    }, scopeMode);
-  }
-  function deleteCharacterMood(characterName, moodName, outfitName = "", scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (assets.characterOutfits?.[characterName]) {
-        if (outfitName && assets.characterOutfits[characterName][outfitName]?.moods) {
-          delete assets.characterOutfits[characterName][outfitName].moods[moodName];
-        } else {
-          for (const o of Object.values(assets.characterOutfits[characterName])) {
-            if (o.moods && o.moods[moodName]) delete o.moods[moodName];
-          }
-        }
-      }
-      if (assets.characters?.[characterName]?.[moodName]) {
-        delete assets.characters[characterName][moodName];
-      }
-    }, scopeMode);
-  }
-  async function listScenes(scopeMode = "all", customScopeKey = null) {
-    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
-    const scenesObj = assets.scenes || {};
-    const result = [];
-    for (const [name, data] of Object.entries(scenesObj)) {
-      if (!name) continue;
-      const sceneData = data && typeof data === "object" ? data : { url: String(data || "") };
-      const baseRawUrl = sceneData.url || "";
-      const baseResolved = await resolveImageUrl(baseRawUrl);
-      const timesObj = sceneData.times && typeof sceneData.times === "object" ? sceneData.times : {};
-      const timesList = [];
-      for (const [timeName, timeVal] of Object.entries(timesObj)) {
-        const tUrl = typeof timeVal === "string" ? timeVal : timeVal?.url || "";
-        if (!tUrl) continue;
-        timesList.push({
-          name: timeName,
-          rawUrl: tUrl,
-          resolvedUrl: await resolveImageUrl(tUrl),
-          desc: typeof timeVal === "object" ? timeVal.desc || "" : ""
-        });
-      }
-      result.push({
-        name,
-        desc: sceneData.desc || "",
-        baseRawUrl,
-        baseResolvedUrl: baseResolved,
-        timeCount: timesList.length,
-        times: timesList
-      });
-    }
-    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
-  }
-  function saveScene(name, baseRawUrl, desc = "", scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (!assets.scenes) assets.scenes = {};
-      if (!assets.scenes[name]) {
-        assets.scenes[name] = { url: baseRawUrl, desc, times: {} };
-      } else if (typeof assets.scenes[name] === "object") {
-        assets.scenes[name].url = baseRawUrl;
-        if (desc) assets.scenes[name].desc = desc;
-      } else {
-        assets.scenes[name] = { url: baseRawUrl, desc, times: {} };
-      }
-    }, scopeMode);
-  }
-  function deleteScene(name, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (assets.scenes) delete assets.scenes[name];
-    }, scopeMode);
-  }
-  function saveSceneTime(sceneName, timeName, timeRawUrl, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (!assets.scenes) assets.scenes = {};
-      let sceneObj = assets.scenes[sceneName];
-      if (!sceneObj || typeof sceneObj !== "object") {
-        sceneObj = { url: "", desc: "", times: {} };
-        assets.scenes[sceneName] = sceneObj;
-      }
-      if (!sceneObj.times) sceneObj.times = {};
-      sceneObj.times[timeName] = timeRawUrl;
-    }, scopeMode);
-  }
-  function deleteSceneTime(sceneName, timeName, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      const sceneObj = assets.scenes?.[sceneName];
-      if (sceneObj && sceneObj.times) {
-        delete sceneObj.times[timeName];
-      }
-    }, scopeMode);
-  }
-  async function listWardrobe(scopeMode = "all", customScopeKey = null) {
-    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
-    const wardrobeObj = assets.wardrobe || {};
-    const result = [];
-    for (const [name, data] of Object.entries(wardrobeObj)) {
-      if (!name) continue;
-      const item = data && typeof data === "object" ? data : { prompt: String(data || "") };
-      const rawUrl = item.image || item.rawUrl || item.url || "";
-      result.push({
-        name,
-        character: item.character || "",
-        prompt: item.prompt || "",
-        rawUrl,
-        resolvedUrl: await resolveImageUrl(rawUrl),
-        scenes: Array.isArray(item.scenes) ? item.scenes : []
-      });
-    }
-    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
-  }
-  function saveWardrobeItem(name, itemData, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (!assets.wardrobe) assets.wardrobe = {};
-      assets.wardrobe[name] = {
-        name,
-        character: itemData.character || "",
-        prompt: itemData.prompt || "",
-        image: itemData.rawUrl || itemData.image || "",
-        scenes: Array.isArray(itemData.scenes) ? itemData.scenes : []
-      };
-    }, scopeMode);
-  }
-  function deleteWardrobeItem(name, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (assets.wardrobe) delete assets.wardrobe[name];
-    }, scopeMode);
-  }
-  async function listAllCgs(filter = "ready") {
-    const list = [];
-    const marksMap = /* @__PURE__ */ new Map();
-    try {
-      const dbMarks = await openDb(DB_CG_GALLERY);
-      if (dbMarks.objectStoreNames.contains("marks")) {
-        const tx = dbMarks.transaction("marks", "readonly");
-        const allMarks = await new Promise((res) => {
-          const req = tx.objectStore("marks").getAll();
-          req.onsuccess = () => res(req.result || []);
-          req.onerror = () => res([]);
-        });
-        for (const m of allMarks) {
-          if (m && m.key) marksMap.set(m.key, m);
-        }
-      }
-      dbMarks.close();
-    } catch (_) {
-    }
-    try {
-      const dbCg = await openDb(DB_ILLUSTRATIONS);
-      if (dbCg.objectStoreNames.contains("slots")) {
-        const tx = dbCg.transaction("slots", "readonly");
-        const allSlots = await new Promise((res) => {
-          const req = tx.objectStore("slots").getAll();
-          req.onsuccess = () => res(req.result || []);
-          req.onerror = () => res([]);
-        });
-        for (const s of allSlots) {
-          if (!s || !s.key) continue;
-          const mark = marksMap.get(s.key) || {};
-          const isHidden = mark.hidden === true || s.hidden === true;
-          const isFavorite = mark.favorite === true || s.favorite === true;
-          const rawDataUrl = s.dataUrl || s.imageUrl || s.originalDataUrl || "";
-          const parts = String(s.floorKey || "").split("|");
-          const floorNo = parts.length >= 2 ? parts[parts.length - 2] : "";
-          const isPending = s.status === "pending" || !rawDataUrl;
-          if (filter === "ready" && (isPending || isHidden)) continue;
-          if (filter === "pending" && (!isPending || isHidden)) continue;
-          if (filter === "favorites" && (!isFavorite || isPending)) continue;
-          if (filter === "hidden" && !isHidden) continue;
-          if (filter === "all" && (isPending || isHidden)) continue;
-          let fullPrompt = s.prompt || s.caption || "";
-          if (!fullPrompt && (s.scene || s.chars)) {
-            const charTags = Array.isArray(s.chars) ? s.chars.map((c) => c.tags).filter(Boolean).join(", ") : "";
-            fullPrompt = [s.scene, charTags].filter(Boolean).join("\n");
-          }
-          list.push({
-            key: s.key,
-            floorKey: s.floorKey || "",
-            slot: s.slot || 1,
-            label: floorNo ? `\u7B2C ${floorNo} \u697C` : s.key,
-            prompt: fullPrompt,
-            description: s.description || s.analysis || "",
-            status: s.status || (rawDataUrl ? "done" : "pending"),
-            isPending,
-            rawUrl: rawDataUrl,
-            resolvedUrl: isPending ? "" : await resolveImageUrl(rawDataUrl),
-            isFavorite,
-            isHidden,
-            isEventCg: false
-          });
-        }
-      }
-      dbCg.close();
-    } catch (_) {
-    }
-    const assets = getScopedSceneAssets("all");
-    const eventCgs = assets.eventCgs || {};
-    for (const [name, item] of Object.entries(eventCgs)) {
-      if (!name) continue;
-      const rawUrl = typeof item === "string" ? item : item?.url || "";
-      if (filter === "hidden") continue;
-      if (filter === "pending") continue;
-      list.push({
-        key: `event_cg_${name}`,
-        label: name,
-        prompt: typeof item === "object" ? item.prompt || "" : "",
-        description: "\u9884\u7F6E\u4E8B\u4EF6CG",
-        status: "done",
-        isPending: false,
-        rawUrl,
-        resolvedUrl: await resolveImageUrl(rawUrl),
-        isFavorite: true,
-        isHidden: false,
-        isEventCg: true
-      });
-    }
-    return list;
-  }
-  async function toggleCgFavorite(cgKey, currentVal) {
-    const nextVal = !currentVal;
-    try {
-      const dbMarks = await openDb(DB_CG_GALLERY, void 0, (db) => {
-        if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
-      });
-      const tx = dbMarks.transaction("marks", "readwrite");
-      const store = tx.objectStore("marks");
-      const existing = await new Promise((res) => {
-        const req = store.get(cgKey);
-        req.onsuccess = () => res(req.result || { key: cgKey });
-        req.onerror = () => res({ key: cgKey });
-      });
-      existing.favorite = nextVal;
-      existing.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-      store.put(existing);
-      dbMarks.close();
-      return { ok: true, isFavorite: nextVal };
-    } catch (err) {
-      console.warn("[IGS-Patch] \u5207\u6362\u6536\u85CF\u72B6\u6001\u5F02\u5E38:", err);
-      return { ok: false };
-    }
-  }
-  async function toggleCgHidden(cgKey, currentVal) {
-    const nextVal = !currentVal;
-    try {
-      const dbMarks = await openDb(DB_CG_GALLERY, void 0, (db) => {
-        if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
-      });
-      const tx = dbMarks.transaction("marks", "readwrite");
-      const store = tx.objectStore("marks");
-      const existing = await new Promise((res) => {
-        const req = store.get(cgKey);
-        req.onsuccess = () => res(req.result || { key: cgKey });
-        req.onerror = () => res({ key: cgKey });
-      });
-      existing.hidden = nextVal;
-      existing.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-      store.put(existing);
-      dbMarks.close();
-      return { ok: true, isHidden: nextVal };
-    } catch (err) {
-      console.warn("[IGS-Patch] \u5207\u6362\u9690\u85CF\u72B6\u6001\u5F02\u5E38:", err);
-      return { ok: false };
-    }
-  }
-  async function saveCgDataUrl(cgKey, dataUrl) {
-    try {
-      const dbCg = await openDb(DB_ILLUSTRATIONS);
-      const tx = dbCg.transaction("slots", "readwrite");
-      const store = tx.objectStore("slots");
-      const slot = await new Promise((res) => {
-        const req = store.get(cgKey);
-        req.onsuccess = () => res(req.result || null);
-        req.onerror = () => res(null);
-      });
-      if (slot) {
-        slot.dataUrl = dataUrl;
-        slot.status = "ready";
-        slot.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-        store.put(slot);
-      }
-      dbCg.close();
-      return true;
-    } catch (err) {
-      console.warn("[IGS-Patch] \u4FDD\u5B58 CG \u5F02\u5E38:", err);
-      return false;
-    }
-  }
-  async function deleteCg(cgKey, isEventCg = false) {
-    if (isEventCg) {
-      const name = cgKey.replace("event_cg_", "");
-      return updateScopedSceneAssets((assets) => {
-        if (assets.eventCgs) delete assets.eventCgs[name];
-      }, "all");
-    }
-    try {
-      const dbCg = await openDb(DB_ILLUSTRATIONS);
-      const tx = dbCg.transaction("slots", "readwrite");
-      tx.objectStore("slots").delete(cgKey);
-      dbCg.close();
-      return true;
-    } catch (err) {
-      console.warn("[IGS-Patch] \u5220\u9664 CG \u5F02\u5E38:", err);
-      return false;
-    }
-  }
-  async function listItems(scopeMode = "all", customScopeKey = null) {
-    const assets = getScopedSceneAssets(scopeMode, customScopeKey);
-    const combined = { ...assets.items || {}, ...assets.generated?.items || {} };
-    const result = [];
-    for (const [name, data] of Object.entries(combined)) {
-      if (!name) continue;
-      const item = data && typeof data === "object" ? data : { url: String(data || "") };
-      const rawUrl = item.url || item.image || "";
-      result.push({
-        name,
-        desc: item.desc || "",
-        rawUrl,
-        resolvedUrl: await resolveImageUrl(rawUrl)
-      });
-    }
-    return result.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
-  }
-  function saveItem(name, rawUrl, desc = "", scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (!assets.items) assets.items = {};
-      if (!assets.generated) assets.generated = {};
-      if (!assets.generated.items) assets.generated.items = {};
-      const entry = { url: rawUrl, desc };
-      assets.items[name] = entry;
-      assets.generated.items[name] = entry;
-    }, scopeMode);
-  }
-  function deleteItem(name, scopeMode = "all") {
-    return updateScopedSceneAssets((assets) => {
-      if (assets.items) {
-        delete assets.items[name];
-      }
-      if (assets.generated?.items) {
-        delete assets.generated.items[name];
-      }
-    }, scopeMode);
-  }
-  async function listStagingAssets() {
-    const list = [];
-    try {
-      const db = await openDb(DB_GENERATED_ASSETS);
-      if (db.objectStoreNames.contains("assets")) {
-        const tx = db.transaction("assets", "readonly");
-        const all = await new Promise((res) => {
-          const req = tx.objectStore("assets").getAll();
-          req.onsuccess = () => res(req.result || []);
-          req.onerror = () => res([]);
-        });
-        for (const item of all) {
-          if (item && item.status === "temp") {
-            const rawUrl = item.imageId ? `igs-gen:${item.imageId}` : item.dataUrl || "";
-            list.push({
-              key: item.key || item.id,
-              type: item.type || "sprite",
-              name: item.name || "\u672A\u547D\u540D",
-              rawUrl,
-              resolvedUrl: await resolveImageUrl(rawUrl)
-            });
-          }
-        }
-      }
-      db.close();
-    } catch (_) {
-    }
-    return list;
-  }
-  async function acceptStagingAsset(item, targetName, targetType) {
-    const resolvedUrl = item.rawUrl;
-    if (targetType === "sprite") {
-      saveCharacter(targetName, resolvedUrl);
-    } else if (targetType === "background") {
-      saveScene(targetName, resolvedUrl);
-    } else if (targetType === "item") {
-      saveItem(targetName, resolvedUrl);
-    }
-    await discardStagingAsset(item.key);
-    return true;
-  }
-  async function discardStagingAsset(key) {
-    try {
-      const db = await openDb(DB_GENERATED_ASSETS);
-      const tx = db.transaction("assets", "readwrite");
-      tx.objectStore("assets").delete(key);
-      db.close();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve2, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve2(reader.result);
-      reader.onerror = () => reject(reader.error || new Error("\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25"));
-      reader.readAsDataURL(file);
-    });
-  }
-
   // src/ui/resources-modal.js
   var isResourcesModalVisible = ref(false);
+  var requestedResourcesTab = ref("characters");
   var appInstance2 = null;
   var containerEl2 = null;
   function getCandidateDocument3() {
@@ -26032,8 +26666,19 @@ textarea.igs-form-textarea {
       (doc2.body || doc2.documentElement).appendChild(containerEl2);
     }
   }
-  function openResourcesModal(targetDoc = null) {
-    console.info("[IGS-Patch] \u6B63\u5728\u547C\u51FA\u653E\u6620\u8D44\u6E90\u63A7\u5236\u53F0...");
+  function openResourcesModal(options = null) {
+    let targetDoc = null;
+    let tab = null;
+    if (options && options.nodeType === 9) {
+      targetDoc = options;
+    } else if (options && typeof options === "object") {
+      targetDoc = options.targetDoc || null;
+      tab = options.initialTab || options.tab || null;
+    }
+    if (tab) {
+      requestedResourcesTab.value = tab;
+    }
+    console.info("[IGS-Patch] \u6B63\u5728\u547C\u51FA\u653E\u6620\u8D44\u6E90\u63A7\u5236\u53F0...", tab ? `(\u521D\u59CB\u6807\u7B7E: ${tab})` : "");
     injectResourcesStyles();
     detectAndSyncIgsTheme();
     ensureResourcesMounted(targetDoc);
@@ -26045,7 +26690,10 @@ textarea.igs-form-textarea {
   var ResourcesModalRoot = {
     setup() {
       const visible = isResourcesModalVisible;
-      const activeTab = ref("characters");
+      const activeTab = ref(requestedResourcesTab.value || "characters");
+      watch2(requestedResourcesTab, (val) => {
+        if (val) activeTab.value = val;
+      });
       const searchQuery = ref("");
       const cgFilter = ref("ready");
       const isLoading = ref(false);
@@ -26374,6 +27022,15 @@ textarea.igs-form-textarea {
         }
         genDialog.visible = true;
       };
+      const backendGuideDialog = reactive({
+        visible: false,
+        message: ""
+      });
+      const handleGoToImageSettings = () => {
+        backendGuideDialog.visible = false;
+        isResourcesModalVisible.value = false;
+        openSettingsModal({ initialTab: "imageGen" });
+      };
       const handleExecuteGenerate = async () => {
         if (!genDialog.prompt.trim()) {
           notifyToast("\u63D0\u793A\u8BCD\u4E0D\u80FD\u4E3A\u7A7A", "warning");
@@ -26381,76 +27038,15 @@ textarea.igs-form-textarea {
         }
         genDialog.isGenerating = true;
         try {
-          let dataUrl = null;
-          const prompt = genDialog.prompt.trim();
-          const negative = genDialog.negative.trim();
-          const baiBai = window.STBaiBaiImage || window.parent?.STBaiBaiImage || window.top?.STBaiBaiImage;
-          if (baiBai && typeof baiBai.generate === "function") {
-            notifyToast("\u5DF2\u5411\u751F\u56FE\u7BA1\u7EBF\u63D0\u4EA4\u4EFB\u52A1", "info");
-            const reqOptions = {
-              prompt,
-              ...negative ? { negative } : {}
-            };
-            if (genDialog.type === "mood" || genDialog.type === "sprite" || genDialog.type === "character") {
-              reqOptions.character = genDialog.charName;
-              reqOptions.size = "portrait";
-            } else if (genDialog.type === "cg" || genDialog.type === "scene") {
-              reqOptions.size = "landscape";
-            } else if (genDialog.type === "item") {
-              reqOptions.size = "square";
-            }
-            const result = await baiBai.generate(reqOptions);
-            dataUrl = result && (result.dataUrl || result.url);
-          }
+          notifyToast("\u5DF2\u5411\u751F\u56FE\u7BA1\u7EBF\u63D0\u4EA4\u51FA\u56FE\u4EFB\u52A1...", "info", 1800);
+          const dataUrl = await executeImageGeneration({
+            prompt: genDialog.prompt.trim(),
+            negative: genDialog.negative.trim(),
+            type: genDialog.type,
+            charName: genDialog.charName
+          });
           if (!dataUrl) {
-            for (const w of [window, window.parent, window.top]) {
-              try {
-                const igs = w?.IGS || w?.ImmersiveGalgameSystem;
-                if (igs) {
-                  if (typeof igs.generateImage === "function") {
-                    notifyToast("\u5DF2\u8C03\u7528 IGS \u539F\u751F\u751F\u56FE\u670D\u52A1", "info");
-                    const res = await igs.generateImage({
-                      prompt,
-                      negative,
-                      type: genDialog.type,
-                      character: genDialog.charName
-                    });
-                    dataUrl = res && (res.dataUrl || res.url || res);
-                    if (typeof dataUrl === "string" && dataUrl) break;
-                  }
-                }
-              } catch (_) {
-              }
-            }
-          }
-          if (!dataUrl) {
-            for (const w of [window, window.parent, window.top]) {
-              try {
-                const ctx = w?.SillyTavern?.getContext?.();
-                if (ctx && typeof ctx.generateImage === "function") {
-                  notifyToast("\u6B63\u5728\u8BF7\u6C42\u9152\u9986\u539F\u751F\u753B\u56FE\u63A5\u53E3...", "info");
-                  const res = await ctx.generateImage(prompt, negative);
-                  dataUrl = res && (res.url || res.dataUrl || res);
-                  if (typeof dataUrl === "string" && dataUrl) break;
-                }
-                if (typeof w?.generateImage === "function") {
-                  notifyToast("\u6B63\u5728\u8BF7\u6C42\u9152\u9986\u539F\u751F\u753B\u56FE\u63A5\u53E3...", "info");
-                  const res = await w.generateImage(prompt, negative);
-                  dataUrl = res && (res.url || res.dataUrl || res);
-                  if (typeof dataUrl === "string" && dataUrl) break;
-                }
-              } catch (_) {
-              }
-            }
-          }
-          if (!dataUrl) {
-            try {
-              navigator.clipboard.writeText(prompt);
-              notifyToast("\u672A\u68C0\u6D4B\u5230\u53EF\u7528\u751F\u56FE\u63A5\u53E3\uFF0C\u63D0\u793A\u8BCD\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F", "warning");
-            } catch (_) {
-            }
-            genDialog.visible = false;
-            return;
+            throw new Error("\u751F\u56FE\u670D\u52A1\u672A\u8FD4\u56DE\u6709\u6548\u56FE\u7247\u6570\u636E");
           }
           if (genDialog.type === "mood") {
             await saveCharacterMood(
@@ -26497,7 +27093,12 @@ textarea.igs-form-textarea {
           await loadData();
         } catch (err) {
           console.error("[IGS-Patch] \u751F\u56FE\u5F02\u5E38:", err);
-          notifyToast(`\u751F\u56FE\u6267\u884C\u5F02\u5E38: ${err.message || err}`, "error");
+          if (err.code === "NO_IMAGE_BACKEND") {
+            backendGuideDialog.visible = true;
+            backendGuideDialog.message = err.message;
+          } else {
+            notifyToast(`\u751F\u56FE\u6267\u884C\u5F02\u5E38: ${err.message || err}`, "error", 4500);
+          }
         } finally {
           genDialog.isGenerating = false;
         }
@@ -26761,6 +27362,8 @@ textarea.igs-form-textarea {
         genDialog,
         openGenPromptDialog,
         handleExecuteGenerate,
+        backendGuideDialog,
+        handleGoToImageSettings,
         confirmDialog,
         handleCgFavorite,
         handleCgHidden,
@@ -27385,6 +27988,24 @@ textarea.igs-form-textarea {
         </div>
       </div>
 
+      <!-- \u751F\u56FE\u540E\u7AEF\u672A\u5C31\u7EEA\u5F15\u5BFC\u5BF9\u8BDD\u6846 -->
+      <div v-if="backendGuideDialog.visible" class="igs-dialog-overlay" :style="themeStyleVars" @click.self="backendGuideDialog.visible = false">
+        <div class="igs-dialog-box" style="max-width: 520px;">
+          <h3 class="igs-dialog-title" style="color: #e6a23c;">
+            <i class="fa-solid fa-triangle-exclamation" style="margin-right: 8px;"></i>
+            \u672A\u68C0\u6D4B\u5230\u5DF2\u5C31\u7EEA\u7684\u751F\u56FE\u540E\u7AEF
+          </h3>
+          <div style="font-size: 0.88rem; line-height: 1.6; color: var(--igs-settings-ink); margin: 16px 0; white-space: pre-wrap; background: var(--igs-settings-field, rgba(0,0,0,0.06)); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--igs-settings-line);">{{ backendGuideDialog.message }}</div>
+          <div class="igs-dialog-actions" style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="igs-resources-chip" @click="backendGuideDialog.visible = false">\u5173\u95ED</button>
+            <button class="igs-btn-primary-compact" @click="handleGoToImageSettings">
+              <i class="fa-solid fa-gear"></i>
+              <span>\u524D\u5F80\u914D\u7F6E\u751F\u56FE\u5F15\u64CE</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- \u7EDF\u4E00\u65B0\u589E/\u7F16\u8F91\u5BF9\u8BDD\u6846 -->
       <div v-if="editDialog.visible" class="igs-dialog-overlay" :style="themeStyleVars" @click.self="editDialog.visible = false">
         <div class="igs-dialog-box">
@@ -27589,6 +28210,215 @@ textarea.igs-form-textarea {
 
   // src/index.js
   init_toast();
+
+  // src/interceptor/ui-hijack.js
+  function getCandidateWindows9() {
+    const wins = [window];
+    try {
+      if (window.parent && !wins.includes(window.parent)) wins.push(window.parent);
+    } catch (_) {
+    }
+    try {
+      if (window.top && !wins.includes(window.top)) wins.push(window.top);
+    } catch (_) {
+    }
+    try {
+      const rootDoc = (window.top || window.parent || window).document;
+      if (rootDoc) {
+        const iframes = rootDoc.querySelectorAll("iframe");
+        for (const f of iframes) {
+          try {
+            const fw = f.contentWindow;
+            if (fw && !wins.includes(fw)) wins.push(fw);
+          } catch (_) {
+          }
+        }
+      }
+    } catch (_) {
+    }
+    return wins;
+  }
+  var SUPPRESS_OLD_SETTINGS_STYLE_ID = "igs-patch-suppress-old-settings";
+  function injectSettingsSuppressionStyles() {
+    const css = `
+        /* \u5F7B\u5E95\u538B\u5236\u539F\u751F\u65E7\u7248\u8BBE\u7F6E\u5F39\u7A97\u4E0E\u906E\u7F69\u5C42\uFF0C\u675C\u7EDD\u754C\u9762\u9519\u4F4D */
+        #igs-settings,
+        .igs-settings-overlay,
+        [data-igs-settings] {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+            z-index: -9999 !important;
+        }
+    `;
+    for (const w of getCandidateWindows9()) {
+      try {
+        const doc2 = w.document;
+        if (doc2 && !doc2.getElementById(SUPPRESS_OLD_SETTINGS_STYLE_ID)) {
+          const style = doc2.createElement("style");
+          style.id = SUPPRESS_OLD_SETTINGS_STYLE_ID;
+          style.textContent = css;
+          (doc2.head || doc2.body || doc2.documentElement).appendChild(style);
+        }
+      } catch (_) {
+      }
+    }
+  }
+  var isHijackInstalled = false;
+  function setupUiHijack() {
+    if (isHijackInstalled) return;
+    isHijackInstalled = true;
+    injectSettingsSuppressionStyles();
+    const handleCaptureClick = (e) => {
+      const target = e.target;
+      if (!target || typeof target.closest !== "function") return;
+      if (target.closest(".igs-patch-window") || target.closest(".igs-resources-window")) {
+        return;
+      }
+      const tsBtn = target.closest("[data-ts-act]");
+      if (tsBtn) {
+        const act = tsBtn.getAttribute("data-ts-act");
+        if (act === "settings") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          console.info("[IGS-Patch] \u62E6\u622A\u5230\u6807\u9898\u753B\u9762\u300C\u8BBE\u7F6E\u300D\u6309\u94AE\u70B9\u51FB\uFF0C\u5207\u6362\u81F3 Vue \u8BBE\u7F6E\u63A7\u5236\u53F0");
+          openSettingsModal();
+          return;
+        }
+        if (act === "user-char") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          console.info("[IGS-Patch] \u62E6\u622A\u5230\u6807\u9898\u753B\u9762\u300C\u751F\u6210\u4E3B\u89D2\u7ACB\u7ED8\u300D\u6309\u94AE\u70B9\u51FB\uFF0C\u5207\u6362\u81F3 Vue \u8D44\u6E90\u63A7\u5236\u53F0 (\u89D2\u8272\u9875)");
+          openResourcesModal({ initialTab: "characters" });
+          return;
+        }
+      }
+      const actBtn = target.closest("[data-act]");
+      if (actBtn) {
+        const act = actBtn.getAttribute("data-act");
+        if (act === "settings") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          console.info("[IGS-Patch] \u62E6\u622A\u5230\u9605\u8BFB\u5668\u300C\u8BBE\u7F6E\u300D\u6309\u94AE\u70B9\u51FB\uFF0C\u5207\u6362\u81F3 Vue \u8BBE\u7F6E\u63A7\u5236\u53F0");
+          openSettingsModal();
+          return;
+        }
+        if (act === "generate-assets" || act === "sprite-edit" || act === "live2d-settings") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          console.info("[IGS-Patch] \u62E6\u622A\u5230\u9605\u8BFB\u5668\u300C\u7ACB\u7ED8/\u7D20\u6750\u300D\u6309\u94AE\u70B9\u51FB\uFF0C\u5207\u6362\u81F3 Vue \u8D44\u6E90\u63A7\u5236\u53F0 (\u89D2\u8272\u9875)");
+          openResourcesModal({ initialTab: "characters" });
+          return;
+        }
+        if (act === "cg-gallery") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          console.info("[IGS-Patch] \u62E6\u622A\u5230\u9605\u8BFB\u5668\u300CCG \u5E93\u300D\u6309\u94AE\u70B9\u51FB\uFF0C\u5207\u6362\u81F3 Vue \u8D44\u6E90\u63A7\u5236\u53F0 (CG \u753B\u5ECA)");
+          openResourcesModal({ initialTab: "cgs" });
+          return;
+        }
+        if (act === "fill-item-images") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          console.info("[IGS-Patch] \u62E6\u622A\u5230\u9605\u8BFB\u5668\u300C\u8865\u5168\u7269\u54C1\u56FE\u300D\u6309\u94AE\u70B9\u51FB\uFF0C\u5207\u6362\u81F3 Vue \u8D44\u6E90\u63A7\u5236\u53F0 (\u9053\u5177\u5E93)");
+          openResourcesModal({ initialTab: "items" });
+          return;
+        }
+      }
+      const buttonEl = target.closest("button, .igs-icon-btn, .igs-ts-btn, .igs-menu-item");
+      if (buttonEl) {
+        const text = (buttonEl.textContent || buttonEl.getAttribute("title") || "").trim();
+        if (text.includes("\u751F\u6210\u4E3B\u89D2\u7ACB\u7ED8") || text === "\u751F\u6210\u7ACB\u7ED8" || text === "\u8865\u5168\u7ACB\u7ED8\u4E0E\u80CC\u666F") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          openResourcesModal({ initialTab: "characters" });
+          return;
+        }
+        if (text === "CG \u5E93" || text === "CG\u5E93" || text === "CG \u753B\u5ECA") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          openResourcesModal({ initialTab: "cgs" });
+          return;
+        }
+        if (text === "\u8865\u5168\u7269\u54C1\u56FE" || text === "\u7269\u54C1\u9053\u5177") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          openResourcesModal({ initialTab: "items" });
+          return;
+        }
+      }
+    };
+    for (const w of getCandidateWindows9()) {
+      try {
+        w.document.addEventListener("click", handleCaptureClick, true);
+      } catch (_) {
+      }
+    }
+    hookProgrammaticOpenSettings();
+    setInterval(hookProgrammaticOpenSettings, 2e3);
+  }
+  function hookProgrammaticOpenSettings() {
+    for (const w of getCandidateWindows9()) {
+      try {
+        const igs = w.IGS || w.ImmersiveGalgameSystem;
+        if (igs && typeof igs.openSettings === "function" && !igs.openSettings.__igsPatched) {
+          const originalOpen = igs.openSettings.bind(igs);
+          igs.openSettings = function(options = {}) {
+            console.info("[IGS-Patch] \u62E6\u622A\u5230\u7F16\u7A0B\u5F0F IGS.openSettings \u8C03\u7528:", options);
+            const page = options?.page || options?.tab || "";
+            if (["chars", "scene", "sprites"].includes(page)) {
+              openResourcesModal({ initialTab: "characters" });
+              return { ok: true };
+            }
+            if (["cg", "gallery", "illustrations"].includes(page)) {
+              openResourcesModal({ initialTab: "cgs" });
+              return { ok: true };
+            }
+            if (["items", "inventory"].includes(page)) {
+              openResourcesModal({ initialTab: "items" });
+              return { ok: true };
+            }
+            if (["wardrobe"].includes(page)) {
+              openResourcesModal({ initialTab: "wardrobe" });
+              return { ok: true };
+            }
+            openSettingsModal();
+            return { ok: true };
+          };
+          igs.openSettings.__igsPatched = true;
+        }
+        if (igs?.igsUi && typeof igs.igsUi.openSettings === "function" && !igs.igsUi.openSettings.__igsPatched) {
+          igs.igsUi.openSettings = function(options = {}) {
+            console.info("[IGS-Patch] \u62E6\u622A\u5230\u7F16\u7A0B\u5F0F igsUi.openSettings \u8C03\u7528:", options);
+            const page = options?.page || options?.tab || "";
+            if (["chars", "scene", "sprites"].includes(page)) {
+              openResourcesModal({ initialTab: "characters" });
+              return { ok: true };
+            }
+            if (["cg", "gallery", "illustrations"].includes(page)) {
+              openResourcesModal({ initialTab: "cgs" });
+              return { ok: true };
+            }
+            if (["items", "inventory"].includes(page)) {
+              openResourcesModal({ initialTab: "items" });
+              return { ok: true };
+            }
+            if (["wardrobe"].includes(page)) {
+              openResourcesModal({ initialTab: "wardrobe" });
+              return { ok: true };
+            }
+            openSettingsModal();
+            return { ok: true };
+          };
+          igs.igsUi.openSettings.__igsPatched = true;
+        }
+      } catch (_) {
+      }
+    }
+  }
+
+  // src/index.js
   (async function initIgsTauriPatch() {
     console.info("[IGS-Patch] \u6B63\u5728\u521D\u59CB\u5316 TauriTavern \u589E\u5F3A\u8865\u4E01 v2.0 (Vue 3 \u67B6\u6784)...");
     setupIndexedDbVersionGuard();
@@ -27603,6 +28433,7 @@ textarea.igs-form-textarea {
     setupBaiBaiBookBridge();
     setupPromptBlocker();
     setupRenderHook();
+    setupUiHijack();
     setupQrHijack();
     setupBaibaiEnhancer();
     setupMagicMenu();
@@ -27621,7 +28452,7 @@ textarea.igs-form-textarea {
       convertMessageToGal,
       processLatestAssistantMessage
     };
-    for (const w of getCandidateWindows8()) {
+    for (const w of getCandidateWindows10()) {
       try {
         w.__IGS_TAURI_PATCH__ = patchApi;
       } catch (_) {
@@ -27629,7 +28460,7 @@ textarea.igs-form-textarea {
     }
     console.info("[IGS-Patch] IGS \u8865\u4E01\u521D\u59CB\u5316\u5B8C\u6BD5\uFF1A\u653E\u6620\u952E\u5DF2\u91CD\u6784\uFF0C\u9B54\u6CD5\u68D2\u653E\u6620\u8BBE\u7F6E\u5DF2\u88C5\u8F7D\u3002");
   })();
-  function getCandidateWindows8() {
+  function getCandidateWindows10() {
     const list = [window];
     try {
       if (window.parent && window.parent !== window && !list.includes(window.parent)) list.push(window.parent);
@@ -27642,7 +28473,7 @@ textarea.igs-form-textarea {
     return list;
   }
   function bindGenerationEvents() {
-    for (const w of getCandidateWindows8()) {
+    for (const w of getCandidateWindows10()) {
       try {
         const ctx = w.SillyTavern?.getContext?.();
         const eventSource = ctx?.eventSource || w.eventSource;

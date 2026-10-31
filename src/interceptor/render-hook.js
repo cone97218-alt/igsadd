@@ -208,6 +208,12 @@ function hookIgsInstance(igs, ownerWin) {
             const sid = Number(chat?.[mid]?.swipe_id) || 0;
             const script = await preloadScriptToMemory(mid, sid);
 
+            // 如果当前已有已开启的阅读器，先关闭它以重置旧快照
+            try {
+                if (typeof igs.closeReader === 'function') igs.closeReader();
+                if (typeof igs.igsUi?.closeReader === 'function') igs.igsUi.closeReader();
+            } catch (_) { }
+
             let resolvedMode = mode;
             let resolvedOptions = openOptions;
             if (mode && typeof mode === 'object' && !Array.isArray(mode)) {
@@ -219,6 +225,9 @@ function hookIgsInstance(igs, ownerWin) {
 
             if (script && !resolvedOptions.message) {
                 const baseMsg = chat?.[mid] || {};
+                const swipesCopy = Array.isArray(baseMsg.swipes) ? [...baseMsg.swipes] : [];
+                if (swipesCopy.length > sid) swipesCopy[sid] = script;
+
                 resolvedOptions.message = {
                     ...baseMsg,
                     id: mid,
@@ -229,6 +238,7 @@ function hookIgsInstance(igs, ownerWin) {
                     formattedText: script,
                     rawHtml: script,
                     mes: script,
+                    swipes: swipesCopy,
                     element: null, // 强制清空 element，阻止 dom-visible-override 覆盖
                 };
             }
@@ -253,6 +263,12 @@ function hookIgsInstance(igs, ownerWin) {
                 }
             }
 
+            // 如果当前已有已开启的阅读器，先关闭它以重置旧快照
+            try {
+                if (typeof igs.closeReader === 'function') igs.closeReader();
+                if (typeof igs.igsUi?.closeReader === 'function') igs.igsUi.closeReader();
+            } catch (_) { }
+
             let resolvedMode = mode;
             let resolvedOptions = options;
             if (mode && typeof mode === 'object' && !Array.isArray(mode)) {
@@ -266,6 +282,9 @@ function hookIgsInstance(igs, ownerWin) {
                 const script = await preloadScriptToMemory(targetMid, targetSid);
                 if (script && !resolvedOptions.message) {
                     const baseMsg = chat[targetMid] || {};
+                    const swipesCopy = Array.isArray(baseMsg.swipes) ? [...baseMsg.swipes] : [];
+                    if (swipesCopy.length > targetSid) swipesCopy[targetSid] = script;
+
                     resolvedOptions.message = {
                         ...baseMsg,
                         id: targetMid,
@@ -276,6 +295,7 @@ function hookIgsInstance(igs, ownerWin) {
                         formattedText: script,
                         rawHtml: script,
                         mes: script,
+                        swipes: swipesCopy,
                         element: null, // 强制清空 element，阻止 dom-visible-override 覆盖
                     };
                 }

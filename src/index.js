@@ -24,6 +24,7 @@ import { notifyToast } from './ui/toast.js';
 import { setupBaibaiEnhancer } from './image-gen/baibai-enhancer.js';
 import { setupBaiBaiBookBridge } from './baibai/book-bridge.js';
 import { ensureIgsDatabasesHealthy, repairAllIgsDatabases, setupIndexedDbVersionGuard } from './resources/asset-service.js';
+import { setupUiHijack } from './interceptor/ui-hijack.js';
 
 (async function initIgsTauriPatch() {
     console.info('[IGS-Patch] 正在初始化 TauriTavern 增强补丁 v2.0 (Vue 3 架构)...');
@@ -53,6 +54,9 @@ import { ensureIgsDatabasesHealthy, repairAllIgsDatabases, setupIndexedDbVersion
 
     // 5. 启动渲染劫持：向 IGS 阅读器喂入副模型转译剧本
     setupRenderHook();
+
+    // 5.5 启动界面交互与设置劫持：拦截标题画面与阅读器设置/素材按钮，切换至 Vue 控制台
+    setupUiHijack();
 
     // 6. 启动 QR 栏放映键劫持与图标重构
     setupQrHijack();
