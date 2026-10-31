@@ -8,7 +8,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { patchState, setProductionMode, setTheme, subscribeState, detectAndSyncIgsTheme } from '../state/state.js';
 import { THEME_OPTIONS, THEME_PALETTES, generateThemeCssVariables } from './theme.js';
-import { getIgsSecondaryLlmConfig, testSecondaryLlmConnection } from '../director/secondary-llm.js';
+import { getIgsSecondaryLlmConfig, testSecondaryLlmConnection, getCustomSecondaryLlmConfig, saveCustomSecondaryLlmConfig } from '../director/secondary-llm.js';
 import { getCurrentVisibleFloorInfo, checkFloorScriptExists, convertMessageToGal } from '../director/pipeline.js';
 import { fullResetGalSystem } from '../tauri/reset.js';
 import { triggerIgsPromptResync } from '../interceptor/prompt-blocker.js';
@@ -134,6 +134,21 @@ const SettingsRootComponent = {
         const themeStyleVars = computed(() => {
             return generateThemeCssVariables(state.theme);
         });
+
+        // 自定义副 LLM 配置
+        const customLlm = reactive({
+            enabled: false,
+            endpoint: '',
+            apiKey: '',
+            model: 'gpt-4o-mini',
+            source: 'openai',
+            ...(getCustomSecondaryLlmConfig() || {}),
+        });
+
+        const handleSaveCustomLlm = () => {
+            saveCustomSecondaryLlmConfig(customLlm);
+            notifyToast(customLlm.enabled ? '已启用自定义副模型配置' : '已保存副模型设置', 'info');
+        };
 
         const secondaryLlmConfig = computed(() => {
             return getIgsSecondaryLlmConfig() || { source: 'tavern', model: '酒馆原生默认' };
@@ -398,7 +413,7 @@ const SettingsRootComponent = {
             llmTesting.value = true;
             llmTestResult.value = null;
             try {
-                const res = await testSecondaryLlmConnection();
+                const res = await testSecondaryLlmConnection(customLlm.enabled && customLlm.endpoint ? customLlm : null);
                 llmTestResult.value = res;
             } catch (err) {
                 llmTestResult.value = { ok: false, error: err.message };
@@ -423,7 +438,9 @@ const SettingsRootComponent = {
                     true
                 );
                 await refreshCurrentFloor();
-            } catch (_) { }
+            } catch (err) {
+                notifyToast(`制作失败: ${err.message}`, 'error', 3500);
+            }
         };
 
         const handleOpenReader = () => {
@@ -503,6 +520,8 @@ const SettingsRootComponent = {
             themeOptions: THEME_OPTIONS,
             themeStyleVars,
             secondaryLlmConfig,
+            customLlm,
+            handleSaveCustomLlm,
             preset,
             expandEditor,
             handleOpenExpandEditor,
@@ -995,13 +1014,13 @@ const SettingsRootComponent = {
               </div>
 
               <!-- 副模型状态 -->
-              <h3 class="section-title" style="margin-top: 24px;">副模型状态</h3>
-              <p class="section-desc">复用主扩展配置的副模型接口，专职负责将小说改写为演出剧本。</p>
+              <h3 class="section-title" style="margin-top: 24px;">副模型状态与配置</h3>
+              <p class="section-desc">负责将小说正文改写为演出剧本。默认自动复用主扩展配置，亦可开启自定义覆盖。</p>
 
               <div class="status-card">
                 <div class="llm-info-grid">
                   <div class="llm-info-item">
-                    <span class="info-label">接口来源：</span>
+                    <span class="info-label">生效来源：</span>
                     <span class="info-val">{{ secondaryLlmConfig.source === 'openai' ? '独立 OpenAI 兼容接口' : '酒馆原生桥接' }}</span>
                   </div>
                   <div class="llm-info-item">
@@ -1014,7 +1033,53 @@ const SettingsRootComponent = {
                   </div>
                 </div>
 
-                <div class="llm-action-row">
+                <!-- 自定义覆盖选项 -->
+                <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--igs-settings-border);">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer;">
+                      <input type="checkbox" v-model="customLlm.enabled" @change="handleSaveCustomLlm" />
+                      <span>自定义副 API 端点与密钥 (覆盖主脚本)</span>
+                    </label>
+                  </div>
+
+                  <div v-if="customLlm.enabled" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                    <div>
+                      <label style="font-size: 12px; color: var(--igs-settings-text-muted);">API 接口地址 (Endpoint)：</label>
+                      <input 
+                        v-model="customLlm.endpoint" 
+                        class="igs-input" 
+                        placeholder="https://api.openai.com/v1 或 https://api.deepseek.com"
+                        @change="handleSaveCustomLlm"
+                        style="width: 100%; box-sizing: border-box; margin-top: 4px;"
+                      />
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                      <div>
+                        <label style="font-size: 12px; color: var(--igs-settings-text-muted);">API Key (密钥)：</label>
+                        <input 
+                          v-model="customLlm.apiKey" 
+                          type="password"
+                          class="igs-input" 
+                          placeholder="sk-..."
+                          @change="handleSaveCustomLlm"
+                          style="width: 100%; box-sizing: border-box; margin-top: 4px;"
+                        />
+                      </div>
+                      <div>
+                        <label style="font-size: 12px; color: var(--igs-settings-text-muted);">模型名称 (Model)：</label>
+                        <input 
+                          v-model="customLlm.model" 
+                          class="igs-input" 
+                          placeholder="如 gpt-4o-mini 或 deepseek-chat"
+                          @change="handleSaveCustomLlm"
+                          style="width: 100%; box-sizing: border-box; margin-top: 4px;"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="llm-action-row" style="margin-top: 14px;">
                   <button 
                     class="igs-btn igs-btn-secondary" 
                     :disabled="llmTesting"

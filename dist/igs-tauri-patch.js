@@ -531,16 +531,104 @@
     }
     return list;
   }
+  function normalizeLlmConfig(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const endpoint = String(raw.endpoint || raw.url || raw.apiUrl || raw.baseUrl || raw.host || "").trim();
+    const apiKey = String(raw.apiKey || raw.key || raw.token || raw.api_key || "").trim();
+    const model = String(raw.model || raw.modelName || raw.model_name || "gpt-4o-mini").trim();
+    const source = String(raw.source || (endpoint ? "openai" : "tavern")).toLowerCase();
+    return {
+      source,
+      endpoint,
+      apiKey,
+      model,
+      customHeaders: raw.customHeaders || {},
+      customBody: raw.customBody || {}
+    };
+  }
+  function getCustomSecondaryLlmConfig() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_LLM);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          return parsed;
+        }
+      }
+    } catch (_) {
+    }
+    return null;
+  }
+  function saveCustomSecondaryLlmConfig(cfg) {
+    try {
+      if (!cfg) {
+        localStorage.removeItem(STORAGE_KEY_CUSTOM_LLM);
+      } else {
+        localStorage.setItem(STORAGE_KEY_CUSTOM_LLM, JSON.stringify(cfg));
+      }
+    } catch (_) {
+    }
+  }
   function getIgsSecondaryLlmConfig() {
+    const custom = getCustomSecondaryLlmConfig();
+    if (custom && custom.enabled && (custom.endpoint || custom.source === "tavern")) {
+      return normalizeLlmConfig(custom);
+    }
     try {
       for (const w of getCandidateWindows2()) {
         const igs = w.IGS || w.ImmersiveGalgameSystem;
-        const unified = igs?.getUnifiedSettings?.();
-        const config = unified?.bridge?.autoIllustration?.llm;
-        if (config) return config;
+        if (!igs) continue;
+        const candidates = [
+          igs.getUnifiedSettings?.()?.bridge?.autoIllustration?.llm,
+          igs.getUnifiedSettings?.()?.bridge?.llm,
+          igs.getUnifiedSettings?.()?.bridge?.secondaryLlm,
+          igs.getUnifiedSettings?.()?.autoIllustration?.llm,
+          igs.getUnifiedSettings?.()?.llm,
+          igs.getConfig?.()?.autoIllustration?.llm,
+          igs.getConfig?.()?.bridge?.autoIllustration?.llm,
+          igs.getConfig?.()?.llm,
+          igs.getState?.()?.config?.bridge?.autoIllustration?.llm,
+          igs.getState?.()?.legacyIgs?.bridge?.autoIllustration?.llm,
+          igs.bridge?.autoIllustration?.llm,
+          igs.bridge?.llm,
+          igs.settings?.autoIllustration?.llm
+        ];
+        for (const c of candidates) {
+          if (c && (c.endpoint || c.url || c.apiUrl || c.baseUrl || c.source)) {
+            return normalizeLlmConfig(c);
+          }
+        }
       }
     } catch (err) {
-      console.warn("[IGS-Patch] \u8BFB\u53D6 IGS \u526F LLM \u914D\u7F6E\u5931\u8D25:", err);
+      console.warn("[IGS-Patch] \u8BFB\u53D6 IGS \u5185\u5B58\u914D\u7F6E\u5F02\u5E38:", err);
+    }
+    const storageKeys = [
+      "igs_bridge_config",
+      "igs_settings",
+      "immersive_galgame_system",
+      "IGS_SETTINGS"
+    ];
+    for (const key of storageKeys) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") continue;
+        const candidates = [
+          parsed.autoIllustration?.llm,
+          parsed.bridge?.autoIllustration?.llm,
+          parsed.bridge?.llm,
+          parsed.bridge?.secondaryLlm,
+          parsed.llm,
+          parsed.secondaryLlm
+        ];
+        for (const c of candidates) {
+          if (c && (c.endpoint || c.url || c.apiUrl || c.baseUrl || c.source)) {
+            return normalizeLlmConfig(c);
+          }
+        }
+      } catch (_) {
+      }
     }
     return null;
   }
@@ -559,6 +647,11 @@
     const config = getIgsSecondaryLlmConfig();
     const timeoutMs = overrideOptions.timeoutMs || DEFAULT_TIMEOUT_MS;
     const messages = normalizePromptMessages(promptData);
+    console.info("[IGS-Patch] \u51C6\u5907\u53D1\u8D77\u526F API \u8F6C\u8BD1\u8BF7\u6C42, \u5F53\u524D\u914D\u7F6E:", {
+      source: config?.source,
+      endpoint: config?.endpoint,
+      model: config?.model
+    });
     for (const w of getCandidateWindows2()) {
       const igs = w.IGS || w.ImmersiveGalgameSystem;
       if (typeof igs?.requestSecondaryText === "function") {
@@ -571,25 +664,30 @@
             messages
           }, config || {});
           const text = extractContent(result);
-          if (text) return text;
+          if (text && text.trim()) return text.trim();
         } catch (err) {
           console.warn("[IGS-Patch] \u901A\u8FC7 IGS.requestSecondaryText \u8BF7\u6C42\u5931\u8D25\uFF0C\u5C1D\u8BD5\u72EC\u7ACB\u8C03\u7528:", err);
         }
       }
     }
-    if (config && config.source === "openai" && config.endpoint) {
+    if (config && (config.source === "openai" || config.endpoint)) {
       return requestOpenAiCompat(messages, config, timeoutMs);
     }
     return requestTavernRaw(messages, timeoutMs);
   }
-  async function testSecondaryLlmConnection() {
+  async function testSecondaryLlmConnection(overrideConfig = null) {
     const startTime = Date.now();
     try {
       const testPayload = [
         { role: "system", content: 'You are a test assistant. Reply with "pong" only.' },
         { role: "user", content: "ping" }
       ];
-      const reply = await requestSecondaryLlm(testPayload, { timeoutMs: 15e3 });
+      let reply = "";
+      if (overrideConfig && overrideConfig.endpoint) {
+        reply = await requestOpenAiCompat(testPayload, overrideConfig, 15e3);
+      } else {
+        reply = await requestSecondaryLlm(testPayload, { timeoutMs: 15e3 });
+      }
       const latency = Date.now() - startTime;
       return {
         ok: true,
@@ -606,14 +704,24 @@
   }
   async function requestOpenAiCompat(messages, config, timeoutMs) {
     let endpoint = String(config.endpoint || "").trim().replace(/\/+$/, "");
+    if (!endpoint) {
+      throw new Error("\u526F API \u8BF7\u6C42\u5730\u5740 (endpoint) \u4E3A\u7A7A\uFF0C\u8BF7\u5728\u653E\u6620\u8BBE\u7F6E\u4E2D\u914D\u7F6E");
+    }
     if (!endpoint.endsWith("/chat/completions")) {
-      endpoint = /\/v\d+$/i.test(endpoint) ? `${endpoint}/chat/completions` : `${endpoint}/v1/chat/completions`;
+      if (/\/v\d+$/i.test(endpoint)) {
+        endpoint = `${endpoint}/chat/completions`;
+      } else if (/\/v\d+\/$/i.test(endpoint)) {
+        endpoint = `${endpoint}chat/completions`;
+      } else {
+        endpoint = `${endpoint}/v1/chat/completions`;
+      }
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const authHeader = config.apiKey ? config.apiKey.startsWith("Bearer ") ? config.apiKey : `Bearer ${config.apiKey.trim()}` : null;
     const headers = {
       "Content-Type": "application/json",
-      ...config.apiKey ? { "Authorization": `Bearer ${config.apiKey.trim()}` } : {},
+      ...authHeader ? { "Authorization": authHeader } : {},
       ...config.customHeaders || {}
     };
     const payload = {
@@ -626,6 +734,7 @@
       stream: false,
       ...config.customBody || {}
     };
+    console.info(`[IGS-Patch] \u6B63\u5728\u53D1\u8D77 fetch \u8BF7\u6C42\u5230\u526F API: ${endpoint}`, { model: payload.model });
     try {
       const response = await fetch(endpoint, {
         method: "POST",
@@ -643,6 +752,9 @@
         throw new Error("\u526F API \u672A\u8FD4\u56DE\u6709\u6548\u7684 choices[0].message.content");
       }
       return content.trim();
+    } catch (err) {
+      console.error("[IGS-Patch] fetch \u526F API \u5931\u8D25:", err);
+      throw err;
     } finally {
       clearTimeout(timer);
     }
@@ -658,9 +770,14 @@
         const result = await helper.generateRaw({
           should_stream: false,
           should_silence: true,
-          // 静默生成：不广播事件、不显示停止按钮
           ordered_prompts: list
         });
+        return String(result || "").trim();
+      }
+      if (typeof w.generateRaw === "function") {
+        const sys = list.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
+        const user = list.filter((m) => m.role !== "system").map((m) => m.content).join("\n\n");
+        const result = await w.generateRaw(user, sys, false, false);
         return String(result || "").trim();
       }
       const ctx = w.SillyTavern?.getContext?.();
@@ -674,7 +791,7 @@
         return String(result || "").trim();
       }
     }
-    throw new Error("\u672A\u68C0\u6D4B\u5230\u53EF\u7528\u7684\u526F API \u65B9\u5F0F\uFF08\u65E2\u65E0\u72EC\u7ACB OpenAI \u914D\u7F6E\uFF0C\u4E5F\u65E0\u6CD5\u8C03\u7528 generateRaw\uFF09");
+    throw new Error("\u672A\u68C0\u6D4B\u5230\u53EF\u7528\u7684\u526F API \u65B9\u5F0F\uFF08\u8BF7\u5728\u653E\u6620\u8BBE\u7F6E\u4E2D\u586B\u5199\u526F\u6A21\u578B OpenAI \u7AEF\u70B9\u4E0E Key\uFF09");
   }
   function extractContent(raw) {
     if (typeof raw === "string") return raw;
@@ -682,10 +799,11 @@
     if (raw?.choices?.[0]?.message?.content) return raw.choices[0].message.content;
     return null;
   }
-  var DEFAULT_TIMEOUT_MS;
+  var DEFAULT_TIMEOUT_MS, STORAGE_KEY_CUSTOM_LLM;
   var init_secondary_llm = __esm({
     "src/director/secondary-llm.js"() {
       DEFAULT_TIMEOUT_MS = 6e4;
+      STORAGE_KEY_CUSTOM_LLM = "igs:patch:secondary_llm";
     }
   });
 
@@ -844,6 +962,7 @@
     handleMessageDeleted: () => handleMessageDeleted,
     handleMessageSwiped: () => handleMessageSwiped,
     isFloorConverting: () => isFloorConverting,
+    isGenuineGalScript: () => isGenuineGalScript,
     normalizeGalScript: () => normalizeGalScript,
     processLatestAssistantMessage: () => processLatestAssistantMessage,
     refreshIgsStage: () => refreshIgsStage,
@@ -952,20 +1071,32 @@
       msg
     };
   }
+  function isGenuineGalScript(text) {
+    if (!text || typeof text !== "string") return false;
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    return /\[igs-(?:char|thought|scene|fx):/i.test(trimmed) || /\[(?:speaker|角色):\s*[^\]]+\]/i.test(trimmed);
+  }
   async function checkFloorScriptExists(messageId, swipeId = null) {
     if (messageId == null) return false;
     const mid = Number(messageId);
     const sid = swipeId != null ? Number(swipeId) : getActiveSwipeId(mid);
     const memKey = getScriptMemKey(mid, sid);
-    if (scriptMemoryStore.has(memKey)) return true;
+    if (scriptMemoryStore.has(memKey)) {
+      const cached = scriptMemoryStore.get(memKey);
+      if (isGenuineGalScript(cached)) return true;
+      scriptMemoryStore.delete(memKey);
+    }
     for (const w of getCandidateWindows3()) {
       try {
         const msg = w.SillyTavern?.getContext?.()?.chat?.[mid];
         if (msg?.extra?.igs_patch_scripts?.[sid]) {
           const cached = msg.extra.igs_patch_scripts[sid];
-          scriptMemoryStore.set(memKey, cached);
-          attachScriptToMessage(mid, cached, sid);
-          return true;
+          if (isGenuineGalScript(cached)) {
+            scriptMemoryStore.set(memKey, cached);
+            attachScriptToMessage(mid, cached, sid);
+            return true;
+          }
         }
       } catch (_) {
       }
@@ -976,7 +1107,7 @@
       if (!cached) {
         cached = await getStoredJson(`script_${mid}_s${sid}`);
       }
-      if (cached && typeof cached === "string" && cached.trim()) {
+      if (cached && typeof cached === "string" && isGenuineGalScript(cached)) {
         scriptMemoryStore.set(memKey, cached);
         attachScriptToMessage(mid, cached, sid);
         return true;
@@ -1074,15 +1205,18 @@
     if (!force) {
       if (scriptMemoryStore.has(memKey)) {
         const cached = scriptMemoryStore.get(memKey);
-        attachScriptToMessage(mid, cached, sid);
-        refreshIgsStage(mid);
-        return cached;
+        if (isGenuineGalScript(cached)) {
+          attachScriptToMessage(mid, cached, sid);
+          refreshIgsStage(mid);
+          return cached;
+        }
+        scriptMemoryStore.delete(memKey);
       }
       let stored = await getStoredJson(storeKey);
       if (!stored) {
         stored = await getStoredJson(`script_${mid}_s${sid}`);
       }
-      if (stored && typeof stored === "string" && stored.trim()) {
+      if (stored && typeof stored === "string" && isGenuineGalScript(stored)) {
         attachScriptToMessage(mid, stored, sid);
         refreshIgsStage(mid);
         return stored;
@@ -1134,6 +1268,11 @@
         pendingConversions.delete(memKey);
       }
     })();
+    setTimeout(() => {
+      if (pendingConversions.get(memKey) === conversionPromise) {
+        pendingConversions.delete(memKey);
+      }
+    }, 65e3);
     pendingConversions.set(memKey, conversionPromise);
     return conversionPromise;
   }
@@ -22540,6 +22679,18 @@ ${codeFrame}` : message);
       const themeStyleVars = computed2(() => {
         return generateThemeCssVariables(state.theme);
       });
+      const customLlm = reactive({
+        enabled: false,
+        endpoint: "",
+        apiKey: "",
+        model: "gpt-4o-mini",
+        source: "openai",
+        ...getCustomSecondaryLlmConfig() || {}
+      });
+      const handleSaveCustomLlm = () => {
+        saveCustomSecondaryLlmConfig(customLlm);
+        notifyToast(customLlm.enabled ? "\u5DF2\u542F\u7528\u81EA\u5B9A\u4E49\u526F\u6A21\u578B\u914D\u7F6E" : "\u5DF2\u4FDD\u5B58\u526F\u6A21\u578B\u8BBE\u7F6E", "info");
+      };
       const secondaryLlmConfig = computed2(() => {
         return getIgsSecondaryLlmConfig() || { source: "tavern", model: "\u9152\u9986\u539F\u751F\u9ED8\u8BA4" };
       });
@@ -22764,7 +22915,7 @@ ${codeFrame}` : message);
         llmTesting.value = true;
         llmTestResult.value = null;
         try {
-          const res = await testSecondaryLlmConnection();
+          const res = await testSecondaryLlmConnection(customLlm.enabled && customLlm.endpoint ? customLlm : null);
           llmTestResult.value = res;
         } catch (err) {
           llmTestResult.value = { ok: false, error: err.message };
@@ -22788,7 +22939,8 @@ ${codeFrame}` : message);
             true
           );
           await refreshCurrentFloor();
-        } catch (_) {
+        } catch (err) {
+          notifyToast(`\u5236\u4F5C\u5931\u8D25: ${err.message}`, "error", 3500);
         }
       };
       const handleOpenReader = () => {
@@ -22861,6 +23013,8 @@ ${codeFrame}` : message);
         themeOptions: THEME_OPTIONS,
         themeStyleVars,
         secondaryLlmConfig,
+        customLlm,
+        handleSaveCustomLlm,
         preset,
         expandEditor,
         handleOpenExpandEditor,
@@ -23352,13 +23506,13 @@ ${codeFrame}` : message);
               </div>
 
               <!-- \u526F\u6A21\u578B\u72B6\u6001 -->
-              <h3 class="section-title" style="margin-top: 24px;">\u526F\u6A21\u578B\u72B6\u6001</h3>
-              <p class="section-desc">\u590D\u7528\u4E3B\u6269\u5C55\u914D\u7F6E\u7684\u526F\u6A21\u578B\u63A5\u53E3\uFF0C\u4E13\u804C\u8D1F\u8D23\u5C06\u5C0F\u8BF4\u6539\u5199\u4E3A\u6F14\u51FA\u5267\u672C\u3002</p>
+              <h3 class="section-title" style="margin-top: 24px;">\u526F\u6A21\u578B\u72B6\u6001\u4E0E\u914D\u7F6E</h3>
+              <p class="section-desc">\u8D1F\u8D23\u5C06\u5C0F\u8BF4\u6B63\u6587\u6539\u5199\u4E3A\u6F14\u51FA\u5267\u672C\u3002\u9ED8\u8BA4\u81EA\u52A8\u590D\u7528\u4E3B\u6269\u5C55\u914D\u7F6E\uFF0C\u4EA6\u53EF\u5F00\u542F\u81EA\u5B9A\u4E49\u8986\u76D6\u3002</p>
 
               <div class="status-card">
                 <div class="llm-info-grid">
                   <div class="llm-info-item">
-                    <span class="info-label">\u63A5\u53E3\u6765\u6E90\uFF1A</span>
+                    <span class="info-label">\u751F\u6548\u6765\u6E90\uFF1A</span>
                     <span class="info-val">{{ secondaryLlmConfig.source === 'openai' ? '\u72EC\u7ACB OpenAI \u517C\u5BB9\u63A5\u53E3' : '\u9152\u9986\u539F\u751F\u6865\u63A5' }}</span>
                   </div>
                   <div class="llm-info-item">
@@ -23371,7 +23525,53 @@ ${codeFrame}` : message);
                   </div>
                 </div>
 
-                <div class="llm-action-row">
+                <!-- \u81EA\u5B9A\u4E49\u8986\u76D6\u9009\u9879 -->
+                <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--igs-settings-border);">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer;">
+                      <input type="checkbox" v-model="customLlm.enabled" @change="handleSaveCustomLlm" />
+                      <span>\u81EA\u5B9A\u4E49\u526F API \u7AEF\u70B9\u4E0E\u5BC6\u94A5 (\u8986\u76D6\u4E3B\u811A\u672C)</span>
+                    </label>
+                  </div>
+
+                  <div v-if="customLlm.enabled" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                    <div>
+                      <label style="font-size: 12px; color: var(--igs-settings-text-muted);">API \u63A5\u53E3\u5730\u5740 (Endpoint)\uFF1A</label>
+                      <input 
+                        v-model="customLlm.endpoint" 
+                        class="igs-input" 
+                        placeholder="https://api.openai.com/v1 \u6216 https://api.deepseek.com"
+                        @change="handleSaveCustomLlm"
+                        style="width: 100%; box-sizing: border-box; margin-top: 4px;"
+                      />
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                      <div>
+                        <label style="font-size: 12px; color: var(--igs-settings-text-muted);">API Key (\u5BC6\u94A5)\uFF1A</label>
+                        <input 
+                          v-model="customLlm.apiKey" 
+                          type="password"
+                          class="igs-input" 
+                          placeholder="sk-..."
+                          @change="handleSaveCustomLlm"
+                          style="width: 100%; box-sizing: border-box; margin-top: 4px;"
+                        />
+                      </div>
+                      <div>
+                        <label style="font-size: 12px; color: var(--igs-settings-text-muted);">\u6A21\u578B\u540D\u79F0 (Model)\uFF1A</label>
+                        <input 
+                          v-model="customLlm.model" 
+                          class="igs-input" 
+                          placeholder="\u5982 gpt-4o-mini \u6216 deepseek-chat"
+                          @change="handleSaveCustomLlm"
+                          style="width: 100%; box-sizing: border-box; margin-top: 4px;"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="llm-action-row" style="margin-top: 14px;">
                   <button 
                     class="igs-btn igs-btn-secondary" 
                     :disabled="llmTesting"

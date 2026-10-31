@@ -159,6 +159,16 @@ export function getCurrentVisibleFloorInfo() {
 }
 
 /**
+ * 校验文本是否为经过格式化转译的合法 Gal 剧本（杜绝将未格式化的小说纯文本判定为已制作）
+ */
+export function isGenuineGalScript(text) {
+    if (!text || typeof text !== 'string') return false;
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    return /\[igs-(?:char|thought|scene|fx):/i.test(trimmed) || /\[(?:speaker|角色):\s*[^\]]+\]/i.test(trimmed);
+}
+
+/**
  * 检查某楼层的特定分支是否已制作演出
  */
 export async function checkFloorScriptExists(messageId, swipeId = null) {
@@ -167,7 +177,11 @@ export async function checkFloorScriptExists(messageId, swipeId = null) {
     const sid = swipeId != null ? Number(swipeId) : getActiveSwipeId(mid);
     const memKey = getScriptMemKey(mid, sid);
 
-    if (scriptMemoryStore.has(memKey)) return true;
+    if (scriptMemoryStore.has(memKey)) {
+        const cached = scriptMemoryStore.get(memKey);
+        if (isGenuineGalScript(cached)) return true;
+        scriptMemoryStore.delete(memKey);
+    }
 
     // 检查 message.extra
     for (const w of getCandidateWindows()) {
@@ -175,9 +189,11 @@ export async function checkFloorScriptExists(messageId, swipeId = null) {
             const msg = w.SillyTavern?.getContext?.()?.chat?.[mid];
             if (msg?.extra?.igs_patch_scripts?.[sid]) {
                 const cached = msg.extra.igs_patch_scripts[sid];
-                scriptMemoryStore.set(memKey, cached);
-                attachScriptToMessage(mid, cached, sid);
-                return true;
+                if (isGenuineGalScript(cached)) {
+                    scriptMemoryStore.set(memKey, cached);
+                    attachScriptToMessage(mid, cached, sid);
+                    return true;
+                }
             }
         } catch (_) { }
     }
@@ -190,7 +206,7 @@ export async function checkFloorScriptExists(messageId, swipeId = null) {
             // 兼容迁移旧格式
             cached = await getStoredJson(`script_${mid}_s${sid}`);
         }
-        if (cached && typeof cached === 'string' && cached.trim()) {
+        if (cached && typeof cached === 'string' && isGenuineGalScript(cached)) {
             scriptMemoryStore.set(memKey, cached);
             attachScriptToMessage(mid, cached, sid);
             return true;
@@ -330,16 +346,19 @@ export async function convertMessageToGal(messageId, rawText, contextMeta = {}, 
     if (!force) {
         if (scriptMemoryStore.has(memKey)) {
             const cached = scriptMemoryStore.get(memKey);
-            attachScriptToMessage(mid, cached, sid);
-            refreshIgsStage(mid);
-            return cached;
+            if (isGenuineGalScript(cached)) {
+                attachScriptToMessage(mid, cached, sid);
+                refreshIgsStage(mid);
+                return cached;
+            }
+            scriptMemoryStore.delete(memKey);
         }
         let stored = await getStoredJson(storeKey);
         if (!stored) {
             // 兼容迁移旧格式
             stored = await getStoredJson(`script_${mid}_s${sid}`);
         }
-        if (stored && typeof stored === 'string' && stored.trim()) {
+        if (stored && typeof stored === 'string' && isGenuineGalScript(stored)) {
             attachScriptToMessage(mid, stored, sid);
             refreshIgsStage(mid);
             return stored;
@@ -407,6 +426,13 @@ export async function convertMessageToGal(messageId, rawText, contextMeta = {}, 
             pendingConversions.delete(memKey);
         }
     })();
+
+    // 兜底超时 65 秒防卡锁
+    setTimeout(() => {
+        if (pendingConversions.get(memKey) === conversionPromise) {
+            pendingConversions.delete(memKey);
+        }
+    }, 65000);
 
     pendingConversions.set(memKey, conversionPromise);
     return conversionPromise;
