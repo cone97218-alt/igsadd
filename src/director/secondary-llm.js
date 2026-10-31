@@ -1,11 +1,9 @@
 /**
  * 副 API 客户端服务
- * 深度复用 IGS 主脚本在设置面板中配置的副 LLM 设定（支持独立 OpenAI 兼容接口与酒馆 generateRaw）
- * 支持补丁面板直接自定义配置覆盖
+ * 深度复用并严格对齐 IGS 主脚本在设置面板中配置的副 LLM 设定（支持独立 OpenAI 兼容接口与酒馆 generateRaw）
  */
 
 const DEFAULT_TIMEOUT_MS = 60000;
-const STORAGE_KEY_CUSTOM_LLM = 'igs:patch:secondary_llm';
 
 function getCandidateWindows() {
     const list = [window];
@@ -39,45 +37,10 @@ export function normalizeLlmConfig(raw) {
 }
 
 /**
- * 读取用户在补丁面板手动保存的自定义副 LLM 配置
- */
-export function getCustomSecondaryLlmConfig() {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_LLM);
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === 'object') {
-                return parsed;
-            }
-        }
-    } catch (_) { }
-    return null;
-}
-
-/**
- * 保存自定义副 LLM 配置
- */
-export function saveCustomSecondaryLlmConfig(cfg) {
-    try {
-        if (!cfg) {
-            localStorage.removeItem(STORAGE_KEY_CUSTOM_LLM);
-        } else {
-            localStorage.setItem(STORAGE_KEY_CUSTOM_LLM, JSON.stringify(cfg));
-        }
-    } catch (_) { }
-}
-
-/**
- * 获取当前生效的副 LLM 配置 (补丁自定义覆盖 > IGS 原生设置 > localStorage)
+ * 获取主脚本配置的副 LLM 设置 (IGS 原生实例 > localStorage bridge 配置)
  */
 export function getIgsSecondaryLlmConfig() {
-    // 1. 优先检查用户自定义覆盖
-    const custom = getCustomSecondaryLlmConfig();
-    if (custom && custom.enabled && (custom.endpoint || custom.source === 'tavern')) {
-        return normalizeLlmConfig(custom);
-    }
-
-    // 2. 深度穿透探测 IGS 原生运行时内存对象
+    // 1. 深度穿透探测 IGS 主脚本原生运行时内存对象
     try {
         for (const w of getCandidateWindows()) {
             const igs = w.IGS || w.ImmersiveGalgameSystem;
@@ -109,7 +72,7 @@ export function getIgsSecondaryLlmConfig() {
         console.warn('[IGS-Patch] 读取 IGS 内存配置异常:', err);
     }
 
-    // 3. 深度穿透探测 localStorage
+    // 2. 深度穿透探测主脚本持久化存储 localStorage
     const storageKeys = [
         'igs_bridge_config',
         'igs_settings',
@@ -166,7 +129,7 @@ export async function requestSecondaryLlm(promptData, overrideOptions = {}) {
     const timeoutMs = overrideOptions.timeoutMs || DEFAULT_TIMEOUT_MS;
     const messages = normalizePromptMessages(promptData);
 
-    console.info('[IGS-Patch] 准备发起副 API 转译请求, 当前配置:', {
+    console.info('[IGS-Patch] 使用主脚本副 API 配置发起转译请求:', {
         source: config?.source,
         endpoint: config?.endpoint,
         model: config?.model,
@@ -204,19 +167,14 @@ export async function requestSecondaryLlm(promptData, overrideOptions = {}) {
 /**
  * 测试副 API 连通性
  */
-export async function testSecondaryLlmConnection(overrideConfig = null) {
+export async function testSecondaryLlmConnection() {
     const startTime = Date.now();
     try {
         const testPayload = [
             { role: 'system', content: 'You are a test assistant. Reply with "pong" only.' },
             { role: 'user', content: 'ping' },
         ];
-        let reply = '';
-        if (overrideConfig && overrideConfig.endpoint) {
-            reply = await requestOpenAiCompat(testPayload, overrideConfig, 15000);
-        } else {
-            reply = await requestSecondaryLlm(testPayload, { timeoutMs: 15000 });
-        }
+        const reply = await requestSecondaryLlm(testPayload, { timeoutMs: 15000 });
         const latency = Date.now() - startTime;
         return {
             ok: true,
@@ -238,7 +196,7 @@ export async function testSecondaryLlmConnection(overrideConfig = null) {
 export async function requestOpenAiCompat(messages, config, timeoutMs) {
     let endpoint = String(config.endpoint || '').trim().replace(/\/+$/, '');
     if (!endpoint) {
-        throw new Error('副 API 请求地址 (endpoint) 为空，请在放映设置中配置');
+        throw new Error('未读取到主脚本配置的副 API 请求地址 (endpoint)');
     }
 
     if (!endpoint.endsWith('/chat/completions')) {
@@ -343,7 +301,7 @@ async function requestTavernRaw(messages, timeoutMs) {
         }
     }
 
-    throw new Error('未检测到可用的副 API 方式（请在放映设置中填写副模型 OpenAI 端点与 Key）');
+    throw new Error('未检测到可用的副 API 方式（请在主脚本设置中配置副 LLM）');
 }
 
 function extractContent(raw) {

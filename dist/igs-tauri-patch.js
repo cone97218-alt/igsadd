@@ -546,34 +546,7 @@
       customBody: raw.customBody || {}
     };
   }
-  function getCustomSecondaryLlmConfig() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_LLM);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") {
-          return parsed;
-        }
-      }
-    } catch (_) {
-    }
-    return null;
-  }
-  function saveCustomSecondaryLlmConfig(cfg) {
-    try {
-      if (!cfg) {
-        localStorage.removeItem(STORAGE_KEY_CUSTOM_LLM);
-      } else {
-        localStorage.setItem(STORAGE_KEY_CUSTOM_LLM, JSON.stringify(cfg));
-      }
-    } catch (_) {
-    }
-  }
   function getIgsSecondaryLlmConfig() {
-    const custom = getCustomSecondaryLlmConfig();
-    if (custom && custom.enabled && (custom.endpoint || custom.source === "tavern")) {
-      return normalizeLlmConfig(custom);
-    }
     try {
       for (const w of getCandidateWindows2()) {
         const igs = w.IGS || w.ImmersiveGalgameSystem;
@@ -647,7 +620,7 @@
     const config = getIgsSecondaryLlmConfig();
     const timeoutMs = overrideOptions.timeoutMs || DEFAULT_TIMEOUT_MS;
     const messages = normalizePromptMessages(promptData);
-    console.info("[IGS-Patch] \u51C6\u5907\u53D1\u8D77\u526F API \u8F6C\u8BD1\u8BF7\u6C42, \u5F53\u524D\u914D\u7F6E:", {
+    console.info("[IGS-Patch] \u4F7F\u7528\u4E3B\u811A\u672C\u526F API \u914D\u7F6E\u53D1\u8D77\u8F6C\u8BD1\u8BF7\u6C42:", {
       source: config?.source,
       endpoint: config?.endpoint,
       model: config?.model
@@ -675,19 +648,14 @@
     }
     return requestTavernRaw(messages, timeoutMs);
   }
-  async function testSecondaryLlmConnection(overrideConfig = null) {
+  async function testSecondaryLlmConnection() {
     const startTime = Date.now();
     try {
       const testPayload = [
         { role: "system", content: 'You are a test assistant. Reply with "pong" only.' },
         { role: "user", content: "ping" }
       ];
-      let reply = "";
-      if (overrideConfig && overrideConfig.endpoint) {
-        reply = await requestOpenAiCompat(testPayload, overrideConfig, 15e3);
-      } else {
-        reply = await requestSecondaryLlm(testPayload, { timeoutMs: 15e3 });
-      }
+      const reply = await requestSecondaryLlm(testPayload, { timeoutMs: 15e3 });
       const latency = Date.now() - startTime;
       return {
         ok: true,
@@ -705,7 +673,7 @@
   async function requestOpenAiCompat(messages, config, timeoutMs) {
     let endpoint = String(config.endpoint || "").trim().replace(/\/+$/, "");
     if (!endpoint) {
-      throw new Error("\u526F API \u8BF7\u6C42\u5730\u5740 (endpoint) \u4E3A\u7A7A\uFF0C\u8BF7\u5728\u653E\u6620\u8BBE\u7F6E\u4E2D\u914D\u7F6E");
+      throw new Error("\u672A\u8BFB\u53D6\u5230\u4E3B\u811A\u672C\u914D\u7F6E\u7684\u526F API \u8BF7\u6C42\u5730\u5740 (endpoint)");
     }
     if (!endpoint.endsWith("/chat/completions")) {
       if (/\/v\d+$/i.test(endpoint)) {
@@ -791,7 +759,7 @@
         return String(result || "").trim();
       }
     }
-    throw new Error("\u672A\u68C0\u6D4B\u5230\u53EF\u7528\u7684\u526F API \u65B9\u5F0F\uFF08\u8BF7\u5728\u653E\u6620\u8BBE\u7F6E\u4E2D\u586B\u5199\u526F\u6A21\u578B OpenAI \u7AEF\u70B9\u4E0E Key\uFF09");
+    throw new Error("\u672A\u68C0\u6D4B\u5230\u53EF\u7528\u7684\u526F API \u65B9\u5F0F\uFF08\u8BF7\u5728\u4E3B\u811A\u672C\u8BBE\u7F6E\u4E2D\u914D\u7F6E\u526F LLM\uFF09");
   }
   function extractContent(raw) {
     if (typeof raw === "string") return raw;
@@ -799,11 +767,10 @@
     if (raw?.choices?.[0]?.message?.content) return raw.choices[0].message.content;
     return null;
   }
-  var DEFAULT_TIMEOUT_MS, STORAGE_KEY_CUSTOM_LLM;
+  var DEFAULT_TIMEOUT_MS;
   var init_secondary_llm = __esm({
     "src/director/secondary-llm.js"() {
       DEFAULT_TIMEOUT_MS = 6e4;
-      STORAGE_KEY_CUSTOM_LLM = "igs:patch:secondary_llm";
     }
   });
 
@@ -22679,18 +22646,6 @@ ${codeFrame}` : message);
       const themeStyleVars = computed2(() => {
         return generateThemeCssVariables(state.theme);
       });
-      const customLlm = reactive({
-        enabled: false,
-        endpoint: "",
-        apiKey: "",
-        model: "gpt-4o-mini",
-        source: "openai",
-        ...getCustomSecondaryLlmConfig() || {}
-      });
-      const handleSaveCustomLlm = () => {
-        saveCustomSecondaryLlmConfig(customLlm);
-        notifyToast(customLlm.enabled ? "\u5DF2\u542F\u7528\u81EA\u5B9A\u4E49\u526F\u6A21\u578B\u914D\u7F6E" : "\u5DF2\u4FDD\u5B58\u526F\u6A21\u578B\u8BBE\u7F6E", "info");
-      };
       const secondaryLlmConfig = computed2(() => {
         return getIgsSecondaryLlmConfig() || { source: "tavern", model: "\u9152\u9986\u539F\u751F\u9ED8\u8BA4" };
       });
@@ -22915,7 +22870,7 @@ ${codeFrame}` : message);
         llmTesting.value = true;
         llmTestResult.value = null;
         try {
-          const res = await testSecondaryLlmConnection(customLlm.enabled && customLlm.endpoint ? customLlm : null);
+          const res = await testSecondaryLlmConnection();
           llmTestResult.value = res;
         } catch (err) {
           llmTestResult.value = { ok: false, error: err.message };
@@ -23013,8 +22968,6 @@ ${codeFrame}` : message);
         themeOptions: THEME_OPTIONS,
         themeStyleVars,
         secondaryLlmConfig,
-        customLlm,
-        handleSaveCustomLlm,
         preset,
         expandEditor,
         handleOpenExpandEditor,
@@ -23506,13 +23459,13 @@ ${codeFrame}` : message);
               </div>
 
               <!-- \u526F\u6A21\u578B\u72B6\u6001 -->
-              <h3 class="section-title" style="margin-top: 24px;">\u526F\u6A21\u578B\u72B6\u6001\u4E0E\u914D\u7F6E</h3>
-              <p class="section-desc">\u8D1F\u8D23\u5C06\u5C0F\u8BF4\u6B63\u6587\u6539\u5199\u4E3A\u6F14\u51FA\u5267\u672C\u3002\u9ED8\u8BA4\u81EA\u52A8\u590D\u7528\u4E3B\u6269\u5C55\u914D\u7F6E\uFF0C\u4EA6\u53EF\u5F00\u542F\u81EA\u5B9A\u4E49\u8986\u76D6\u3002</p>
+              <h3 class="section-title" style="margin-top: 24px;">\u526F\u6A21\u578B\u72B6\u6001</h3>
+              <p class="section-desc">\u590D\u7528\u4E3B\u6269\u5C55\u914D\u7F6E\u7684\u526F\u6A21\u578B\u63A5\u53E3\uFF0C\u4E13\u804C\u8D1F\u8D23\u5C06\u5C0F\u8BF4\u6539\u5199\u4E3A\u6F14\u51FA\u5267\u672C\u3002</p>
 
               <div class="status-card">
                 <div class="llm-info-grid">
                   <div class="llm-info-item">
-                    <span class="info-label">\u751F\u6548\u6765\u6E90\uFF1A</span>
+                    <span class="info-label">\u63A5\u53E3\u6765\u6E90\uFF1A</span>
                     <span class="info-val">{{ secondaryLlmConfig.source === 'openai' ? '\u72EC\u7ACB OpenAI \u517C\u5BB9\u63A5\u53E3' : '\u9152\u9986\u539F\u751F\u6865\u63A5' }}</span>
                   </div>
                   <div class="llm-info-item">
@@ -23522,52 +23475,6 @@ ${codeFrame}` : message);
                   <div v-if="secondaryLlmConfig.endpoint" class="llm-info-item" style="grid-column: 1 / -1;">
                     <span class="info-label">\u7AEF\u70B9\u5730\u5740\uFF1A</span>
                     <span class="info-val code-text">{{ secondaryLlmConfig.endpoint }}</span>
-                  </div>
-                </div>
-
-                <!-- \u81EA\u5B9A\u4E49\u8986\u76D6\u9009\u9879 -->
-                <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--igs-settings-border);">
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer;">
-                      <input type="checkbox" v-model="customLlm.enabled" @change="handleSaveCustomLlm" />
-                      <span>\u81EA\u5B9A\u4E49\u526F API \u7AEF\u70B9\u4E0E\u5BC6\u94A5 (\u8986\u76D6\u4E3B\u811A\u672C)</span>
-                    </label>
-                  </div>
-
-                  <div v-if="customLlm.enabled" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
-                    <div>
-                      <label style="font-size: 12px; color: var(--igs-settings-text-muted);">API \u63A5\u53E3\u5730\u5740 (Endpoint)\uFF1A</label>
-                      <input 
-                        v-model="customLlm.endpoint" 
-                        class="igs-input" 
-                        placeholder="https://api.openai.com/v1 \u6216 https://api.deepseek.com"
-                        @change="handleSaveCustomLlm"
-                        style="width: 100%; box-sizing: border-box; margin-top: 4px;"
-                      />
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                      <div>
-                        <label style="font-size: 12px; color: var(--igs-settings-text-muted);">API Key (\u5BC6\u94A5)\uFF1A</label>
-                        <input 
-                          v-model="customLlm.apiKey" 
-                          type="password"
-                          class="igs-input" 
-                          placeholder="sk-..."
-                          @change="handleSaveCustomLlm"
-                          style="width: 100%; box-sizing: border-box; margin-top: 4px;"
-                        />
-                      </div>
-                      <div>
-                        <label style="font-size: 12px; color: var(--igs-settings-text-muted);">\u6A21\u578B\u540D\u79F0 (Model)\uFF1A</label>
-                        <input 
-                          v-model="customLlm.model" 
-                          class="igs-input" 
-                          placeholder="\u5982 gpt-4o-mini \u6216 deepseek-chat"
-                          @change="handleSaveCustomLlm"
-                          style="width: 100%; box-sizing: border-box; margin-top: 4px;"
-                        />
-                      </div>
-                    </div>
                   </div>
                 </div>
 
