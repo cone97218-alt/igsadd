@@ -934,12 +934,12 @@ textarea.igs-form-textarea {
 }
 
 /* =========================================
-   弹窗全局居中居中居中 (彻底解决贴顶问题)
+   弹窗居中与视口覆盖 (严格锁定在窗口内部居中)
    ========================================= */
 .igs-dialog-overlay {
-  position: fixed !important;
+  position: absolute !important;
   inset: 0 !important;
-  z-index: 2147483647 !important;
+  z-index: 10000 !important;
   background: rgba(0,0,0,0.72) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;

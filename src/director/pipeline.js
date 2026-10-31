@@ -17,6 +17,20 @@ import { updateProductionStatus } from '../state/state.js';
 // 全局内存剧本库（key: `${mid}_${swipeId}`）
 export const scriptMemoryStore = new Map();
 
+// 正在执行制作中的 Promise 映射（去重防抖，防止并发重复请求副 LLM）
+const pendingConversions = new Map();
+
+/**
+ * 判断指定楼层与分支当前是否正在制作中
+ */
+export function isFloorConverting(mid, sid = 0) {
+    const numericMid = Number(mid);
+    const numericSid = Number(sid) || 0;
+    const scopedKey = getScriptMemKey(numericMid, numericSid);
+    const legacyKey = `${numericMid}_${numericSid}`;
+    return pendingConversions.has(scopedKey) || pendingConversions.has(legacyKey);
+}
+
 /**
  * 清空内存剧本缓存
  */
@@ -305,6 +319,13 @@ export async function convertMessageToGal(messageId, rawText, contextMeta = {}, 
     const storeKey = getScriptStoreKey(mid, sid);
     const memKey = getScriptMemKey(mid, sid);
 
+    // 0. 并发与重复请求拦截：如果当前楼层与分支已经在转译中，直接复用 Promise
+    if (pendingConversions.has(memKey)) {
+        console.info(`[IGS-Patch] 第 ${mid} 楼 (分支 ${sid}) 已在制作排队中，复用该请求`);
+        notifyToast(`第 ${mid} 楼正在制作中，请稍候...`, 'info', 1600);
+        return pendingConversions.get(memKey);
+    }
+
     // 检查缓存
     if (!force) {
         if (scriptMemoryStore.has(memKey)) {
@@ -325,63 +346,70 @@ export async function convertMessageToGal(messageId, rawText, contextMeta = {}, 
         }
     }
 
-    try {
-        console.info(`[IGS-Patch] 正在使用副 API 转译第 ${mid} 楼 (分支 ${sid}) 为 Gal 演出...`);
-        updateProductionStatus({
-            isProducing: true,
-            floor: mid,
-            swipeId: sid,
-            progress: `正在改写第 ${mid} 楼演出...`,
-            error: null,
-        });
+    const conversionPromise = (async () => {
+        try {
+            console.info(`[IGS-Patch] 正在使用副 API 转译第 ${mid} 楼 (分支 ${sid}) 为 Gal 演出...`);
+            updateProductionStatus({
+                isProducing: true,
+                floor: mid,
+                swipeId: sid,
+                progress: `正在改写第 ${mid} 楼演出...`,
+                error: null,
+            });
 
-        notifyToast(`第 ${mid} 楼开始制作`, 'info', 1800);
+            notifyToast(`第 ${mid} 楼开始制作`, 'info', 1800);
 
-        const payload = buildDirectorRequestPayload(rawText, contextMeta);
-        const converted = await requestSecondaryLlm(payload);
+            const payload = buildDirectorRequestPayload(rawText, contextMeta);
+            const converted = await requestSecondaryLlm(payload);
 
-        if (!converted || !converted.trim()) {
-            throw new Error('副 API 返回剧本为空');
+            if (!converted || !converted.trim()) {
+                throw new Error('副 API 返回剧本为空');
+            }
+
+            // 代码级清洗与语法纠偏，确保符合 IGS 0.37.x 原生规范
+            const normalized = normalizeGalScript(converted);
+
+            // 存入 Tauri KV
+            await setStoredJson(storeKey, normalized);
+
+            // 挂载到内存与消息
+            attachScriptToMessage(mid, normalized, sid);
+
+            console.info(`[IGS-Patch] 第 ${mid} 楼 (分支 ${sid}) 演出制作完成并已存入存储。`);
+
+            updateProductionStatus({
+                isProducing: false,
+                floor: mid,
+                swipeId: sid,
+                progress: '制作完成',
+                error: null,
+                lastSuccessAt: Date.now(),
+            });
+
+            notifyToast(`第 ${mid} 楼制作就绪`, 'success', 2200);
+
+            // 驱动刷新
+            refreshIgsStage(mid);
+
+            return normalized;
+        } catch (err) {
+            console.error(`[IGS-Patch] 第 ${mid} 楼 (分支 ${sid}) 转译失败:`, err);
+            updateProductionStatus({
+                isProducing: false,
+                floor: mid,
+                swipeId: sid,
+                progress: '制作失败',
+                error: err.message || String(err),
+            });
+            notifyToast(`第 ${mid} 楼制作失败: ${err.message}`, 'error', 3000);
+            throw err;
+        } finally {
+            pendingConversions.delete(memKey);
         }
+    })();
 
-        // 代码级清洗与语法纠偏，确保符合 IGS 0.37.x 原生规范
-        const normalized = normalizeGalScript(converted);
-
-        // 存入 Tauri KV
-        await setStoredJson(storeKey, normalized);
-
-        // 挂载到内存与消息
-        attachScriptToMessage(mid, normalized, sid);
-
-        console.info(`[IGS-Patch] 第 ${mid} 楼 (分支 ${sid}) 演出制作完成并已存入存储。`);
-
-        updateProductionStatus({
-            isProducing: false,
-            floor: mid,
-            swipeId: sid,
-            progress: '制作完成',
-            error: null,
-            lastSuccessAt: Date.now(),
-        });
-
-        notifyToast(`第 ${mid} 楼制作就绪`, 'success', 2200);
-
-        // 驱动刷新
-        refreshIgsStage(mid);
-
-        return normalized;
-    } catch (err) {
-        console.error(`[IGS-Patch] 第 ${mid} 楼 (分支 ${sid}) 转译失败:`, err);
-        updateProductionStatus({
-            isProducing: false,
-            floor: mid,
-            swipeId: sid,
-            progress: '制作失败',
-            error: err.message || String(err),
-        });
-        notifyToast(`第 ${mid} 楼制作失败: ${err.message}`, 'error', 3000);
-        throw err;
-    }
+    pendingConversions.set(memKey, conversionPromise);
+    return conversionPromise;
 }
 
 /**

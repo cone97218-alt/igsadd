@@ -151,6 +151,7 @@ export function saveBaibaiArtistConfig(cfg) {
 // 追踪当前正在执行的 IGS 任务类别
 let currentActiveKind = null;
 let currentActivityId = null;
+let activityTimer = null;
 
 function setupActivityWatcher() {
     const onActivity = (e) => {
@@ -158,9 +159,15 @@ function setupActivityWatcher() {
         if (detail && detail.type === 'start') {
             currentActiveKind = detail.kind || 'cg';
             currentActivityId = detail.id;
+            clearTimeout(activityTimer);
+            activityTimer = setTimeout(() => {
+                currentActiveKind = null;
+                currentActivityId = null;
+            }, 30000);
         } else if (detail && detail.type === 'end' && detail.id === currentActivityId) {
             currentActiveKind = null;
             currentActivityId = null;
+            clearTimeout(activityTimer);
         }
     };
 
@@ -226,51 +233,63 @@ export function setupBaibaiEnhancer() {
         const originalGenerate = baibai.generate.bind(baibai);
 
         baibai.generate = async function interceptedGenerate(payload = {}, options = {}) {
-            const workingPayload = { ...payload };
-            const cfg = getBaibaiArtistConfig();
-            if (cfg.enabled) {
-                const kind = detectKindFromPayload(workingPayload);
-                const kindEntry = cfg.kinds[kind];
+            try {
+                const isStringPayload = typeof payload === 'string';
+                const workingPayload = isStringPayload
+                    ? { prompt: payload }
+                    : (payload && typeof payload === 'object' ? { ...payload } : { prompt: String(payload || '') });
 
-                if (kindEntry && kindEntry.enabled !== false) {
-                    const presetId = kindEntry.presetId || 'follow';
+                const cfg = getBaibaiArtistConfig();
+                if (cfg && cfg.enabled) {
+                    const kind = detectKindFromPayload(workingPayload);
+                    const kindEntry = cfg.kinds?.[kind];
 
-                    if (presetId === 'none') {
-                        if (kindEntry.extraPositive) {
-                            workingPayload.prompt = prependTags(kindEntry.extraPositive, workingPayload.prompt);
-                        }
-                        if (kindEntry.extraNegative) {
-                            workingPayload.negative = prependTags(kindEntry.extraNegative, workingPayload.negative);
-                        }
-                    } else if (presetId !== 'follow') {
-                        const presets = getBaiBaiArtistPresets();
-                        const matched = presets.find(p => p.id === presetId);
-                        if (matched) {
-                            const finalPositive = prependTags(matched.prompt, kindEntry.extraPositive);
-                            const finalNegative = prependTags(matched.negative, kindEntry.extraNegative);
+                    if (kindEntry && kindEntry.enabled !== false) {
+                        const presetId = kindEntry.presetId || 'follow';
 
-                            if (finalPositive) {
-                                workingPayload.prompt = prependTags(finalPositive, workingPayload.prompt);
+                        if (presetId === 'none') {
+                            if (kindEntry.extraPositive) {
+                                workingPayload.prompt = prependTags(kindEntry.extraPositive, workingPayload.prompt);
                             }
-                            if (finalNegative) {
-                                workingPayload.negative = prependTags(finalNegative, workingPayload.negative);
+                            if (kindEntry.extraNegative) {
+                                workingPayload.negative = prependTags(kindEntry.extraNegative, workingPayload.negative);
                             }
+                        } else if (presetId !== 'follow') {
+                            const presets = getBaiBaiArtistPresets();
+                            const matched = presets.find(p => p.id === presetId);
+                            if (matched) {
+                                const finalPositive = prependTags(matched.prompt, kindEntry.extraPositive);
+                                const finalNegative = prependTags(matched.negative, kindEntry.extraNegative);
 
-                            const kindLabel = (BAIBAI_PROMPT_KINDS.find(k => k.id === kind) || {}).label || kind;
-                            console.info(`[IGS-Patch] 柏宝绘生图：已套用【${kindLabel}】绑定的预设【${matched.name}】`);
-                        }
-                    } else {
-                        if (kindEntry.extraPositive) {
-                            workingPayload.prompt = prependTags(kindEntry.extraPositive, workingPayload.prompt);
-                        }
-                        if (kindEntry.extraNegative) {
-                            workingPayload.negative = prependTags(kindEntry.extraNegative, workingPayload.negative);
+                                if (finalPositive) {
+                                    workingPayload.prompt = prependTags(finalPositive, workingPayload.prompt);
+                                }
+                                if (finalNegative) {
+                                    workingPayload.negative = prependTags(finalNegative, workingPayload.negative);
+                                }
+
+                                const kindLabel = (BAIBAI_PROMPT_KINDS.find(k => k.id === kind) || {}).label || kind;
+                                console.info(`[IGS-Patch] 柏宝绘生图：已套用【${kindLabel}】绑定的预设【${matched.name}】`);
+                            }
+                        } else {
+                            if (kindEntry.extraPositive) {
+                                workingPayload.prompt = prependTags(kindEntry.extraPositive, workingPayload.prompt);
+                            }
+                            if (kindEntry.extraNegative) {
+                                workingPayload.negative = prependTags(kindEntry.extraNegative, workingPayload.negative);
+                            }
                         }
                     }
                 }
-            }
 
-            return originalGenerate(workingPayload, options);
+                if (isStringPayload) {
+                    return originalGenerate(workingPayload.prompt, options);
+                }
+                return originalGenerate(workingPayload, options);
+            } catch (err) {
+                console.warn('[IGS-Patch] 柏宝绘增强拦截器处理异常，安全回退原版执行:', err);
+                return originalGenerate(payload, options);
+            }
         };
 
         baibai.__igsHooked = true;

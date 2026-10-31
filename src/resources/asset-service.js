@@ -298,7 +298,7 @@ export function updateScopedSceneAssets(updater, scopeMode = 'all', customScopeK
 const DB_SCHEMAS = {
     [DB_GENERATED_ASSETS]: {
         version: 1,
-        stores: ['images', 'floors', 'assets'],
+        stores: ['images', 'floors', 'assets', 'items', 'scenes', 'characters'],
         upgrade: (db) => {
             if (!db.objectStoreNames.contains('images')) db.createObjectStore('images', { keyPath: 'id' });
             if (!db.objectStoreNames.contains('floors')) db.createObjectStore('floors', { keyPath: 'key' });
@@ -307,37 +307,72 @@ const DB_SCHEMAS = {
                 try { store.createIndex('chatId', 'chatId', { unique: false }); } catch (_) {}
                 try { store.createIndex('floorKey', 'floorKey', { unique: false }); } catch (_) {}
             }
+            if (!db.objectStoreNames.contains('items')) db.createObjectStore('items', { keyPath: 'key' });
+            if (!db.objectStoreNames.contains('scenes')) db.createObjectStore('scenes', { keyPath: 'key' });
+            if (!db.objectStoreNames.contains('characters')) db.createObjectStore('characters', { keyPath: 'key' });
         }
     },
     [DB_ILLUSTRATIONS]: {
         version: 1,
-        stores: ['floors', 'slots'],
+        stores: ['floors', 'slots', 'cgs', 'illustrations'],
         upgrade: (db) => {
             if (!db.objectStoreNames.contains('floors')) db.createObjectStore('floors', { keyPath: 'key' });
             if (!db.objectStoreNames.contains('slots')) {
                 const store = db.createObjectStore('slots', { keyPath: 'key' });
                 try { store.createIndex('floorKey', 'floorKey', { unique: false }); } catch (_) {}
             }
+            if (!db.objectStoreNames.contains('cgs')) db.createObjectStore('cgs', { keyPath: 'key' });
+            if (!db.objectStoreNames.contains('illustrations')) db.createObjectStore('illustrations', { keyPath: 'key' });
         }
     },
     [DB_CG_GALLERY]: {
         version: 1,
-        stores: ['marks'],
+        stores: ['marks', 'items'],
         upgrade: (db) => {
             if (!db.objectStoreNames.contains('marks')) db.createObjectStore('marks', { keyPath: 'key' });
+            if (!db.objectStoreNames.contains('items')) db.createObjectStore('items', { keyPath: 'key' });
         }
     }
 };
 
-function deleteDb(name) {
+export function deleteDb(name, timeoutMs = 3500) {
     return new Promise((resolve) => {
         try {
             const req = window.indexedDB.deleteDatabase(name);
-            req.onsuccess = () => resolve(true);
-            req.onerror = () => resolve(false);
+            let settled = false;
+            const timer = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    console.warn(`[IGS-Patch] IndexedDB ${name} 删除超时，跳过`);
+                    resolve(false);
+                }
+            }, timeoutMs);
+
+            req.onsuccess = () => {
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timer);
+                    console.info(`[IGS-Patch] IndexedDB ${name} 删除成功`);
+                    resolve(true);
+                }
+            };
+            req.onerror = () => {
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timer);
+                    console.warn(`[IGS-Patch] IndexedDB ${name} 删除失败:`, req.error);
+                    resolve(false);
+                }
+            };
             req.onblocked = () => {
-                console.warn(`[IGS-Patch] IndexedDB ${name} 重置被占用`);
-                resolve(false);
+                console.warn(`[IGS-Patch] IndexedDB ${name} 删除被占用，等待连接释放...`);
+                // 尝试让正在运行的 IGS 释放数据库连接
+                try {
+                    const igs = window.IGS || window.ImmersiveGalgameSystem;
+                    if (igs && typeof igs.shutdown === 'function') {
+                        igs.shutdown().catch(() => {});
+                    }
+                } catch (_) {}
             };
         } catch (_) {
             resolve(false);
@@ -373,14 +408,30 @@ function openDb(name, version = undefined, onUpgrade = null) {
     };
 
     return openAttempt(targetVersion).then(async (db) => {
-        // 自愈检测：如果属于已知数据库且缺少必需的 objectStore，说明曾被错误创建为空库，自动自愈重置
+        // 自愈检测：如果属于已知数据库且缺少必需的 objectStore
         if (schema && schema.stores) {
             const missing = schema.stores.filter(s => !db.objectStoreNames.contains(s));
             if (missing.length > 0) {
-                console.warn(`[IGS-Patch] 数据库 ${name} 缺少必要的数据表 [${missing.join(', ')}]，正在自动自愈修复...`);
+                const currentVer = db.version || 1;
+                console.warn(`[IGS-Patch] 数据库 ${name} 缺少必要的数据表 [${missing.join(', ')}]，正在自动版本自愈...`);
                 db.close();
-                await deleteDb(name);
-                return openAttempt(schema.version);
+
+                // 优先通过版本升级 (currentVer + 1) 动态补全数据表
+                try {
+                    const healedDb = await new Promise((res, rej) => {
+                        const upReq = window.indexedDB.open(name, currentVer + 1);
+                        upReq.onupgradeneeded = (e) => {
+                            if (typeof schema.upgrade === 'function') schema.upgrade(upReq.result, e);
+                        };
+                        upReq.onsuccess = () => res(upReq.result);
+                        upReq.onerror = () => rej(upReq.error);
+                    });
+                    return healedDb;
+                } catch (upErr) {
+                    console.warn(`[IGS-Patch] 版本升级自愈异常，尝试完全重建库:`, upErr);
+                    await deleteDb(name);
+                    return openAttempt(schema.version);
+                }
             }
         }
         return db;
@@ -398,6 +449,25 @@ export async function ensureIgsDatabasesHealthy() {
             db.close();
         } catch (err) {
             console.warn(`[IGS-Patch] 数据库自检失败: ${dbName}`, err);
+        }
+    }
+}
+
+/**
+ * 手动强制深度重置并修复指定或全部 IGS IndexedDB 数据库
+ */
+export async function repairAllIgsDatabases(forceNuclear = false) {
+    console.info('[IGS-Patch] 正在执行全量 IndexedDB 结构修复与自愈...');
+    for (const [dbName, schema] of Object.entries(DB_SCHEMAS)) {
+        try {
+            if (forceNuclear) {
+                await deleteDb(dbName);
+            }
+            const db = await openDb(dbName);
+            db.close();
+            console.info(`[IGS-Patch] 数据库 ${dbName} 自愈检查就绪`);
+        } catch (err) {
+            console.warn(`[IGS-Patch] 数据库 ${dbName} 修复异常:`, err);
         }
     }
 }

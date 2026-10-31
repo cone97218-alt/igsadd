@@ -19,6 +19,7 @@ import { injectResourcesStyles } from './resources-styles.js';
 import {
     getActiveCardScope,
     listCharacters,
+    saveCharacter,
     setCharacterHeight,
     setUserCharacter,
     saveCharacterOutfit,
@@ -471,13 +472,28 @@ const ResourcesModalRoot = {
 
             if (type === 'mood') {
                 genDialog.moodName = targetObj?.name || '';
-                genDialog.title = `${charObj.name} · ${targetObj.name}`;
-                genDialog.prompt = targetObj.prompt || `${charObj.name}, ${outfitObj?.name || ''}, ${targetObj.name}`;
+                genDialog.title = `${charObj?.name || ''} · ${targetObj?.name || ''}`;
+                genDialog.prompt = targetObj?.prompt || `${charObj?.name || ''}, ${outfitObj?.name || ''}, ${targetObj?.name || ''}`;
+                genDialog.negative = '';
+            } else if (type === 'sprite' || type === 'character') {
+                genDialog.charObj = charObj;
+                genDialog.title = `角色立绘 · ${charObj?.name || ''}`;
+                genDialog.prompt = charObj?.dna || charObj?.prompt || `${charObj?.name || ''}, solo, 1girl, standing, masterpiece`;
                 genDialog.negative = '';
             } else if (type === 'cg') {
                 genDialog.cgItem = targetObj;
-                genDialog.title = targetObj.label || '剧情 CG';
-                genDialog.prompt = targetObj.prompt || '';
+                genDialog.title = targetObj?.label || '剧情 CG';
+                genDialog.prompt = targetObj?.prompt || '';
+                genDialog.negative = '';
+            } else if (type === 'item') {
+                genDialog.itemObj = targetObj;
+                genDialog.title = `道具 · ${targetObj?.name || ''}`;
+                genDialog.prompt = targetObj?.desc || targetObj?.name || '';
+                genDialog.negative = '';
+            } else if (type === 'scene') {
+                genDialog.sceneObj = targetObj;
+                genDialog.title = `场景背景 · ${targetObj?.name || ''}`;
+                genDialog.prompt = targetObj?.desc || targetObj?.name || 'scenery, no humans, masterpiece';
                 genDialog.negative = '';
             }
 
@@ -492,75 +508,127 @@ const ResourcesModalRoot = {
 
             genDialog.isGenerating = true;
             try {
+                let dataUrl = null;
+                const prompt = genDialog.prompt.trim();
+                const negative = genDialog.negative.trim();
+
+                // 渠道 1: 柏宝绘 (STBaiBaiImage)
                 const baiBai = window.STBaiBaiImage || window.parent?.STBaiBaiImage || window.top?.STBaiBaiImage;
                 if (baiBai && typeof baiBai.generate === 'function') {
                     notifyToast('已向生图管线提交任务', 'info');
                     const reqOptions = {
-                        prompt: genDialog.prompt.trim(),
-                        ...(genDialog.negative.trim() ? { negative: genDialog.negative.trim() } : {}),
+                        prompt,
+                        ...(negative ? { negative } : {}),
                     };
-                    if (genDialog.type === 'mood') {
+                    if (genDialog.type === 'mood' || genDialog.type === 'sprite' || genDialog.type === 'character') {
                         reqOptions.character = genDialog.charName;
                         reqOptions.size = 'portrait';
-                    } else if (genDialog.type === 'cg') {
+                    } else if (genDialog.type === 'cg' || genDialog.type === 'scene') {
                         reqOptions.size = 'landscape';
+                    } else if (genDialog.type === 'item') {
+                        reqOptions.size = 'square';
                     }
 
                     const result = await baiBai.generate(reqOptions);
-                    const dataUrl = result && (result.dataUrl || result.url);
-                    if (dataUrl) {
-                        if (genDialog.type === 'mood') {
-                            await saveCharacterMood(
-                                genDialog.charName,
-                                genDialog.moodName,
-                                dataUrl,
-                                genDialog.outfitName,
-                                scopeMode.value
-                            );
-                            const detail = {
-                                category: 'sprite',
-                                character: genDialog.charName,
-                                emotion: genDialog.moodName,
-                                url: dataUrl,
-                                updatedAt: Date.now(),
-                            };
-                            const ev = new CustomEvent('st-baibai-image:generated', { detail });
-                            window.dispatchEvent(ev);
-                            try { window.parent?.dispatchEvent(ev); } catch (_) {}
-                            try { window.top?.dispatchEvent(ev); } catch (_) {}
-                            notifyToast(`立绘差分「${genDialog.moodName}」出图成功`, 'info');
-                        } else if (genDialog.type === 'cg' && genDialog.cgItem) {
-                            await saveCgDataUrl(genDialog.cgItem.key, dataUrl);
-                            const floorMatch = String(genDialog.cgItem.label || '').match(/\d+/);
-                            const floorNum = floorMatch ? parseInt(floorMatch[0], 10) : undefined;
-                            const detail = {
-                                category: 'cg',
-                                floor: floorNum,
-                                title: genDialog.cgItem.label || '剧情CG',
-                                url: dataUrl,
-                                updatedAt: Date.now(),
-                            };
-                            const ev = new CustomEvent('st-baibai-image:generated', { detail });
-                            window.dispatchEvent(ev);
-                            try { window.parent?.dispatchEvent(ev); } catch (_) {}
-                            try { window.top?.dispatchEvent(ev); } catch (_) {}
-                            notifyToast(`CG 图生成并落库成功`, 'info');
-                        }
-                    } else {
-                        notifyToast('生图任务已执行', 'info');
-                    }
+                    dataUrl = result && (result.dataUrl || result.url);
+                }
 
+                // 渠道 2: 原生 IGS 图像生成服务
+                if (!dataUrl) {
+                    for (const w of [window, window.parent, window.top]) {
+                        try {
+                            const igs = w?.IGS || w?.ImmersiveGalgameSystem;
+                            if (igs) {
+                                if (typeof igs.generateImage === 'function') {
+                                    notifyToast('已调用 IGS 原生生图服务', 'info');
+                                    const res = await igs.generateImage({
+                                        prompt,
+                                        negative,
+                                        type: genDialog.type,
+                                        character: genDialog.charName,
+                                    });
+                                    dataUrl = res && (res.dataUrl || res.url || res);
+                                    if (typeof dataUrl === 'string' && dataUrl) break;
+                                }
+                            }
+                        } catch (_) { }
+                    }
+                }
+
+                // 渠道 3: 酒馆原生扩展生图接口
+                if (!dataUrl) {
+                    for (const w of [window, window.parent, window.top]) {
+                        try {
+                            const ctx = w?.SillyTavern?.getContext?.();
+                            if (ctx && typeof ctx.generateImage === 'function') {
+                                notifyToast('正在请求酒馆原生画图接口...', 'info');
+                                const res = await ctx.generateImage(prompt, negative);
+                                dataUrl = res && (res.url || res.dataUrl || res);
+                                if (typeof dataUrl === 'string' && dataUrl) break;
+                            }
+                            if (typeof w?.generateImage === 'function') {
+                                notifyToast('正在请求酒馆原生画图接口...', 'info');
+                                const res = await w.generateImage(prompt, negative);
+                                dataUrl = res && (res.url || res.dataUrl || res);
+                                if (typeof dataUrl === 'string' && dataUrl) break;
+                            }
+                        } catch (_) { }
+                    }
+                }
+
+                // 若上述均未直接返回图片，复制提示词并提示
+                if (!dataUrl) {
+                    try {
+                        navigator.clipboard.writeText(prompt);
+                        notifyToast('未检测到可用生图接口，提示词已复制到剪贴板', 'warning');
+                    } catch (_) { }
                     genDialog.visible = false;
-                    await loadData();
                     return;
                 }
 
-                navigator.clipboard.writeText(genDialog.prompt.trim());
-                notifyToast('生图提示词已复制到剪贴板', 'info');
+                // 落库保存
+                if (genDialog.type === 'mood') {
+                    await saveCharacterMood(
+                        genDialog.charName,
+                        genDialog.moodName,
+                        dataUrl,
+                        genDialog.outfitName,
+                        scopeMode.value
+                    );
+                    notifyToast(`立绘差分「${genDialog.moodName}」出图成功`, 'success');
+                } else if (genDialog.type === 'sprite' || genDialog.type === 'character') {
+                    await saveCharacter(genDialog.charName, dataUrl);
+                    notifyToast(`角色「${genDialog.charName}」立绘保存成功`, 'success');
+                } else if (genDialog.type === 'cg' && genDialog.cgItem) {
+                    await saveCgDataUrl(genDialog.cgItem.key, dataUrl);
+                    notifyToast(`剧情 CG 保存成功`, 'success');
+                } else if (genDialog.type === 'item' && genDialog.itemObj) {
+                    await saveItem(genDialog.itemObj.name, dataUrl, genDialog.itemObj.desc);
+                    notifyToast(`道具「${genDialog.itemObj.name}」出图成功`, 'success');
+                } else if (genDialog.type === 'scene' && genDialog.sceneObj) {
+                    await saveScene(genDialog.sceneObj.name, dataUrl);
+                    notifyToast(`场景「${genDialog.sceneObj.name}」出图成功`, 'success');
+                }
+
+                // 广播同步事件
+                try {
+                    const detail = {
+                        category: genDialog.type,
+                        character: genDialog.charName,
+                        url: dataUrl,
+                        updatedAt: Date.now(),
+                    };
+                    const ev = new CustomEvent('st-baibai-image:generated', { detail });
+                    window.dispatchEvent(ev);
+                    try { window.parent?.dispatchEvent(ev); } catch (_) {}
+                    try { window.top?.dispatchEvent(ev); } catch (_) {}
+                } catch (_) {}
+
                 genDialog.visible = false;
+                await loadData();
             } catch (err) {
                 console.error('[IGS-Patch] 生图异常:', err);
-                notifyToast('提交生图异常', 'error');
+                notifyToast(`生图执行异常: ${err.message || err}`, 'error');
             } finally {
                 genDialog.isGenerating = false;
             }
@@ -1074,6 +1142,10 @@ const ResourcesModalRoot = {
               <span>%</span>
             </div>
 
+            <button class="igs-diff-act-btn" style="width: 24px; height: 24px; font-size: 11px;" title="生成基础立绘" @click="openGenPromptDialog('sprite', activeCharacter, getCurrentOutfit(activeCharacter), activeCharacter)">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </button>
+
             <button class="igs-diff-act-btn" style="width: 24px; height: 24px; font-size: 11px;" title="删除角色" @click="handleDeleteCharacter(activeCharacter)">
               <i class="fa-solid fa-trash-can"></i>
             </button>
@@ -1158,6 +1230,9 @@ const ResourcesModalRoot = {
                   </div>
 
                   <div class="igs-resource-card-overlay-actions" @click.stop>
+                    <button class="igs-icon-tag-btn" title="生图" @click="openGenPromptDialog('scene', null, null, s)">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
                     <button class="igs-icon-tag-btn" title="新增时段差分" @click="openAddDialog('sceneTime', s)">
                       <i class="fa-solid fa-plus"></i>
                     </button>
@@ -1309,6 +1384,9 @@ const ResourcesModalRoot = {
                   </div>
 
                   <div class="igs-resource-card-overlay-actions" @click.stop>
+                    <button class="igs-icon-tag-btn" title="生图" @click="openGenPromptDialog('item', null, null, it)">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
                     <button class="igs-icon-tag-btn" title="上传图标" @click="triggerItemUpload(it)">
                       <i class="fa-solid fa-upload"></i>
                     </button>
@@ -1378,7 +1456,6 @@ const ResourcesModalRoot = {
           </section>
         </main>
       </div>
-    </div>
 
       <!-- 隐藏的通用图片选择器 -->
       <input 
@@ -1528,6 +1605,7 @@ const ResourcesModalRoot = {
           </div>
         </div>
       </div>
-    </div>
+      </div> <!-- end .igs-resources-window -->
+    </div> <!-- end .igs-resources-overlay -->
     `
 };

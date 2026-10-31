@@ -23,7 +23,7 @@ import { fullResetGalSystem } from './tauri/reset.js';
 import { notifyToast } from './ui/toast.js';
 import { setupBaibaiEnhancer } from './image-gen/baibai-enhancer.js';
 import { setupBaiBaiBookBridge } from './baibai/book-bridge.js';
-import { ensureIgsDatabasesHealthy } from './resources/asset-service.js';
+import { ensureIgsDatabasesHealthy, repairAllIgsDatabases } from './resources/asset-service.js';
 
 (async function initIgsTauriPatch() {
     console.info('[IGS-Patch] 正在初始化 TauriTavern 增强补丁 v2.0 (Vue 3 架构)...');
@@ -74,6 +74,7 @@ import { ensureIgsDatabasesHealthy } from './resources/asset-service.js';
         openResources: openResourcesModal,
         closeResources: closeResourcesModal,
         fullReset: fullResetGalSystem,
+        repairDatabases: repairAllIgsDatabases,
         convertMessageToGal,
         processLatestAssistantMessage,
     };

@@ -840,11 +840,19 @@
     getScriptStoreKey: () => getScriptStoreKey,
     handleMessageDeleted: () => handleMessageDeleted,
     handleMessageSwiped: () => handleMessageSwiped,
+    isFloorConverting: () => isFloorConverting,
     normalizeGalScript: () => normalizeGalScript,
     processLatestAssistantMessage: () => processLatestAssistantMessage,
     refreshIgsStage: () => refreshIgsStage,
     scriptMemoryStore: () => scriptMemoryStore
   });
+  function isFloorConverting(mid, sid = 0) {
+    const numericMid = Number(mid);
+    const numericSid = Number(sid) || 0;
+    const scopedKey = getScriptMemKey(numericMid, numericSid);
+    const legacyKey = `${numericMid}_${numericSid}`;
+    return pendingConversions.has(scopedKey) || pendingConversions.has(legacyKey);
+  }
   function clearScriptMemoryStore() {
     scriptMemoryStore.clear();
   }
@@ -1055,6 +1063,11 @@
     const sid = contextMeta.swipeId != null ? Number(contextMeta.swipeId) : getActiveSwipeId(mid);
     const storeKey = getScriptStoreKey(mid, sid);
     const memKey = getScriptMemKey(mid, sid);
+    if (pendingConversions.has(memKey)) {
+      console.info(`[IGS-Patch] \u7B2C ${mid} \u697C (\u5206\u652F ${sid}) \u5DF2\u5728\u5236\u4F5C\u6392\u961F\u4E2D\uFF0C\u590D\u7528\u8BE5\u8BF7\u6C42`);
+      notifyToast(`\u7B2C ${mid} \u697C\u6B63\u5728\u5236\u4F5C\u4E2D\uFF0C\u8BF7\u7A0D\u5019...`, "info", 1600);
+      return pendingConversions.get(memKey);
+    }
     if (!force) {
       if (scriptMemoryStore.has(memKey)) {
         const cached = scriptMemoryStore.get(memKey);
@@ -1072,48 +1085,54 @@
         return stored;
       }
     }
-    try {
-      console.info(`[IGS-Patch] \u6B63\u5728\u4F7F\u7528\u526F API \u8F6C\u8BD1\u7B2C ${mid} \u697C (\u5206\u652F ${sid}) \u4E3A Gal \u6F14\u51FA...`);
-      updateProductionStatus({
-        isProducing: true,
-        floor: mid,
-        swipeId: sid,
-        progress: `\u6B63\u5728\u6539\u5199\u7B2C ${mid} \u697C\u6F14\u51FA...`,
-        error: null
-      });
-      notifyToast(`\u7B2C ${mid} \u697C\u5F00\u59CB\u5236\u4F5C`, "info", 1800);
-      const payload = buildDirectorRequestPayload(rawText, contextMeta);
-      const converted = await requestSecondaryLlm(payload);
-      if (!converted || !converted.trim()) {
-        throw new Error("\u526F API \u8FD4\u56DE\u5267\u672C\u4E3A\u7A7A");
+    const conversionPromise = (async () => {
+      try {
+        console.info(`[IGS-Patch] \u6B63\u5728\u4F7F\u7528\u526F API \u8F6C\u8BD1\u7B2C ${mid} \u697C (\u5206\u652F ${sid}) \u4E3A Gal \u6F14\u51FA...`);
+        updateProductionStatus({
+          isProducing: true,
+          floor: mid,
+          swipeId: sid,
+          progress: `\u6B63\u5728\u6539\u5199\u7B2C ${mid} \u697C\u6F14\u51FA...`,
+          error: null
+        });
+        notifyToast(`\u7B2C ${mid} \u697C\u5F00\u59CB\u5236\u4F5C`, "info", 1800);
+        const payload = buildDirectorRequestPayload(rawText, contextMeta);
+        const converted = await requestSecondaryLlm(payload);
+        if (!converted || !converted.trim()) {
+          throw new Error("\u526F API \u8FD4\u56DE\u5267\u672C\u4E3A\u7A7A");
+        }
+        const normalized = normalizeGalScript(converted);
+        await setStoredJson(storeKey, normalized);
+        attachScriptToMessage(mid, normalized, sid);
+        console.info(`[IGS-Patch] \u7B2C ${mid} \u697C (\u5206\u652F ${sid}) \u6F14\u51FA\u5236\u4F5C\u5B8C\u6210\u5E76\u5DF2\u5B58\u5165\u5B58\u50A8\u3002`);
+        updateProductionStatus({
+          isProducing: false,
+          floor: mid,
+          swipeId: sid,
+          progress: "\u5236\u4F5C\u5B8C\u6210",
+          error: null,
+          lastSuccessAt: Date.now()
+        });
+        notifyToast(`\u7B2C ${mid} \u697C\u5236\u4F5C\u5C31\u7EEA`, "success", 2200);
+        refreshIgsStage(mid);
+        return normalized;
+      } catch (err) {
+        console.error(`[IGS-Patch] \u7B2C ${mid} \u697C (\u5206\u652F ${sid}) \u8F6C\u8BD1\u5931\u8D25:`, err);
+        updateProductionStatus({
+          isProducing: false,
+          floor: mid,
+          swipeId: sid,
+          progress: "\u5236\u4F5C\u5931\u8D25",
+          error: err.message || String(err)
+        });
+        notifyToast(`\u7B2C ${mid} \u697C\u5236\u4F5C\u5931\u8D25: ${err.message}`, "error", 3e3);
+        throw err;
+      } finally {
+        pendingConversions.delete(memKey);
       }
-      const normalized = normalizeGalScript(converted);
-      await setStoredJson(storeKey, normalized);
-      attachScriptToMessage(mid, normalized, sid);
-      console.info(`[IGS-Patch] \u7B2C ${mid} \u697C (\u5206\u652F ${sid}) \u6F14\u51FA\u5236\u4F5C\u5B8C\u6210\u5E76\u5DF2\u5B58\u5165\u5B58\u50A8\u3002`);
-      updateProductionStatus({
-        isProducing: false,
-        floor: mid,
-        swipeId: sid,
-        progress: "\u5236\u4F5C\u5B8C\u6210",
-        error: null,
-        lastSuccessAt: Date.now()
-      });
-      notifyToast(`\u7B2C ${mid} \u697C\u5236\u4F5C\u5C31\u7EEA`, "success", 2200);
-      refreshIgsStage(mid);
-      return normalized;
-    } catch (err) {
-      console.error(`[IGS-Patch] \u7B2C ${mid} \u697C (\u5206\u652F ${sid}) \u8F6C\u8BD1\u5931\u8D25:`, err);
-      updateProductionStatus({
-        isProducing: false,
-        floor: mid,
-        swipeId: sid,
-        progress: "\u5236\u4F5C\u5931\u8D25",
-        error: err.message || String(err)
-      });
-      notifyToast(`\u7B2C ${mid} \u697C\u5236\u4F5C\u5931\u8D25: ${err.message}`, "error", 3e3);
-      throw err;
-    }
+    })();
+    pendingConversions.set(memKey, conversionPromise);
+    return conversionPromise;
   }
   function handleMessageSwiped(messageId) {
     const mid = Number(messageId);
@@ -1196,7 +1215,7 @@
     const rawText = hit.message.mes || hit.message.text || "";
     return convertMessageToGal(mid, rawText, { swipeId: sid });
   }
-  var scriptMemoryStore, getScriptStoreKey, getScriptMemKey;
+  var scriptMemoryStore, pendingConversions, getScriptStoreKey, getScriptMemKey;
   var init_pipeline = __esm({
     "src/director/pipeline.js"() {
       init_adapter();
@@ -1205,6 +1224,7 @@
       init_toast();
       init_state();
       scriptMemoryStore = /* @__PURE__ */ new Map();
+      pendingConversions = /* @__PURE__ */ new Map();
       getScriptStoreKey = (mid, sid) => `script_${getActiveChatId()}_${mid}_s${sid}`;
       getScriptMemKey = (mid, sid) => `${getActiveChatId()}_${mid}_${sid}`;
     }
@@ -1841,6 +1861,12 @@
     }
     const mid = target.floor;
     const sid = target.swipeId;
+    if (isFloorConverting(mid, sid)) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      notifyToast(`\u7B2C ${mid} \u697C\u6B63\u5728\u5236\u4F5C\u4E2D\uFF0C\u8BF7\u52FF\u91CD\u590D\u70B9\u51FB`, "info", 1800);
+      return;
+    }
     const isProduced = await checkFloorScriptExists(mid, sid);
     const mode = patchState.productionMode;
     if (mode === "manual") {
@@ -21940,15 +21966,22 @@ ${codeFrame}` : message);
   }
   var currentActiveKind = null;
   var currentActivityId = null;
+  var activityTimer = null;
   function setupActivityWatcher() {
     const onActivity = (e) => {
       const detail = e.detail || e;
       if (detail && detail.type === "start") {
         currentActiveKind = detail.kind || "cg";
         currentActivityId = detail.id;
+        clearTimeout(activityTimer);
+        activityTimer = setTimeout(() => {
+          currentActiveKind = null;
+          currentActivityId = null;
+        }, 3e4);
       } else if (detail && detail.type === "end" && detail.id === currentActivityId) {
         currentActiveKind = null;
         currentActivityId = null;
+        clearTimeout(activityTimer);
       }
     };
     window.addEventListener("igs:image-activity", onActivity);
@@ -22003,46 +22036,55 @@ ${codeFrame}` : message);
       const baibai = target.STBaiBaiImage;
       const originalGenerate = baibai.generate.bind(baibai);
       baibai.generate = async function interceptedGenerate(payload = {}, options = {}) {
-        const workingPayload = { ...payload };
-        const cfg = getBaibaiArtistConfig();
-        if (cfg.enabled) {
-          const kind = detectKindFromPayload(workingPayload);
-          const kindEntry = cfg.kinds[kind];
-          if (kindEntry && kindEntry.enabled !== false) {
-            const presetId = kindEntry.presetId || "follow";
-            if (presetId === "none") {
-              if (kindEntry.extraPositive) {
-                workingPayload.prompt = prependTags(kindEntry.extraPositive, workingPayload.prompt);
-              }
-              if (kindEntry.extraNegative) {
-                workingPayload.negative = prependTags(kindEntry.extraNegative, workingPayload.negative);
-              }
-            } else if (presetId !== "follow") {
-              const presets = getBaiBaiArtistPresets();
-              const matched = presets.find((p2) => p2.id === presetId);
-              if (matched) {
-                const finalPositive = prependTags(matched.prompt, kindEntry.extraPositive);
-                const finalNegative = prependTags(matched.negative, kindEntry.extraNegative);
-                if (finalPositive) {
-                  workingPayload.prompt = prependTags(finalPositive, workingPayload.prompt);
+        try {
+          const isStringPayload = typeof payload === "string";
+          const workingPayload = isStringPayload ? { prompt: payload } : payload && typeof payload === "object" ? { ...payload } : { prompt: String(payload || "") };
+          const cfg = getBaibaiArtistConfig();
+          if (cfg && cfg.enabled) {
+            const kind = detectKindFromPayload(workingPayload);
+            const kindEntry = cfg.kinds?.[kind];
+            if (kindEntry && kindEntry.enabled !== false) {
+              const presetId = kindEntry.presetId || "follow";
+              if (presetId === "none") {
+                if (kindEntry.extraPositive) {
+                  workingPayload.prompt = prependTags(kindEntry.extraPositive, workingPayload.prompt);
                 }
-                if (finalNegative) {
-                  workingPayload.negative = prependTags(finalNegative, workingPayload.negative);
+                if (kindEntry.extraNegative) {
+                  workingPayload.negative = prependTags(kindEntry.extraNegative, workingPayload.negative);
                 }
-                const kindLabel = (BAIBAI_PROMPT_KINDS.find((k) => k.id === kind) || {}).label || kind;
-                console.info(`[IGS-Patch] \u67CF\u5B9D\u7ED8\u751F\u56FE\uFF1A\u5DF2\u5957\u7528\u3010${kindLabel}\u3011\u7ED1\u5B9A\u7684\u9884\u8BBE\u3010${matched.name}\u3011`);
-              }
-            } else {
-              if (kindEntry.extraPositive) {
-                workingPayload.prompt = prependTags(kindEntry.extraPositive, workingPayload.prompt);
-              }
-              if (kindEntry.extraNegative) {
-                workingPayload.negative = prependTags(kindEntry.extraNegative, workingPayload.negative);
+              } else if (presetId !== "follow") {
+                const presets = getBaiBaiArtistPresets();
+                const matched = presets.find((p2) => p2.id === presetId);
+                if (matched) {
+                  const finalPositive = prependTags(matched.prompt, kindEntry.extraPositive);
+                  const finalNegative = prependTags(matched.negative, kindEntry.extraNegative);
+                  if (finalPositive) {
+                    workingPayload.prompt = prependTags(finalPositive, workingPayload.prompt);
+                  }
+                  if (finalNegative) {
+                    workingPayload.negative = prependTags(finalNegative, workingPayload.negative);
+                  }
+                  const kindLabel = (BAIBAI_PROMPT_KINDS.find((k) => k.id === kind) || {}).label || kind;
+                  console.info(`[IGS-Patch] \u67CF\u5B9D\u7ED8\u751F\u56FE\uFF1A\u5DF2\u5957\u7528\u3010${kindLabel}\u3011\u7ED1\u5B9A\u7684\u9884\u8BBE\u3010${matched.name}\u3011`);
+                }
+              } else {
+                if (kindEntry.extraPositive) {
+                  workingPayload.prompt = prependTags(kindEntry.extraPositive, workingPayload.prompt);
+                }
+                if (kindEntry.extraNegative) {
+                  workingPayload.negative = prependTags(kindEntry.extraNegative, workingPayload.negative);
+                }
               }
             }
           }
+          if (isStringPayload) {
+            return originalGenerate(workingPayload.prompt, options);
+          }
+          return originalGenerate(workingPayload, options);
+        } catch (err) {
+          console.warn("[IGS-Patch] \u67CF\u5B9D\u7ED8\u589E\u5F3A\u62E6\u622A\u5668\u5904\u7406\u5F02\u5E38\uFF0C\u5B89\u5168\u56DE\u9000\u539F\u7248\u6267\u884C:", err);
+          return originalGenerate(payload, options);
         }
-        return originalGenerate(workingPayload, options);
       };
       baibai.__igsHooked = true;
       console.info("[IGS-Patch] \u67CF\u5B9D\u7ED8 (STBaiBaiImage) \u5206\u533A\u753B\u98CE\u8054\u52A8\u62E6\u622A\u5668\u5DF2\u6302\u8F7D\u5C31\u7EEA\u3002");
@@ -24565,12 +24607,12 @@ textarea.igs-form-textarea {
 }
 
 /* =========================================
-   \u5F39\u7A97\u5168\u5C40\u5C45\u4E2D\u5C45\u4E2D\u5C45\u4E2D (\u5F7B\u5E95\u89E3\u51B3\u8D34\u9876\u95EE\u9898)
+   \u5F39\u7A97\u5C45\u4E2D\u4E0E\u89C6\u53E3\u8986\u76D6 (\u4E25\u683C\u9501\u5B9A\u5728\u7A97\u53E3\u5185\u90E8\u5C45\u4E2D)
    ========================================= */
 .igs-dialog-overlay {
-  position: fixed !important;
+  position: absolute !important;
   inset: 0 !important;
-  z-index: 2147483647 !important;
+  z-index: 10000 !important;
   background: rgba(0,0,0,0.72) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
@@ -25096,7 +25138,7 @@ textarea.igs-form-textarea {
   var DB_SCHEMAS = {
     [DB_GENERATED_ASSETS]: {
       version: 1,
-      stores: ["images", "floors", "assets"],
+      stores: ["images", "floors", "assets", "items", "scenes", "characters"],
       upgrade: (db) => {
         if (!db.objectStoreNames.contains("images")) db.createObjectStore("images", { keyPath: "id" });
         if (!db.objectStoreNames.contains("floors")) db.createObjectStore("floors", { keyPath: "key" });
@@ -25111,11 +25153,14 @@ textarea.igs-form-textarea {
           } catch (_) {
           }
         }
+        if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("scenes")) db.createObjectStore("scenes", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("characters")) db.createObjectStore("characters", { keyPath: "key" });
       }
     },
     [DB_ILLUSTRATIONS]: {
       version: 1,
-      stores: ["floors", "slots"],
+      stores: ["floors", "slots", "cgs", "illustrations"],
       upgrade: (db) => {
         if (!db.objectStoreNames.contains("floors")) db.createObjectStore("floors", { keyPath: "key" });
         if (!db.objectStoreNames.contains("slots")) {
@@ -25125,25 +25170,57 @@ textarea.igs-form-textarea {
           } catch (_) {
           }
         }
+        if (!db.objectStoreNames.contains("cgs")) db.createObjectStore("cgs", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("illustrations")) db.createObjectStore("illustrations", { keyPath: "key" });
       }
     },
     [DB_CG_GALLERY]: {
       version: 1,
-      stores: ["marks"],
+      stores: ["marks", "items"],
       upgrade: (db) => {
         if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "key" });
       }
     }
   };
-  function deleteDb(name) {
+  function deleteDb(name, timeoutMs = 3500) {
     return new Promise((resolve2) => {
       try {
         const req = window.indexedDB.deleteDatabase(name);
-        req.onsuccess = () => resolve2(true);
-        req.onerror = () => resolve2(false);
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u8D85\u65F6\uFF0C\u8DF3\u8FC7`);
+            resolve2(false);
+          }
+        }, timeoutMs);
+        req.onsuccess = () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            console.info(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u6210\u529F`);
+            resolve2(true);
+          }
+        };
+        req.onerror = () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u5931\u8D25:`, req.error);
+            resolve2(false);
+          }
+        };
         req.onblocked = () => {
-          console.warn(`[IGS-Patch] IndexedDB ${name} \u91CD\u7F6E\u88AB\u5360\u7528`);
-          resolve2(false);
+          console.warn(`[IGS-Patch] IndexedDB ${name} \u5220\u9664\u88AB\u5360\u7528\uFF0C\u7B49\u5F85\u8FDE\u63A5\u91CA\u653E...`);
+          try {
+            const igs = window.IGS || window.ImmersiveGalgameSystem;
+            if (igs && typeof igs.shutdown === "function") {
+              igs.shutdown().catch(() => {
+              });
+            }
+          } catch (_) {
+          }
         };
       } catch (_) {
         resolve2(false);
@@ -25179,10 +25256,24 @@ textarea.igs-form-textarea {
       if (schema && schema.stores) {
         const missing = schema.stores.filter((s) => !db.objectStoreNames.contains(s));
         if (missing.length > 0) {
-          console.warn(`[IGS-Patch] \u6570\u636E\u5E93 ${name} \u7F3A\u5C11\u5FC5\u8981\u7684\u6570\u636E\u8868 [${missing.join(", ")}]\uFF0C\u6B63\u5728\u81EA\u52A8\u81EA\u6108\u4FEE\u590D...`);
+          const currentVer = db.version || 1;
+          console.warn(`[IGS-Patch] \u6570\u636E\u5E93 ${name} \u7F3A\u5C11\u5FC5\u8981\u7684\u6570\u636E\u8868 [${missing.join(", ")}]\uFF0C\u6B63\u5728\u81EA\u52A8\u7248\u672C\u81EA\u6108...`);
           db.close();
-          await deleteDb(name);
-          return openAttempt(schema.version);
+          try {
+            const healedDb = await new Promise((res, rej) => {
+              const upReq = window.indexedDB.open(name, currentVer + 1);
+              upReq.onupgradeneeded = (e) => {
+                if (typeof schema.upgrade === "function") schema.upgrade(upReq.result, e);
+              };
+              upReq.onsuccess = () => res(upReq.result);
+              upReq.onerror = () => rej(upReq.error);
+            });
+            return healedDb;
+          } catch (upErr) {
+            console.warn(`[IGS-Patch] \u7248\u672C\u5347\u7EA7\u81EA\u6108\u5F02\u5E38\uFF0C\u5C1D\u8BD5\u5B8C\u5168\u91CD\u5EFA\u5E93:`, upErr);
+            await deleteDb(name);
+            return openAttempt(schema.version);
+          }
         }
       }
       return db;
@@ -25196,6 +25287,21 @@ textarea.igs-form-textarea {
         db.close();
       } catch (err) {
         console.warn(`[IGS-Patch] \u6570\u636E\u5E93\u81EA\u68C0\u5931\u8D25: ${dbName}`, err);
+      }
+    }
+  }
+  async function repairAllIgsDatabases(forceNuclear = false) {
+    console.info("[IGS-Patch] \u6B63\u5728\u6267\u884C\u5168\u91CF IndexedDB \u7ED3\u6784\u4FEE\u590D\u4E0E\u81EA\u6108...");
+    for (const [dbName, schema] of Object.entries(DB_SCHEMAS)) {
+      try {
+        if (forceNuclear) {
+          await deleteDb(dbName);
+        }
+        const db = await openDb(dbName);
+        db.close();
+        console.info(`[IGS-Patch] \u6570\u636E\u5E93 ${dbName} \u81EA\u6108\u68C0\u67E5\u5C31\u7EEA`);
+      } catch (err) {
+        console.warn(`[IGS-Patch] \u6570\u636E\u5E93 ${dbName} \u4FEE\u590D\u5F02\u5E38:`, err);
       }
     }
   }
@@ -26176,13 +26282,28 @@ textarea.igs-form-textarea {
         genDialog.isGenerating = false;
         if (type === "mood") {
           genDialog.moodName = targetObj?.name || "";
-          genDialog.title = `${charObj.name} \xB7 ${targetObj.name}`;
-          genDialog.prompt = targetObj.prompt || `${charObj.name}, ${outfitObj?.name || ""}, ${targetObj.name}`;
+          genDialog.title = `${charObj?.name || ""} \xB7 ${targetObj?.name || ""}`;
+          genDialog.prompt = targetObj?.prompt || `${charObj?.name || ""}, ${outfitObj?.name || ""}, ${targetObj?.name || ""}`;
+          genDialog.negative = "";
+        } else if (type === "sprite" || type === "character") {
+          genDialog.charObj = charObj;
+          genDialog.title = `\u89D2\u8272\u7ACB\u7ED8 \xB7 ${charObj?.name || ""}`;
+          genDialog.prompt = charObj?.dna || charObj?.prompt || `${charObj?.name || ""}, solo, 1girl, standing, masterpiece`;
           genDialog.negative = "";
         } else if (type === "cg") {
           genDialog.cgItem = targetObj;
-          genDialog.title = targetObj.label || "\u5267\u60C5 CG";
-          genDialog.prompt = targetObj.prompt || "";
+          genDialog.title = targetObj?.label || "\u5267\u60C5 CG";
+          genDialog.prompt = targetObj?.prompt || "";
+          genDialog.negative = "";
+        } else if (type === "item") {
+          genDialog.itemObj = targetObj;
+          genDialog.title = `\u9053\u5177 \xB7 ${targetObj?.name || ""}`;
+          genDialog.prompt = targetObj?.desc || targetObj?.name || "";
+          genDialog.negative = "";
+        } else if (type === "scene") {
+          genDialog.sceneObj = targetObj;
+          genDialog.title = `\u573A\u666F\u80CC\u666F \xB7 ${targetObj?.name || ""}`;
+          genDialog.prompt = targetObj?.desc || targetObj?.name || "scenery, no humans, masterpiece";
           genDialog.negative = "";
         }
         genDialog.visible = true;
@@ -26194,84 +26315,123 @@ textarea.igs-form-textarea {
         }
         genDialog.isGenerating = true;
         try {
+          let dataUrl = null;
+          const prompt = genDialog.prompt.trim();
+          const negative = genDialog.negative.trim();
           const baiBai = window.STBaiBaiImage || window.parent?.STBaiBaiImage || window.top?.STBaiBaiImage;
           if (baiBai && typeof baiBai.generate === "function") {
             notifyToast("\u5DF2\u5411\u751F\u56FE\u7BA1\u7EBF\u63D0\u4EA4\u4EFB\u52A1", "info");
             const reqOptions = {
-              prompt: genDialog.prompt.trim(),
-              ...genDialog.negative.trim() ? { negative: genDialog.negative.trim() } : {}
+              prompt,
+              ...negative ? { negative } : {}
             };
-            if (genDialog.type === "mood") {
+            if (genDialog.type === "mood" || genDialog.type === "sprite" || genDialog.type === "character") {
               reqOptions.character = genDialog.charName;
               reqOptions.size = "portrait";
-            } else if (genDialog.type === "cg") {
+            } else if (genDialog.type === "cg" || genDialog.type === "scene") {
               reqOptions.size = "landscape";
+            } else if (genDialog.type === "item") {
+              reqOptions.size = "square";
             }
             const result = await baiBai.generate(reqOptions);
-            const dataUrl = result && (result.dataUrl || result.url);
-            if (dataUrl) {
-              if (genDialog.type === "mood") {
-                await saveCharacterMood(
-                  genDialog.charName,
-                  genDialog.moodName,
-                  dataUrl,
-                  genDialog.outfitName,
-                  scopeMode.value
-                );
-                const detail = {
-                  category: "sprite",
-                  character: genDialog.charName,
-                  emotion: genDialog.moodName,
-                  url: dataUrl,
-                  updatedAt: Date.now()
-                };
-                const ev = new CustomEvent("st-baibai-image:generated", { detail });
-                window.dispatchEvent(ev);
-                try {
-                  window.parent?.dispatchEvent(ev);
-                } catch (_) {
+            dataUrl = result && (result.dataUrl || result.url);
+          }
+          if (!dataUrl) {
+            for (const w of [window, window.parent, window.top]) {
+              try {
+                const igs = w?.IGS || w?.ImmersiveGalgameSystem;
+                if (igs) {
+                  if (typeof igs.generateImage === "function") {
+                    notifyToast("\u5DF2\u8C03\u7528 IGS \u539F\u751F\u751F\u56FE\u670D\u52A1", "info");
+                    const res = await igs.generateImage({
+                      prompt,
+                      negative,
+                      type: genDialog.type,
+                      character: genDialog.charName
+                    });
+                    dataUrl = res && (res.dataUrl || res.url || res);
+                    if (typeof dataUrl === "string" && dataUrl) break;
+                  }
                 }
-                try {
-                  window.top?.dispatchEvent(ev);
-                } catch (_) {
-                }
-                notifyToast(`\u7ACB\u7ED8\u5DEE\u5206\u300C${genDialog.moodName}\u300D\u51FA\u56FE\u6210\u529F`, "info");
-              } else if (genDialog.type === "cg" && genDialog.cgItem) {
-                await saveCgDataUrl(genDialog.cgItem.key, dataUrl);
-                const floorMatch = String(genDialog.cgItem.label || "").match(/\d+/);
-                const floorNum = floorMatch ? parseInt(floorMatch[0], 10) : void 0;
-                const detail = {
-                  category: "cg",
-                  floor: floorNum,
-                  title: genDialog.cgItem.label || "\u5267\u60C5CG",
-                  url: dataUrl,
-                  updatedAt: Date.now()
-                };
-                const ev = new CustomEvent("st-baibai-image:generated", { detail });
-                window.dispatchEvent(ev);
-                try {
-                  window.parent?.dispatchEvent(ev);
-                } catch (_) {
-                }
-                try {
-                  window.top?.dispatchEvent(ev);
-                } catch (_) {
-                }
-                notifyToast(`CG \u56FE\u751F\u6210\u5E76\u843D\u5E93\u6210\u529F`, "info");
+              } catch (_) {
               }
-            } else {
-              notifyToast("\u751F\u56FE\u4EFB\u52A1\u5DF2\u6267\u884C", "info");
+            }
+          }
+          if (!dataUrl) {
+            for (const w of [window, window.parent, window.top]) {
+              try {
+                const ctx = w?.SillyTavern?.getContext?.();
+                if (ctx && typeof ctx.generateImage === "function") {
+                  notifyToast("\u6B63\u5728\u8BF7\u6C42\u9152\u9986\u539F\u751F\u753B\u56FE\u63A5\u53E3...", "info");
+                  const res = await ctx.generateImage(prompt, negative);
+                  dataUrl = res && (res.url || res.dataUrl || res);
+                  if (typeof dataUrl === "string" && dataUrl) break;
+                }
+                if (typeof w?.generateImage === "function") {
+                  notifyToast("\u6B63\u5728\u8BF7\u6C42\u9152\u9986\u539F\u751F\u753B\u56FE\u63A5\u53E3...", "info");
+                  const res = await w.generateImage(prompt, negative);
+                  dataUrl = res && (res.url || res.dataUrl || res);
+                  if (typeof dataUrl === "string" && dataUrl) break;
+                }
+              } catch (_) {
+              }
+            }
+          }
+          if (!dataUrl) {
+            try {
+              navigator.clipboard.writeText(prompt);
+              notifyToast("\u672A\u68C0\u6D4B\u5230\u53EF\u7528\u751F\u56FE\u63A5\u53E3\uFF0C\u63D0\u793A\u8BCD\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F", "warning");
+            } catch (_) {
             }
             genDialog.visible = false;
-            await loadData();
             return;
           }
-          navigator.clipboard.writeText(genDialog.prompt.trim());
-          notifyToast("\u751F\u56FE\u63D0\u793A\u8BCD\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F", "info");
+          if (genDialog.type === "mood") {
+            await saveCharacterMood(
+              genDialog.charName,
+              genDialog.moodName,
+              dataUrl,
+              genDialog.outfitName,
+              scopeMode.value
+            );
+            notifyToast(`\u7ACB\u7ED8\u5DEE\u5206\u300C${genDialog.moodName}\u300D\u51FA\u56FE\u6210\u529F`, "success");
+          } else if (genDialog.type === "sprite" || genDialog.type === "character") {
+            await saveCharacter(genDialog.charName, dataUrl);
+            notifyToast(`\u89D2\u8272\u300C${genDialog.charName}\u300D\u7ACB\u7ED8\u4FDD\u5B58\u6210\u529F`, "success");
+          } else if (genDialog.type === "cg" && genDialog.cgItem) {
+            await saveCgDataUrl(genDialog.cgItem.key, dataUrl);
+            notifyToast(`\u5267\u60C5 CG \u4FDD\u5B58\u6210\u529F`, "success");
+          } else if (genDialog.type === "item" && genDialog.itemObj) {
+            await saveItem(genDialog.itemObj.name, dataUrl, genDialog.itemObj.desc);
+            notifyToast(`\u9053\u5177\u300C${genDialog.itemObj.name}\u300D\u51FA\u56FE\u6210\u529F`, "success");
+          } else if (genDialog.type === "scene" && genDialog.sceneObj) {
+            await saveScene(genDialog.sceneObj.name, dataUrl);
+            notifyToast(`\u573A\u666F\u300C${genDialog.sceneObj.name}\u300D\u51FA\u56FE\u6210\u529F`, "success");
+          }
+          try {
+            const detail = {
+              category: genDialog.type,
+              character: genDialog.charName,
+              url: dataUrl,
+              updatedAt: Date.now()
+            };
+            const ev = new CustomEvent("st-baibai-image:generated", { detail });
+            window.dispatchEvent(ev);
+            try {
+              window.parent?.dispatchEvent(ev);
+            } catch (_) {
+            }
+            try {
+              window.top?.dispatchEvent(ev);
+            } catch (_) {
+            }
+          } catch (_) {
+          }
           genDialog.visible = false;
+          await loadData();
         } catch (err) {
           console.error("[IGS-Patch] \u751F\u56FE\u5F02\u5E38:", err);
-          notifyToast("\u63D0\u4EA4\u751F\u56FE\u5F02\u5E38", "error");
+          notifyToast(`\u751F\u56FE\u6267\u884C\u5F02\u5E38: ${err.message || err}`, "error");
         } finally {
           genDialog.isGenerating = false;
         }
@@ -26754,6 +26914,10 @@ textarea.igs-form-textarea {
               <span>%</span>
             </div>
 
+            <button class="igs-diff-act-btn" style="width: 24px; height: 24px; font-size: 11px;" title="\u751F\u6210\u57FA\u7840\u7ACB\u7ED8" @click="openGenPromptDialog('sprite', activeCharacter, getCurrentOutfit(activeCharacter), activeCharacter)">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </button>
+
             <button class="igs-diff-act-btn" style="width: 24px; height: 24px; font-size: 11px;" title="\u5220\u9664\u89D2\u8272" @click="handleDeleteCharacter(activeCharacter)">
               <i class="fa-solid fa-trash-can"></i>
             </button>
@@ -26838,6 +27002,9 @@ textarea.igs-form-textarea {
                   </div>
 
                   <div class="igs-resource-card-overlay-actions" @click.stop>
+                    <button class="igs-icon-tag-btn" title="\u751F\u56FE" @click="openGenPromptDialog('scene', null, null, s)">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
                     <button class="igs-icon-tag-btn" title="\u65B0\u589E\u65F6\u6BB5\u5DEE\u5206" @click="openAddDialog('sceneTime', s)">
                       <i class="fa-solid fa-plus"></i>
                     </button>
@@ -26989,6 +27156,9 @@ textarea.igs-form-textarea {
                   </div>
 
                   <div class="igs-resource-card-overlay-actions" @click.stop>
+                    <button class="igs-icon-tag-btn" title="\u751F\u56FE" @click="openGenPromptDialog('item', null, null, it)">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
                     <button class="igs-icon-tag-btn" title="\u4E0A\u4F20\u56FE\u6807" @click="triggerItemUpload(it)">
                       <i class="fa-solid fa-upload"></i>
                     </button>
@@ -27058,7 +27228,6 @@ textarea.igs-form-textarea {
           </section>
         </main>
       </div>
-    </div>
 
       <!-- \u9690\u85CF\u7684\u901A\u7528\u56FE\u7247\u9009\u62E9\u5668 -->
       <input 
@@ -27208,7 +27377,8 @@ textarea.igs-form-textarea {
           </div>
         </div>
       </div>
-    </div>
+      </div> <!-- end .igs-resources-window -->
+    </div> <!-- end .igs-resources-overlay -->
     `
   };
 
@@ -27380,6 +27550,7 @@ textarea.igs-form-textarea {
       openResources: openResourcesModal,
       closeResources: closeResourcesModal,
       fullReset: fullResetGalSystem,
+      repairDatabases: repairAllIgsDatabases,
       convertMessageToGal,
       processLatestAssistantMessage
     };

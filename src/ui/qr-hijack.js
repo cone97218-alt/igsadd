@@ -11,7 +11,7 @@
  */
 
 import { patchState } from '../state/state.js';
-import { getCurrentVisibleFloorInfo, checkFloorScriptExists, convertMessageToGal } from '../director/pipeline.js';
+import { getCurrentVisibleFloorInfo, checkFloorScriptExists, convertMessageToGal, isFloorConverting } from '../director/pipeline.js';
 import { notifyToast } from './toast.js';
 
 const QR_BUTTON_NAME = 'Gal模拟';
@@ -138,6 +138,15 @@ async function handleProjectorButtonClick(e) {
 
     const mid = target.floor;
     const sid = target.swipeId;
+
+    // 0. 防重复与并发检测：若当前楼层分支已经在制作中，阻断并轻提示
+    if (isFloorConverting(mid, sid)) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        notifyToast(`第 ${mid} 楼正在制作中，请勿重复点击`, 'info', 1800);
+        return;
+    }
+
     const isProduced = await checkFloorScriptExists(mid, sid);
     const mode = patchState.productionMode; // 'auto' | 'manual'
 
