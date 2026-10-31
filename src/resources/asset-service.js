@@ -292,26 +292,114 @@ export function updateScopedSceneAssets(updater, scopeMode = 'all', customScopeK
 }
 
 /* ========================================================================= */
-/*                          IndexedDB 辅助操作封装                            */
+/*                          IndexedDB 辅助操作与自愈机制                       */
 /* ========================================================================= */
 
-function openDb(name, version = undefined, onUpgrade = null) {
-    return new Promise((resolve, reject) => {
-        let req;
+const DB_SCHEMAS = {
+    [DB_GENERATED_ASSETS]: {
+        version: 1,
+        stores: ['images', 'floors', 'assets'],
+        upgrade: (db) => {
+            if (!db.objectStoreNames.contains('images')) db.createObjectStore('images', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('floors')) db.createObjectStore('floors', { keyPath: 'key' });
+            if (!db.objectStoreNames.contains('assets')) {
+                const store = db.createObjectStore('assets', { keyPath: 'key' });
+                try { store.createIndex('chatId', 'chatId', { unique: false }); } catch (_) {}
+                try { store.createIndex('floorKey', 'floorKey', { unique: false }); } catch (_) {}
+            }
+        }
+    },
+    [DB_ILLUSTRATIONS]: {
+        version: 1,
+        stores: ['floors', 'slots'],
+        upgrade: (db) => {
+            if (!db.objectStoreNames.contains('floors')) db.createObjectStore('floors', { keyPath: 'key' });
+            if (!db.objectStoreNames.contains('slots')) {
+                const store = db.createObjectStore('slots', { keyPath: 'key' });
+                try { store.createIndex('floorKey', 'floorKey', { unique: false }); } catch (_) {}
+            }
+        }
+    },
+    [DB_CG_GALLERY]: {
+        version: 1,
+        stores: ['marks'],
+        upgrade: (db) => {
+            if (!db.objectStoreNames.contains('marks')) db.createObjectStore('marks', { keyPath: 'key' });
+        }
+    }
+};
+
+function deleteDb(name) {
+    return new Promise((resolve) => {
         try {
+            const req = window.indexedDB.deleteDatabase(name);
+            req.onsuccess = () => resolve(true);
+            req.onerror = () => resolve(false);
+            req.onblocked = () => {
+                console.warn(`[IGS-Patch] IndexedDB ${name} 重置被占用`);
+                resolve(false);
+            };
+        } catch (_) {
+            resolve(false);
+        }
+    });
+}
+
+function openDb(name, version = undefined, onUpgrade = null) {
+    const schema = DB_SCHEMAS[name];
+    const targetVersion = typeof version === 'number' ? version : (schema ? schema.version : undefined);
+    const upgradeFn = onUpgrade || (schema ? schema.upgrade : null);
+
+    const openAttempt = (ver) => {
+        return new Promise((resolve, reject) => {
             if (!window.indexedDB) {
                 return reject(new Error('IndexedDB not supported'));
             }
-            req = typeof version === 'number' ? window.indexedDB.open(name, version) : window.indexedDB.open(name);
-        } catch (err) {
-            return reject(err);
+            let req;
+            try {
+                req = typeof ver === 'number' ? window.indexedDB.open(name, ver) : window.indexedDB.open(name);
+            } catch (err) {
+                return reject(err);
+            }
+            req.onupgradeneeded = (e) => {
+                if (typeof upgradeFn === 'function') upgradeFn(req.result, e);
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error || new Error(`无法打开数据库: ${name}`));
+            req.onblocked = () => {
+                console.warn(`[IGS-Patch] IndexedDB ${name} 打开被阻塞`);
+            };
+        });
+    };
+
+    return openAttempt(targetVersion).then(async (db) => {
+        // 自愈检测：如果属于已知数据库且缺少必需的 objectStore，说明曾被错误创建为空库，自动自愈重置
+        if (schema && schema.stores) {
+            const missing = schema.stores.filter(s => !db.objectStoreNames.contains(s));
+            if (missing.length > 0) {
+                console.warn(`[IGS-Patch] 数据库 ${name} 缺少必要的数据表 [${missing.join(', ')}]，正在自动自愈修复...`);
+                db.close();
+                await deleteDb(name);
+                return openAttempt(schema.version);
+            }
         }
-        req.onupgradeneeded = (e) => {
-            if (typeof onUpgrade === 'function') onUpgrade(req.result, e);
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error || new Error(`无法打开数据库: ${name}`));
+        return db;
     });
+}
+
+/**
+ * 在补丁加载时自检并修复所有 IGS 必需数据库的 schema 完整性
+ */
+export async function ensureIgsDatabasesHealthy() {
+    if (typeof window === 'undefined' || !window.indexedDB) return;
+    for (const [dbName, schema] of Object.entries(DB_SCHEMAS)) {
+        try {
+            const db = await openDb(dbName);
+            db.close();
+        } catch (err) {
+            console.warn(`[IGS-Patch] 数据库自检失败: ${dbName}`, err);
+        }
+    }
 }
 
 /**

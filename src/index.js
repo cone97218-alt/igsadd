@@ -23,12 +23,16 @@ import { fullResetGalSystem } from './tauri/reset.js';
 import { notifyToast } from './ui/toast.js';
 import { setupBaibaiEnhancer } from './image-gen/baibai-enhancer.js';
 import { setupBaiBaiBookBridge } from './baibai/book-bridge.js';
+import { ensureIgsDatabasesHealthy } from './resources/asset-service.js';
 
 (async function initIgsTauriPatch() {
     console.info('[IGS-Patch] 正在初始化 TauriTavern 增强补丁 v2.0 (Vue 3 架构)...');
 
     // 1. 初始化持久化配置
     await initConfig();
+
+    // 1.5 检查并自愈修复 IndexedDB 数据表结构（防止原生 IGS 生图时报 store not found）
+    ensureIgsDatabasesHealthy().catch(err => console.warn('[IGS-Patch] 数据库自检异常:', err));
 
     // 2. 检查与连接 TauriTavern Rust API
     const handle = await getTauriHandle();

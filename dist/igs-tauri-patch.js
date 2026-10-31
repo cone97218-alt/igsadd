@@ -25093,23 +25093,111 @@ textarea.igs-form-textarea {
     }
     return saveRawBridgeConfig(bridge);
   }
-  function openDb(name, version2 = void 0, onUpgrade = null) {
-    return new Promise((resolve2, reject) => {
-      let req;
+  var DB_SCHEMAS = {
+    [DB_GENERATED_ASSETS]: {
+      version: 1,
+      stores: ["images", "floors", "assets"],
+      upgrade: (db) => {
+        if (!db.objectStoreNames.contains("images")) db.createObjectStore("images", { keyPath: "id" });
+        if (!db.objectStoreNames.contains("floors")) db.createObjectStore("floors", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("assets")) {
+          const store = db.createObjectStore("assets", { keyPath: "key" });
+          try {
+            store.createIndex("chatId", "chatId", { unique: false });
+          } catch (_) {
+          }
+          try {
+            store.createIndex("floorKey", "floorKey", { unique: false });
+          } catch (_) {
+          }
+        }
+      }
+    },
+    [DB_ILLUSTRATIONS]: {
+      version: 1,
+      stores: ["floors", "slots"],
+      upgrade: (db) => {
+        if (!db.objectStoreNames.contains("floors")) db.createObjectStore("floors", { keyPath: "key" });
+        if (!db.objectStoreNames.contains("slots")) {
+          const store = db.createObjectStore("slots", { keyPath: "key" });
+          try {
+            store.createIndex("floorKey", "floorKey", { unique: false });
+          } catch (_) {
+          }
+        }
+      }
+    },
+    [DB_CG_GALLERY]: {
+      version: 1,
+      stores: ["marks"],
+      upgrade: (db) => {
+        if (!db.objectStoreNames.contains("marks")) db.createObjectStore("marks", { keyPath: "key" });
+      }
+    }
+  };
+  function deleteDb(name) {
+    return new Promise((resolve2) => {
       try {
+        const req = window.indexedDB.deleteDatabase(name);
+        req.onsuccess = () => resolve2(true);
+        req.onerror = () => resolve2(false);
+        req.onblocked = () => {
+          console.warn(`[IGS-Patch] IndexedDB ${name} \u91CD\u7F6E\u88AB\u5360\u7528`);
+          resolve2(false);
+        };
+      } catch (_) {
+        resolve2(false);
+      }
+    });
+  }
+  function openDb(name, version2 = void 0, onUpgrade = null) {
+    const schema = DB_SCHEMAS[name];
+    const targetVersion = typeof version2 === "number" ? version2 : schema ? schema.version : void 0;
+    const upgradeFn = onUpgrade || (schema ? schema.upgrade : null);
+    const openAttempt = (ver) => {
+      return new Promise((resolve2, reject) => {
         if (!window.indexedDB) {
           return reject(new Error("IndexedDB not supported"));
         }
-        req = typeof version2 === "number" ? window.indexedDB.open(name, version2) : window.indexedDB.open(name);
-      } catch (err) {
-        return reject(err);
+        let req;
+        try {
+          req = typeof ver === "number" ? window.indexedDB.open(name, ver) : window.indexedDB.open(name);
+        } catch (err) {
+          return reject(err);
+        }
+        req.onupgradeneeded = (e) => {
+          if (typeof upgradeFn === "function") upgradeFn(req.result, e);
+        };
+        req.onsuccess = () => resolve2(req.result);
+        req.onerror = () => reject(req.error || new Error(`\u65E0\u6CD5\u6253\u5F00\u6570\u636E\u5E93: ${name}`));
+        req.onblocked = () => {
+          console.warn(`[IGS-Patch] IndexedDB ${name} \u6253\u5F00\u88AB\u963B\u585E`);
+        };
+      });
+    };
+    return openAttempt(targetVersion).then(async (db) => {
+      if (schema && schema.stores) {
+        const missing = schema.stores.filter((s) => !db.objectStoreNames.contains(s));
+        if (missing.length > 0) {
+          console.warn(`[IGS-Patch] \u6570\u636E\u5E93 ${name} \u7F3A\u5C11\u5FC5\u8981\u7684\u6570\u636E\u8868 [${missing.join(", ")}]\uFF0C\u6B63\u5728\u81EA\u52A8\u81EA\u6108\u4FEE\u590D...`);
+          db.close();
+          await deleteDb(name);
+          return openAttempt(schema.version);
+        }
       }
-      req.onupgradeneeded = (e) => {
-        if (typeof onUpgrade === "function") onUpgrade(req.result, e);
-      };
-      req.onsuccess = () => resolve2(req.result);
-      req.onerror = () => reject(req.error || new Error(`\u65E0\u6CD5\u6253\u5F00\u6570\u636E\u5E93: ${name}`));
+      return db;
     });
+  }
+  async function ensureIgsDatabasesHealthy() {
+    if (typeof window === "undefined" || !window.indexedDB) return;
+    for (const [dbName, schema] of Object.entries(DB_SCHEMAS)) {
+      try {
+        const db = await openDb(dbName);
+        db.close();
+      } catch (err) {
+        console.warn(`[IGS-Patch] \u6570\u636E\u5E93\u81EA\u68C0\u5931\u8D25: ${dbName}`, err);
+      }
+    }
   }
   var resolvedImageCache = /* @__PURE__ */ new Map();
   async function resolveImageUrl(url) {
@@ -27268,6 +27356,7 @@ textarea.igs-form-textarea {
   (async function initIgsTauriPatch() {
     console.info("[IGS-Patch] \u6B63\u5728\u521D\u59CB\u5316 TauriTavern \u589E\u5F3A\u8865\u4E01 v2.0 (Vue 3 \u67B6\u6784)...");
     await initConfig();
+    ensureIgsDatabasesHealthy().catch((err) => console.warn("[IGS-Patch] \u6570\u636E\u5E93\u81EA\u68C0\u5F02\u5E38:", err));
     const handle = await getTauriHandle();
     if (handle) {
       console.info("[IGS-Patch] \u5DF2\u6210\u529F\u8FDE\u63A5 TauriTavern Rust \u540E\u7AEF API\u3002");
