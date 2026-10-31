@@ -195,6 +195,7 @@ export function attachScriptToMessage(messageId, script, swipeId = 0) {
     const sid = Number(swipeId) || 0;
     const memKey = getScriptMemKey(mid, sid);
     scriptMemoryStore.set(memKey, script);
+    scriptMemoryStore.set(`${mid}_${sid}`, script);
 
     for (const w of getCandidateWindows()) {
         try {
@@ -396,8 +397,11 @@ export function handleMessageSwiped(messageId) {
             if (Array.isArray(chat) && chat[mid]) {
                 const msg = chat[mid];
                 const sid = Number(msg.swipe_id) || 0;
-                const memKey = `${mid}_${sid}`;
-                const script = scriptMemoryStore.get(memKey) || msg.extra?.igs_patch_scripts?.[sid];
+                const scopedKey = getScriptMemKey(mid, sid);
+                const legacyKey = `${mid}_${sid}`;
+                const script = scriptMemoryStore.get(scopedKey)
+                    || scriptMemoryStore.get(legacyKey)
+                    || msg.extra?.igs_patch_scripts?.[sid];
 
                 if (script) {
                     msg.text = script;

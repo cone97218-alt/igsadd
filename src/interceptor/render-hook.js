@@ -140,9 +140,12 @@ function hookTavernHelperInWindow(win) {
                 return messages.map((msg, i) => {
                     const realId = findRealFloorIndex(msg, i, win);
                     const swipeId = Number(msg.swipe_id) || 0;
-                    const memKey = `${realId}_${swipeId}`;
+                    const scopedKey = getScriptMemKey(realId, swipeId);
+                    const legacyKey = `${realId}_${swipeId}`;
 
-                    const rawScript = scriptMemoryStore.get(memKey) || msg.extra?.igs_patch_scripts?.[swipeId];
+                    const rawScript = scriptMemoryStore.get(scopedKey)
+                        || scriptMemoryStore.get(legacyKey)
+                        || msg.extra?.igs_patch_scripts?.[swipeId];
                     if (rawScript) {
                         const script = normalizeGalScript(rawScript);
                         return {
@@ -201,10 +204,35 @@ function hookIgsInstance(igs, ownerWin) {
         const originalOpen = igs.openViewerFromMessage.bind(igs);
         igs.openViewerFromMessage = async function (messageId, mode, openOptions = {}) {
             const mid = Number(messageId);
-            const chat = ownerWin.SillyTavern?.getContext?.()?.chat;
+            const chat = ownerWin.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
             const sid = Number(chat?.[mid]?.swipe_id) || 0;
-            await preloadScriptToMemory(mid, sid);
-            return originalOpen(messageId, mode, openOptions);
+            const script = await preloadScriptToMemory(mid, sid);
+
+            let resolvedMode = mode;
+            let resolvedOptions = openOptions;
+            if (mode && typeof mode === 'object' && !Array.isArray(mode)) {
+                resolvedMode = mode.mode;
+                resolvedOptions = mode;
+            } else if (!resolvedOptions || typeof resolvedOptions !== 'object') {
+                resolvedOptions = {};
+            }
+
+            if (script && !resolvedOptions.message) {
+                const baseMsg = chat?.[mid] || {};
+                resolvedOptions.message = {
+                    ...baseMsg,
+                    id: mid,
+                    text: script,
+                    visibleText: script,
+                    displayText: script,
+                    plainText: script,
+                    formattedText: script,
+                    rawHtml: script,
+                    mes: script,
+                    element: null, // 强制清空 element，阻止 dom-visible-override 覆盖
+                };
+            }
+            return originalOpen(messageId, resolvedMode, resolvedOptions);
         };
     }
 
@@ -212,17 +240,47 @@ function hookIgsInstance(igs, ownerWin) {
     if (typeof igs.openLatestAvailable === 'function') {
         const originalOpenLatest = igs.openLatestAvailable.bind(igs);
         igs.openLatestAvailable = async function (mode, options = {}) {
-            const chat = ownerWin.SillyTavern?.getContext?.()?.chat;
+            const chat = ownerWin.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
+            let targetMid = null;
+            let targetSid = 0;
             if (Array.isArray(chat) && chat.length > 0) {
                 for (let i = chat.length - 1; i >= 0; i--) {
                     if (chat[i] && !chat[i].is_user) {
-                        const sid = Number(chat[i].swipe_id) || 0;
-                        await preloadScriptToMemory(i, sid);
+                        targetMid = i;
+                        targetSid = Number(chat[i].swipe_id) || 0;
                         break;
                     }
                 }
             }
-            return originalOpenLatest(mode, options);
+
+            let resolvedMode = mode;
+            let resolvedOptions = options;
+            if (mode && typeof mode === 'object' && !Array.isArray(mode)) {
+                resolvedMode = mode.mode;
+                resolvedOptions = mode;
+            } else if (!resolvedOptions || typeof resolvedOptions !== 'object') {
+                resolvedOptions = {};
+            }
+
+            if (targetMid != null) {
+                const script = await preloadScriptToMemory(targetMid, targetSid);
+                if (script && !resolvedOptions.message) {
+                    const baseMsg = chat[targetMid] || {};
+                    resolvedOptions.message = {
+                        ...baseMsg,
+                        id: targetMid,
+                        text: script,
+                        visibleText: script,
+                        displayText: script,
+                        plainText: script,
+                        formattedText: script,
+                        rawHtml: script,
+                        mes: script,
+                        element: null, // 强制清空 element，阻止 dom-visible-override 覆盖
+                    };
+                }
+            }
+            return originalOpenLatest(resolvedMode, resolvedOptions);
         };
     }
 }

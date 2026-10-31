@@ -74,7 +74,8 @@
   async function getStoredJson(key) {
     const handle = await getTauriHandle();
     if (!handle?.store?.getJson) {
-      const raw = localStorage.getItem(`tauri_fallback:${NAMESPACE}:${key}`);
+      const storage = typeof window !== "undefined" ? window.localStorage : null;
+      const raw = storage?.getItem(`tauri_fallback:${NAMESPACE}:${key}`);
       return raw ? JSON.parse(raw) : null;
     }
     return handle.store.getJson({ namespace: NAMESPACE, key });
@@ -82,7 +83,8 @@
   async function setStoredJson(key, value) {
     const handle = await getTauriHandle();
     if (!handle?.store?.setJson) {
-      localStorage.setItem(`tauri_fallback:${NAMESPACE}:${key}`, JSON.stringify(value));
+      const storage = typeof window !== "undefined" ? window.localStorage : null;
+      storage?.setItem(`tauri_fallback:${NAMESPACE}:${key}`, JSON.stringify(value));
       return;
     }
     return handle.store.setJson({ namespace: NAMESPACE, key, value });
@@ -90,14 +92,17 @@
   async function listStoredKeys() {
     const handle = await getTauriHandle();
     if (!handle?.store?.listKeys) {
-      return Object.keys(localStorage).filter((k) => k.startsWith(`tauri_fallback:${NAMESPACE}:`)).map((k) => k.replace(`tauri_fallback:${NAMESPACE}:`, ""));
+      const storage = typeof window !== "undefined" ? window.localStorage : null;
+      if (!storage) return [];
+      return Object.keys(storage).filter((k) => k.startsWith(`tauri_fallback:${NAMESPACE}:`)).map((k) => k.replace(`tauri_fallback:${NAMESPACE}:`, ""));
     }
     return handle.store.listKeys({ namespace: NAMESPACE });
   }
   async function deleteStoredJson(key) {
     const handle = await getTauriHandle();
     if (!handle?.store?.deleteJson) {
-      localStorage.removeItem(`tauri_fallback:${NAMESPACE}:${key}`);
+      const storage = typeof window !== "undefined" ? window.localStorage : null;
+      storage?.removeItem(`tauri_fallback:${NAMESPACE}:${key}`);
       return;
     }
     return handle.store.deleteJson({ namespace: NAMESPACE, key });
@@ -975,6 +980,7 @@
     const sid = Number(swipeId) || 0;
     const memKey = getScriptMemKey(mid, sid);
     scriptMemoryStore.set(memKey, script);
+    scriptMemoryStore.set(`${mid}_${sid}`, script);
     for (const w of getCandidateWindows3()) {
       try {
         const chat = w.SillyTavern?.getContext?.()?.chat;
@@ -1118,8 +1124,9 @@
         if (Array.isArray(chat) && chat[mid]) {
           const msg = chat[mid];
           const sid = Number(msg.swipe_id) || 0;
-          const memKey = `${mid}_${sid}`;
-          const script = scriptMemoryStore.get(memKey) || msg.extra?.igs_patch_scripts?.[sid];
+          const scopedKey = getScriptMemKey(mid, sid);
+          const legacyKey = `${mid}_${sid}`;
+          const script = scriptMemoryStore.get(scopedKey) || scriptMemoryStore.get(legacyKey) || msg.extra?.igs_patch_scripts?.[sid];
           if (script) {
             msg.text = script;
             msg.visibleText = script;
@@ -1581,8 +1588,9 @@
           return messages.map((msg, i) => {
             const realId = findRealFloorIndex(msg, i, win);
             const swipeId = Number(msg.swipe_id) || 0;
-            const memKey = `${realId}_${swipeId}`;
-            const rawScript = scriptMemoryStore.get(memKey) || msg.extra?.igs_patch_scripts?.[swipeId];
+            const scopedKey = getScriptMemKey(realId, swipeId);
+            const legacyKey = `${realId}_${swipeId}`;
+            const rawScript = scriptMemoryStore.get(scopedKey) || scriptMemoryStore.get(legacyKey) || msg.extra?.igs_patch_scripts?.[swipeId];
             if (rawScript) {
               const script = normalizeGalScript(rawScript);
               return {
@@ -1637,26 +1645,79 @@
       const originalOpen = igs.openViewerFromMessage.bind(igs);
       igs.openViewerFromMessage = async function(messageId, mode, openOptions = {}) {
         const mid = Number(messageId);
-        const chat = ownerWin.SillyTavern?.getContext?.()?.chat;
+        const chat = ownerWin.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
         const sid = Number(chat?.[mid]?.swipe_id) || 0;
-        await preloadScriptToMemory(mid, sid);
-        return originalOpen(messageId, mode, openOptions);
+        const script = await preloadScriptToMemory(mid, sid);
+        let resolvedMode = mode;
+        let resolvedOptions = openOptions;
+        if (mode && typeof mode === "object" && !Array.isArray(mode)) {
+          resolvedMode = mode.mode;
+          resolvedOptions = mode;
+        } else if (!resolvedOptions || typeof resolvedOptions !== "object") {
+          resolvedOptions = {};
+        }
+        if (script && !resolvedOptions.message) {
+          const baseMsg = chat?.[mid] || {};
+          resolvedOptions.message = {
+            ...baseMsg,
+            id: mid,
+            text: script,
+            visibleText: script,
+            displayText: script,
+            plainText: script,
+            formattedText: script,
+            rawHtml: script,
+            mes: script,
+            element: null
+            // 强制清空 element，阻止 dom-visible-override 覆盖
+          };
+        }
+        return originalOpen(messageId, resolvedMode, resolvedOptions);
       };
     }
     if (typeof igs.openLatestAvailable === "function") {
       const originalOpenLatest = igs.openLatestAvailable.bind(igs);
       igs.openLatestAvailable = async function(mode, options = {}) {
-        const chat = ownerWin.SillyTavern?.getContext?.()?.chat;
+        const chat = ownerWin.SillyTavern?.getContext?.()?.chat || window.SillyTavern?.getContext?.()?.chat;
+        let targetMid = null;
+        let targetSid = 0;
         if (Array.isArray(chat) && chat.length > 0) {
           for (let i = chat.length - 1; i >= 0; i--) {
             if (chat[i] && !chat[i].is_user) {
-              const sid = Number(chat[i].swipe_id) || 0;
-              await preloadScriptToMemory(i, sid);
+              targetMid = i;
+              targetSid = Number(chat[i].swipe_id) || 0;
               break;
             }
           }
         }
-        return originalOpenLatest(mode, options);
+        let resolvedMode = mode;
+        let resolvedOptions = options;
+        if (mode && typeof mode === "object" && !Array.isArray(mode)) {
+          resolvedMode = mode.mode;
+          resolvedOptions = mode;
+        } else if (!resolvedOptions || typeof resolvedOptions !== "object") {
+          resolvedOptions = {};
+        }
+        if (targetMid != null) {
+          const script = await preloadScriptToMemory(targetMid, targetSid);
+          if (script && !resolvedOptions.message) {
+            const baseMsg = chat[targetMid] || {};
+            resolvedOptions.message = {
+              ...baseMsg,
+              id: targetMid,
+              text: script,
+              visibleText: script,
+              displayText: script,
+              plainText: script,
+              formattedText: script,
+              rawHtml: script,
+              mes: script,
+              element: null
+              // 强制清空 element，阻止 dom-visible-override 覆盖
+            };
+          }
+        }
+        return originalOpenLatest(resolvedMode, resolvedOptions);
       };
     }
   }

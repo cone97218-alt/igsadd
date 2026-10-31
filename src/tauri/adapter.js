@@ -74,7 +74,8 @@ export async function getStoredJson(key) {
     const handle = await getTauriHandle();
     if (!handle?.store?.getJson) {
         // 降级到 localStorage
-        const raw = localStorage.getItem(`tauri_fallback:${NAMESPACE}:${key}`);
+        const storage = typeof window !== 'undefined' ? window.localStorage : null;
+        const raw = storage?.getItem(`tauri_fallback:${NAMESPACE}:${key}`);
         return raw ? JSON.parse(raw) : null;
     }
     return handle.store.getJson({ namespace: NAMESPACE, key });
@@ -88,7 +89,8 @@ export async function getStoredJson(key) {
 export async function setStoredJson(key, value) {
     const handle = await getTauriHandle();
     if (!handle?.store?.setJson) {
-        localStorage.setItem(`tauri_fallback:${NAMESPACE}:${key}`, JSON.stringify(value));
+        const storage = typeof window !== 'undefined' ? window.localStorage : null;
+        storage?.setItem(`tauri_fallback:${NAMESPACE}:${key}`, JSON.stringify(value));
         return;
     }
     return handle.store.setJson({ namespace: NAMESPACE, key, value });
@@ -100,7 +102,9 @@ export async function setStoredJson(key, value) {
 export async function listStoredKeys() {
     const handle = await getTauriHandle();
     if (!handle?.store?.listKeys) {
-        return Object.keys(localStorage)
+        const storage = typeof window !== 'undefined' ? window.localStorage : null;
+        if (!storage) return [];
+        return Object.keys(storage)
             .filter((k) => k.startsWith(`tauri_fallback:${NAMESPACE}:`))
             .map((k) => k.replace(`tauri_fallback:${NAMESPACE}:`, ''));
     }
@@ -114,7 +118,8 @@ export async function listStoredKeys() {
 export async function deleteStoredJson(key) {
     const handle = await getTauriHandle();
     if (!handle?.store?.deleteJson) {
-        localStorage.removeItem(`tauri_fallback:${NAMESPACE}:${key}`);
+        const storage = typeof window !== 'undefined' ? window.localStorage : null;
+        storage?.removeItem(`tauri_fallback:${NAMESPACE}:${key}`);
         return;
     }
     return handle.store.deleteJson({ namespace: NAMESPACE, key });
