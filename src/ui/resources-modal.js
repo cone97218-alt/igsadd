@@ -76,12 +76,19 @@ export function ensureResourcesMounted(targetDoc = null) {
     }
     containerEl = container;
 
-    if (!appInstance) {
+    if (!appInstance || !containerEl.hasChildNodes()) {
         try {
-            appInstance = createApp(ResourcesModalRoot);
-            appInstance.mount(containerEl);
+            if (appInstance) {
+                try { appInstance.unmount(); } catch (_) { }
+                appInstance = null;
+            }
+            containerEl.innerHTML = '';
+            const app = createApp(ResourcesModalRoot);
+            app.mount(containerEl);
+            appInstance = app;
             console.info('[IGS-Patch] 放映资源控制台 Vue 3 挂载成功。');
         } catch (err) {
+            appInstance = null;
             console.error('[IGS-Patch] 挂载 Vue 3 放映资源面板失败:', err);
         }
     } else if (containerEl && !doc.body.contains(containerEl)) {
@@ -1369,8 +1376,9 @@ const ResourcesModalRoot = {
               <p>暂无待确认素材</p>
             </div>
           </section>
-        </div>
+        </main>
       </div>
+    </div>
 
       <!-- 隐藏的通用图片选择器 -->
       <input 

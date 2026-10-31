@@ -25689,12 +25689,22 @@ textarea.igs-form-textarea {
       (doc2.body || doc2.documentElement).appendChild(container);
     }
     containerEl2 = container;
-    if (!appInstance2) {
+    if (!appInstance2 || !containerEl2.hasChildNodes()) {
       try {
-        appInstance2 = createApp(ResourcesModalRoot);
-        appInstance2.mount(containerEl2);
+        if (appInstance2) {
+          try {
+            appInstance2.unmount();
+          } catch (_) {
+          }
+          appInstance2 = null;
+        }
+        containerEl2.innerHTML = "";
+        const app = createApp(ResourcesModalRoot);
+        app.mount(containerEl2);
+        appInstance2 = app;
         console.info("[IGS-Patch] \u653E\u6620\u8D44\u6E90\u63A7\u5236\u53F0 Vue 3 \u6302\u8F7D\u6210\u529F\u3002");
       } catch (err) {
+        appInstance2 = null;
         console.error("[IGS-Patch] \u6302\u8F7D Vue 3 \u653E\u6620\u8D44\u6E90\u9762\u677F\u5931\u8D25:", err);
       }
     } else if (containerEl2 && !doc2.body.contains(containerEl2)) {
@@ -26897,8 +26907,9 @@ textarea.igs-form-textarea {
               <p>\u6682\u65E0\u5F85\u786E\u8BA4\u7D20\u6750</p>
             </div>
           </section>
-        </div>
+        </main>
       </div>
+    </div>
 
       <!-- \u9690\u85CF\u7684\u901A\u7528\u56FE\u7247\u9009\u62E9\u5668 -->
       <input 
